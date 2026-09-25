@@ -56,6 +56,7 @@ timestamp updated_at
 USER_CONTACT {
 uuid id PK
 uuid user_id FK
+uuid contact_id FK
 string pseudonym
 timestamp created_at
 timestamp updated_at

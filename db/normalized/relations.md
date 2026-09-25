@@ -38,7 +38,7 @@
 ## Таблица `USER_CONTACT`
 Связывает пользователя с контактом (типо друзья), можно добавить локальный псевдоним контакту
 **Функциональные зависимости:**  
-`{id} -> {user_id, pseudonym, created_at, updated_at}`  
+`{id} -> {user_id, contact_id, pseudonym, created_at, updated_at}`  
 Таблица соответствует:
 - **1 нормальной форме**, т.к. каждый кортеж содержит ровно одно значение каждого атрибута;
 - **2 нормальной форме**, т.к. первичный ключ `id` не составной, частичных зависимостей нет;
@@ -176,6 +176,7 @@ timestamp updated_at
 USER_CONTACT {
 uuid id PK
 uuid user_id FK
+uuid contact_id FK
 string pseudonym
 timestamp created_at
 timestamp updated_at

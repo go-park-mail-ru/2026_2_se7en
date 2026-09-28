@@ -48,9 +48,7 @@ alter table attachment
 
 alter table message_edit
     add constraint fk_message_edit_message
-        foreign key (message_id) references message (id) on delete cascade,
-    add constraint fk_message_edit_user
-        foreign key (user_id) references user (id) on delete cascade;
+        foreign key (message_id) references message (id) on delete cascade;
 
 alter table message_reaction
     add constraint fk_message_reaction_message
@@ -217,7 +215,6 @@ alter table message_reaction
     drop constraint if exists fk_message_reaction_user,
     drop constraint if exists fk_message_reaction_message;
 alter table message_edit
-    drop constraint if exists fk_message_edit_user,
     drop constraint if exists fk_message_edit_message;
 alter table attachment
     drop constraint if exists fk_attachment_message,

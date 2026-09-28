@@ -3,20 +3,20 @@ erDiagram
 FILE ||--o| PROFILE : ""
 FILE ||--|| STICKER : ""
 FILE ||--|| ATTACHMENT : ""
-USER ||--|| PROFILE : ""
-USER ||--o{ SESSION : ""
-USER ||--o{ USER_CONTACT : ""
-USER ||--o{ USER_IN_CHAT : ""
+APP_USER ||--|| PROFILE : ""
+APP_USER ||--o{ SESSION : ""
+APP_USER ||--o{ USER_CONTACT : ""
+APP_USER ||--o{ USER_IN_CHAT : ""
 CHAT ||--|{ USER_IN_CHAT : ""
 CHAT_ROLE ||--|| USER_IN_CHAT : ""
 CHAT ||--o{ MESSAGE : ""
-USER ||--o{ MESSAGE : ""
+APP_USER ||--o{ MESSAGE : ""
 MESSAGE o|--o{ MESSAGE : ""
 MESSAGE ||--|| STICKER : ""
 MESSAGE ||--o{ ATTACHMENT : ""
 MESSAGE ||--o{ MESSAGE_EDIT : ""
 MESSAGE ||--o{ MESSAGE_REACTION : ""
-USER ||--o| MESSAGE_REACTION : ""
+APP_USER ||--o| MESSAGE_REACTION : ""
 CHAT ||--o| FILE : ""
 
 FILE {
@@ -45,7 +45,7 @@ timestampz expires_at
 timestampz created_at
 timestampz updated_at
 }
-USER {
+APP_USER {
 uuid id PK
 text password_hash
 text email

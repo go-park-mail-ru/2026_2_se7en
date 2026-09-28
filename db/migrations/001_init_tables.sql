@@ -1,4 +1,4 @@
-create table if not exists user (
+create table if not exists app_user (
     id uuid primary key default gen_random_uuid(),
     email text not null,
     password_hash text not null,
@@ -137,4 +137,4 @@ drop table if exists session;
 drop table if exists profile;
 drop table if exists chat_role;
 drop table if exists file;
-drop table if exists user;
+drop table if exists app_user;

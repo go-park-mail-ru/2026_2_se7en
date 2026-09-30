@@ -1,0 +1,276 @@
+openapi: 3.0.3
+
+info:
+  title: API регистрации и авторизации
+  version: 1.0.0
+
+tags:
+  - name: Auth
+    description: Операции регистрации и авторизации
+
+security:
+  - SessionCookie: []
+
+paths:
+  /api/v1/auth/register:
+    post:
+      tags:
+        - Auth
+      operationId: register
+      summary: Регистрация
+      description: Регистрация пользователя
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Регистрация прошла успешно, cookie установлена.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              example: session_id=abc123; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Email или никнейм заняты.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: EMAIL_TAKEN
+                message: Email уже используется
+                details:
+                  - field: email
+                    reason: already_exists
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/auth/login:
+    post:
+      tags:
+        - Auth
+      operationId: login
+      summary: Вход
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Успешный вход, cookie установлены.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              example: session_id=abc123; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Неверный email или пароль.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: INVALID_CREDENTIALS
+                message: Неверный email или пароль
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/auth/logout:
+    post:
+      tags:
+        - Auth
+      operationId: logout
+      summary: Выход
+      responses:
+        '204':
+          description: Сессия успешно удалена, cookie очищены
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              example: session_id=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/auth/me:
+    get:
+      tags:
+        - Auth
+      operationId: getCurrentUser
+      summary: Текущий пользователь
+      responses:
+        '200':
+          description: Текущий пользователь получен успешно.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  securitySchemes:
+    SessionCookie:
+      type: apiKey
+      in: cookie
+      name: session_id
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          example: Некорректные данные
+        details:
+          type: array
+          nullable: true
+          description: Детали ошибки
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+                example: email
+              reason:
+                type: string
+                example: invalid_format
+
+    Profile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        nickname:
+          type: string
+        first_name:
+          type: string
+          nullable: true
+        last_name:
+          type: string
+          nullable: true
+        bio:
+          type: string
+          nullable: true
+        icon_url:
+          type: string
+          format: uri
+          nullable: true
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        phone_number:
+          type: string
+          nullable: true
+        profile:
+          $ref: '#/components/schemas/Profile'
+
+    RegisterRequest:
+      type: object
+      required: [email, password, nickname]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+        password:
+          type: string
+          minLength: 8
+          maxLength: 16
+        phone_number:
+          type: string
+          nullable: true
+          pattern: '^\+?[1-9]\d{1,14}$'
+        nickname:
+          type: string
+          minLength: 3
+          maxLength: 16
+          pattern: '^[a-zA-Z0-9_]+$'
+        first_name:
+          type: string
+          nullable: true
+          maxLength: 32
+        last_name:
+          type: string
+          nullable: true
+          maxLength: 32
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Ошибка валидации
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: VALIDATION_ERROR
+            message: Некорректные данные
+            details:
+              - field: email
+                reason: invalid_format
+
+    Unauthorized:
+      description: Сессия недействительна
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: UNAUTHORIZED
+            message: Сессия недействительна
+
+    InternalServerError:
+      description: Внутренняя ошибка сервера
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: INTERNAL_ERROR
+            message: Что-то пошло не так
+            

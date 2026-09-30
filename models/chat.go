@@ -9,7 +9,7 @@ import (
 type Chat struct {
 	ID           uuid.UUID
 	IconID       *uuid.UUID
-	Name         *string
+	Name         string
 	Description  *string
 	Type         string
 	MembersCount int

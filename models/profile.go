@@ -11,8 +11,8 @@ type Profile struct {
 	UserID    uuid.UUID
 	IconID    *uuid.UUID
 	Nickname  string
-	FirstName *string
-	LastName  *string
+	FirstName string
+	LastName  string
 	Bio       *string
 	CreatedAt time.Time
 	UpdatedAt time.Time

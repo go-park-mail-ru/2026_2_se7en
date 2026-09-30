@@ -13,6 +13,7 @@ type Chat struct {
 	Description  *string
 	Type         string
 	MembersCount int
+	LastMessage  *MessagePreview
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 	DeletedAt    *time.Time

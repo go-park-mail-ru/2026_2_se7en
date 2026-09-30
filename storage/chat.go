@@ -23,11 +23,12 @@ const sqlListUserChats = `
 	where u.user_id = $1
 		and u.deleted_at is null
 		and c.deleted_at is null
+		and ($4 = '' or c.type = $4)
 	order by c.updated_at desc, c.id, m.created_at desc nulls last, m.id desc
 	limit $2 offset $3
 `
 
-func (db *DB) ListUserChats(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*models.Chat, error) {
+func (db *DB) ListUserChats(ctx context.Context, userID uuid.UUID, limit, offset int, chatType string) ([]*models.Chat, error) {
 	if limit == 0 {
 		limit = defaultChatLimit
 	}
@@ -39,8 +40,11 @@ func (db *DB) ListUserChats(ctx context.Context, userID uuid.UUID, limit, offset
 	if offset < 0 {
 		return nil, errors.New("offset must be zero or greater")
 	}
+	if chatType != "" && chatType != "dialog" && chatType != "group" && chatType != "channel" {
+		return nil, errors.New("type must be dialog, group, or channel")
+	}
 
-	rows, err := db.conn.Query(ctx, sqlListUserChats, userID, limit, offset)
+	rows, err := db.conn.Query(ctx, sqlListUserChats, userID, limit, offset, chatType)
 	if err != nil {
 		return nil, err
 	}

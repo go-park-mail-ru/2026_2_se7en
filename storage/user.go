@@ -35,9 +35,11 @@ func (db *DB) CreateUser(ctx context.Context, email, passwordHash string, phone 
 	var user models.User
 	err := db.conn.QueryRow(ctx, sqlCreateUser, email, passwordHash, phone).
 		Scan(&user.ID, &user.Email, &user.PasswordHash, &user.PhoneNumber, &user.CreatedAt, &user.UpdatedAt, &user.DeletedAt)
+
 	if err != nil {
 		return nil, err
 	}
+
 	return &user, nil
 }
 
@@ -45,12 +47,15 @@ func (db *DB) FindUserByEmail(ctx context.Context, email string) (*models.User, 
 	var user models.User
 	err := db.conn.QueryRow(ctx, sqlFindUserByEmail, email).
 		Scan(&user.ID, &user.Email, &user.PasswordHash, &user.PhoneNumber, &user.CreatedAt, &user.UpdatedAt, &user.DeletedAt)
+
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
+
 	if err != nil {
 		return nil, err
 	}
+
 	return &user, nil
 }
 
@@ -58,11 +63,14 @@ func (db *DB) FindUserByID(ctx context.Context, id uuid.UUID) (*models.User, err
 	var user models.User
 	err := db.conn.QueryRow(ctx, sqlFindUserByID, id).
 		Scan(&user.ID, &user.Email, &user.PasswordHash, &user.PhoneNumber, &user.CreatedAt, &user.UpdatedAt, &user.DeletedAt)
+
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
+
 	if err != nil {
 		return nil, err
 	}
+
 	return &user, nil
 }

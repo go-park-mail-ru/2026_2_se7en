@@ -8,7 +8,7 @@ import (
 )
 
 const sqlListUserChats = `
-	select *
+	select c.*
 	from chat c
 	join user_in_chat u on c.id = u.chat_id
 	where u.user_id = $1
@@ -22,16 +22,24 @@ func (db *DB) ListUserChats(ctx context.Context, userID uuid.UUID) ([]*models.Ch
 	if err != nil {
 		return nil, err
 	}
+
 	defer rows.Close()
 
 	var chats []*models.Chat
 	for rows.Next() {
 		var chat models.Chat
+
 		if err := rows.Scan(&chat.ID, &chat.IconID, &chat.Name, &chat.Description, &chat.Type,
 			&chat.MembersCount, &chat.CreatedAt, &chat.UpdatedAt, &chat.DeletedAt); err != nil {
 			return nil, err
 		}
+
 		chats = append(chats, &chat)
 	}
-	return chats, rows.Err()
+
+	if rows.Err() != nil {
+		return nil, rows.Err()
+	}
+
+	return chats, nil
 }

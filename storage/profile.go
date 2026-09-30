@@ -27,9 +27,11 @@ func (db *DB) CreateProfile(ctx context.Context, iconIDd *uuid.UUID, userIDd uui
 	var profile models.Profile
 	err := db.conn.QueryRow(ctx, sqlCreateProfile, iconIDd, userIDd, nickname, firstName, lastName, bio).
 		Scan(&profile.ID, &profile.IconID, &profile.UserID, &profile.Nickname, &profile.FirstName, &profile.LastName, &profile.Bio, &profile.CreatedAt, &profile.UpdatedAt)
+
 	if err != nil {
 		return nil, err
 	}
+
 	return &profile, nil
 }
 
@@ -37,12 +39,15 @@ func (db *DB) FindProfileByUserID(ctx context.Context, userIDd uuid.UUID) (*mode
 	var profile models.Profile
 	err := db.conn.QueryRow(ctx, sqlFindProfileByUserID, userIDd).
 		Scan(&profile.ID, &profile.IconID, &profile.UserID, &profile.Nickname, &profile.FirstName, &profile.LastName, &profile.Bio, &profile.CreatedAt, &profile.UpdatedAt)
+
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
+
 	if err != nil {
 		return nil, err
 	}
+
 	return &profile, nil
 
 }

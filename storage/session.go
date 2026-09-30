@@ -10,14 +10,6 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// type Session struct {
-// 	ID        uuid.UUID
-// 	UserID    uuid.UUID
-// 	ExpiresAt time.Time
-// 	CreatedAt time.Time
-// 	UpdatedAt time.Time
-// }
-
 const (
 	sqlCreateSession = `
 		insert into session (user_id, expires_at)
@@ -42,31 +34,31 @@ func (db *DB) CreateSession(ctx context.Context, userID uuid.UUID, expiresAt tim
 	var session models.Session
 	err := db.conn.QueryRow(ctx, sqlCreateSession, userID, expiresAt).
 		Scan(&session.ID, &session.UserID, &session.ExpiresAt, &session.CreatedAt, &session.UpdatedAt)
+
 	if err != nil {
 		return nil, err
 	}
+
 	return &session, nil
 }
 
-func (db *DB) FindSessionByID(ctx context.Context, userIDd uuid.UUID) (*models.Session, error) {
+func (db *DB) FindSessionByID(ctx context.Context, sessionID uuid.UUID) (*models.Session, error) {
 	var session models.Session
-	err := db.conn.QueryRow(ctx, sqlFindSessionByID, userIDd).
+	err := db.conn.QueryRow(ctx, sqlFindSessionByID, sessionID).
 		Scan(&session.ID, &session.UserID, &session.ExpiresAt, &session.CreatedAt, &session.UpdatedAt)
+
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
+
 	if err != nil {
 		return nil, err
 	}
+
 	return &session, nil
 }
 
-func (db *DB) DeleteSession(ctx context.Context, userIDd uuid.UUID) error {
-	var session models.Session
-	err := db.conn.QueryRow(ctx, sqlDeleteSession, userIDd).
-		Scan(&session.ID, &session.UserID, &session.ExpiresAt, &session.CreatedAt, &session.UpdatedAt)
-	if err != nil {
-		return err
-	}
-	return nil
+func (db *DB) DeleteSession(ctx context.Context, sessionID uuid.UUID) error {
+	_, err := db.conn.Exec(ctx, sqlDeleteSession, sessionID)
+	return err
 }

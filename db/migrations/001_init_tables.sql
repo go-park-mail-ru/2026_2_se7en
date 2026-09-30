@@ -29,8 +29,8 @@ create table if not exists profile (
     user_id uuid not null,
     icon_id uuid,
     nickname text not null,
-    first_name text,
-    last_name text,
+    first_name text not null,
+    last_name text not null,
     bio text,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
@@ -56,7 +56,7 @@ create table if not exists user_contact (
 create table if not exists chat (
     id uuid primary key default gen_random_uuid(),
     icon_id uuid,
-    name text,
+    name text not null,
     description text,
     type text not null,
     members_count integer not null default 0,

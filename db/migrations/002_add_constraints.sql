@@ -103,9 +103,9 @@ alter table profile
     add constraint chk_profile_nickname_format
         check (nickname ~ '^[A-Za-z0-9_]{3,32}$'),
     add constraint chk_profile_first_name_length
-        check (first_name is null or char_length(first_name) <= 64),
+        check (char_length(first_name) <= 64),
     add constraint chk_profile_last_name_length
-        check (last_name is null or char_length(last_name) <= 64),
+        check (char_length(last_name) <= 64),
     add constraint chk_profile_bio_length
         check (bio is null or char_length(bio) <= 1000);
 
@@ -125,14 +125,9 @@ alter table chat
     add constraint chk_chat_members_count
         check (members_count >= 0),
     add constraint chk_chat_name_length
-        check (name is null or char_length(name) <= 128),
+        check (char_length(name) <= 128),
     add constraint chk_chat_description_length
         check (description is null or char_length(description) <= 500),
-    add constraint chk_chat_dialog_name
-        check (
-            (type = 'dialog' and name is null)
-            or (type in ('group', 'channel') and name is not null)
-        ),
     add constraint chk_chat_deleted_at
         check (deleted_at is null or deleted_at >= created_at);
 

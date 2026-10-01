@@ -27,15 +27,15 @@ type chatDatabase interface {
 	ListUserChats(ctx context.Context, userID uuid.UUID, limit, offset int, chatType string) ([]*models.Chat, error)
 }
 
-type ChatHandler struct {
+type сhatHandler struct {
 	db chatDatabase
 }
 
-func NewChatHandler(db chatDatabase) *ChatHandler {
-	return &ChatHandler{db: db}
+func NewChatHandler(db chatDatabase) *сhatHandler {
+	return &сhatHandler{db: db}
 }
 
-func (h *ChatHandler) GetListUserChats(w http.ResponseWriter, r *http.Request) {
+func (h *сhatHandler) GetListUserChats(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
 		WriteError(w, http.StatusBadRequest, "UNAUTHORIZED", "Authorization required", nil)

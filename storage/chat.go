@@ -62,10 +62,6 @@ func (db *DB) ListUserChats(ctx context.Context, userID uuid.UUID, limit, offset
 			return nil, err
 		}
 
-		if chat.LastMessage.ID == nil {
-			chat.LastMessage = nil
-		}
-
 		chats = append(chats, &chat)
 	}
 

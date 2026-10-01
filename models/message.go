@@ -7,8 +7,8 @@ import (
 )
 
 type MessagePreview struct {
-	ID        *uuid.UUID
-	Content   *string
-	Type      string
-	CreatedAt *time.Time
+	ID        uuid.UUID `json:"id"`
+	Content   *string   `json:"content"`
+	Type      string    `json:"type"`
+	CreatedAt time.Time `json:"created_at"`
 }

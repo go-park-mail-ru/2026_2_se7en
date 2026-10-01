@@ -1,10 +1,12 @@
 package main
 
 import (
+	"app/handlers"
 	"app/storage"
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 
 	"github.com/joho/godotenv"
@@ -23,6 +25,9 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
 		os.Exit(1)
 	}
+
+	chatHandler := handlers.ChatHandler{Database: db}
+	http.HandleFunc("/api/v1/chats", chatHandler.GetListUserChats)
 
 	defer storage.Close(context.Background(), db)
 }

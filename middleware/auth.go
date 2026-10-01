@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -25,9 +24,7 @@ type ErrorDetail struct {
 }
 
 type SesssionDB interface {
-	CreateSession(ctx context.Context, userID uuid.UUID, expiresAt time.Time) (string, error)
 	GetSessionUser(ctx context.Context, sessionID string) (uuid.UUID, error)
-	DeleteSession(ctx context.Context, sessionID string) error
 }
 
 type AuthMiddleware struct {

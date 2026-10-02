@@ -43,6 +43,11 @@ const (
 			where phone_number = $1
 		)
 	`
+
+	sqlDeleteUser = `
+		delete from app_user
+		where id = $1
+	`
 )
 
 func (db *DB) CheckEmailExist(ctx context.Context, email string) (bool, error) {
@@ -99,4 +104,9 @@ func (db *DB) FindUserByID(ctx context.Context, id uuid.UUID) (*models.User, err
 	}
 
 	return &user, nil
+}
+
+func (db *DB) DeleteUser(ctx context.Context, userID uuid.UUID) error {
+	_, err := db.pool.Exec(ctx, sqlDeleteUser, userID)
+	return err
 }

@@ -28,6 +28,11 @@ const (
 			where nickname = $1
 		)
 	`
+
+	sqlDeleteProfile = `
+		delete from profile
+		where id = $1
+	`
 )
 
 func (db *DB) CheckNicknameExist(ctx context.Context, nickname string) (bool, error) {
@@ -63,4 +68,9 @@ func (db *DB) FindProfileByUserID(ctx context.Context, userIDd uuid.UUID) (*mode
 
 	return &profile, nil
 
+}
+
+func (db *DB) DeleteProfile(ctx context.Context, profileID uuid.UUID) error {
+	_, err := db.pool.Exec(ctx, sqlDeleteProfile, profileID)
+	return err
 }

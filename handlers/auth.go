@@ -3,15 +3,23 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
-	"regexp"
+	"net/mail"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
+	"app/apperrors"
 	"app/utils"
 )
+
+var fakeHash []byte;
+func init() {
+	fakeHash, _ = bcrypt.GenerateFromPassword([]byte("fake"), bcrypt.DefaultCost);
+}
 
 type Profile struct {
 	ID uuid.UUID
@@ -82,8 +90,6 @@ func NewAuthHandler(db LoginDB, sessions SessionDB) *AuthHandler {
 	return &AuthHandler{db: db, sessions: sessions}
 }
 
-var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9_]+@[a-zA-Z]\.[a-zA-Z]{2,}$`)
-
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -91,6 +97,8 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 		return 
 	}
+
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
 
 	if details := validateLogin(req); len(details) > 0 {
 		h.writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", "Некорректные данные", details)
@@ -100,7 +108,15 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.db.GetUserByEmail(r.Context(), req.Email)
 	if err != nil {
-		h.writeError(w, http.StatusUnauthorized, "INVALID_CREDENTIALS", "Неверный email или пароль", nil)
+		if errors.Is(err, apperrors.ErrUserNotFound) {
+			_ = bcrypt.CompareHashAndPassword(fakeHash, []byte(req.Password));
+
+			h.writeError(w, http.StatusUnauthorized, "INVALID_CREDENTIALS", "Неверный email или пароль", nil)
+
+			return
+		}
+		
+		h.writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Что-то пошло не так", nil)
 
 		return
 	}
@@ -139,18 +155,27 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 
 // }
 
+const (
+	PasswordMinLength = 8
+	PasswordMaxLength = 16
+)
+
 func validateLogin(req LoginRequest) []ErrorDetail {
 	var details []ErrorDetail
 
 	if req.Email == "" {
 		details = append(details, ErrorDetail{"email", "required"})
-	} else if !emailRegex.MatchString(req.Email) {
+	} else if _, err := mail.ParseAddress(req.Email); err != nil {
 		details = append(details, ErrorDetail{"email", "Invalid_format"})
 	}
 
 	if req.Password == "" {
 		details = append(details, ErrorDetail{"password", "required"})
-	}
+	} else if len(req.Password) < PasswordMinLength {
+        details = append(details, ErrorDetail{Field: "password", Reason: "too_short"})
+    } else if len(req.Password) > PasswordMaxLength {
+        details = append(details, ErrorDetail{Field: "password", Reason: "too_long"})
+    }
 
 	return details
 }

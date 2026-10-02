@@ -16,25 +16,22 @@ func NewSessionID() (uuid.UUID, error) {
 	return uuid.NewRandom()
 }
 
+func newSessionCookie(value string, maxAge int) *http.Cookie {
+    return &http.Cookie{
+        Name:     SessionCookieName,
+        Value:    value,
+        Path:     "/",
+        HttpOnly: true,
+        Secure:   true,
+        SameSite: http.SameSiteLaxMode,
+        MaxAge:   maxAge,
+    }
+}
+
 func SetSessionCookie(w http.ResponseWriter, id string) {
-	http.SetCookie(w, &http.Cookie{
-		Name: SessionCookieName,
-		Value: id,
-		Path: "/",
-		HttpOnly: true,
-		Secure: false, // DEUBG
-		SameSite: http.SameSiteLaxMode,
-		MaxAge: int(SessionTTL.Seconds()),
-	})
+    http.SetCookie(w, newSessionCookie(id, int(SessionTTL.Seconds())))
 }
 
 func ClearSessionCookie(w http.ResponseWriter) {
-	http.SetCookie(w, &http.Cookie{
-		Name: SessionCookieName,
-		Value: "",
-		Path: "/",
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		MaxAge: -1,
-	})
+    http.SetCookie(w, newSessionCookie("", -1))
 }

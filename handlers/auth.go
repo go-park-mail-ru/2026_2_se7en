@@ -53,6 +53,7 @@ type Database interface {
 	CheckNicknameExists(ctx context.Context, nickname string) (bool, error)
 	CreateProfile(ctx context.Context, userID uuid.UUID, nickname string, firstName, lastName string) error
 	GetUserByID(ctx context.Context, userID uuid.UUID) (*User, error)
+	DeleteUserByID(ctx context.Context, userID uuid.UUID) error
 }
 
 type RegisterHandler struct {
@@ -138,7 +139,12 @@ func (h *RegisterHandler) processRegistration(ctx context.Context, req RegisterR
 
 	err = h.db.CreateProfile(ctx, userID, req.Nickname, req.FirstName, req.LastName)
 	if err != nil {
-		return nil, err // ? Нужно ли тут удалять созданного юзера без профиля
+		deleteErr := h.db.DeleteUserByID(ctx, userID)
+		if deleteErr != nil {
+			// TODO логирование
+		}
+
+		return nil, err
 	}
 
 	return h.db.GetUserByID(ctx, userID)

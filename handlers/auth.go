@@ -59,7 +59,7 @@ type RegisterHandler struct {
 	db Database
 }
 
-func (h *RegisterHandler) NewHandler(db Database) *RegisterHandler {
+func NewHandler(db Database) *RegisterHandler {
 	return &RegisterHandler{db: db}
 }
 

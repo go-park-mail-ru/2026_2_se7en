@@ -32,8 +32,8 @@ type RegisterRequest struct {
 	Password    string  `json:"password"`
 	PhoneNumber *string `json:"phone_number,omitempty"`
 	Nickname    string  `json:"nickname"`
-	FirstName   *string `json:"first_name,omitempty"`
-	LastName    *string `json:"last_name,omitempty"`
+	FirstName   string  `json:"first_name"`
+	LastName    string  `json:"last_name"`
 }
 
 type ErrorResponse struct {
@@ -51,7 +51,7 @@ type Database interface {
 	CreateUser(ctx context.Context, email, passwordHash string, phone *string) (uuid.UUID, error)
 	CheckEmailExists(ctx context.Context, email string) (bool, error)
 	CheckNicknameExists(ctx context.Context, nickname string) (bool, error)
-	CreateProfile(ctx context.Context, userID uuid.UUID, nickname string, firstName, lastName *string) error
+	CreateProfile(ctx context.Context, userID uuid.UUID, nickname string, firstName, lastName string) error
 	GetUserByID(ctx context.Context, userID uuid.UUID) (*User, error)
 }
 
@@ -195,14 +195,14 @@ func (h *RegisterHandler) validateRequest(req RegisterRequest) []ErrorDetail {
 		details = append(details, ErrorDetail{Field: "nickname", Reason: "Incorrect nickname format"})
 	}
 
-	if req.FirstName != nil && *req.FirstName != "" {
-		if len(*req.FirstName) > 32 {
+	if req.FirstName != "" {
+		if len(req.FirstName) > 32 {
 			details = append(details, ErrorDetail{Field: "first_name", Reason: "First name maximum length is 32"})
 		}
 	}
 
-	if req.LastName != nil && *req.LastName != "" {
-		if len(*req.LastName) > 32 {
+	if req.LastName != "" {
+		if len(req.LastName) > 32 {
 			details = append(details, ErrorDetail{Field: "last_name", Reason: "Last name maximum length is 32"})
 		}
 	}

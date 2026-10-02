@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type DB struct {
-	conn *pgx.Conn
+	conn *pgxpool.Pool
 }
 
 func Connect(ctx context.Context, connString string) (*DB, error) {
@@ -16,7 +16,7 @@ func Connect(ctx context.Context, connString string) (*DB, error) {
 		return nil, errors.New("DATABASE_URL is empty")
 	}
 
-	conn, err := pgx.Connect(ctx, connString)
+	conn, err := pgxpool.New(ctx, connString)
 	if err != nil {
 		return nil, err
 	}
@@ -24,10 +24,8 @@ func Connect(ctx context.Context, connString string) (*DB, error) {
 	return &DB{conn: conn}, nil
 }
 
-func Close(ctx context.Context, db *DB) error {
-	if db == nil || db.conn == nil {
-		return nil
+func Close(db *DB) {
+	if db != nil || db.conn != nil {
+		db.conn.Close()
 	}
-
-	return db.conn.Close(ctx)
 }

@@ -24,5 +24,5 @@ func main() {
 		os.Exit(1)
 	}
 
-	defer storage.Close(context.Background(), db)
+	defer storage.Close(db)
 }

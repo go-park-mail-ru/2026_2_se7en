@@ -1,10 +1,12 @@
 package handlers
 
 import (
+	apperrors "app/app_errors"
 	"app/middleware"
 	"app/models"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -38,19 +40,45 @@ func NewChatHandler(db chatDatabase) *сhatHandler {
 func (h *сhatHandler) GetListUserChats(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
-		WriteError(w, http.StatusBadRequest, "UNAUTHORIZED", "Authorization required", nil)
+		WriteError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Authorization required", nil)
 		return
 	}
 
 	q := r.URL.Query()
 
-	limit := getIntFromQuery(q, "limit")
-	offset := getIntFromQuery(q, "offset")
-	chatType := q.Get("type")
+	limit, err := getIntFromQuery(q, "limit")
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid limit", []ErrorDetail{{Field: "limit", Reason: err.Error()}})
+		return
+	}
+	offset, err := getIntFromQuery(q, "offset")
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid offset", []ErrorDetail{{Field: "offset", Reason: err.Error()}})
+		return
+	}
+	chatType := ""
+	if values, present := q["type"]; present {
+		if len(values) != 1 || values[0] == "" {
+			WriteError(w, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid type", []ErrorDetail{{Field: "type", Reason: apperrors.ErrInvalidChatType.Error()}})
+			return
+		}
+		chatType = values[0]
+	}
 
 	chats, err := h.db.ListUserChats(r.Context(), userID, limit, offset, chatType)
 	if err != nil {
-		WriteError(w, http.StatusBadRequest, "INTERNAL_ERROR", "Error while getting chats", nil)
+		switch {
+		case errors.Is(err, apperrors.ErrSessionNotFound):
+			WriteError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Session not found or expired", nil)
+		case errors.Is(err, apperrors.ErrInvalidChatLimit):
+			WriteError(w, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid limit", []ErrorDetail{{Field: "limit", Reason: err.Error()}})
+		case errors.Is(err, apperrors.ErrInvalidChatOffset):
+			WriteError(w, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid offset", []ErrorDetail{{Field: "offset", Reason: err.Error()}})
+		case errors.Is(err, apperrors.ErrInvalidChatType):
+			WriteError(w, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid type", []ErrorDetail{{Field: "type", Reason: err.Error()}})
+		default:
+			WriteError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Error while getting chats", nil)
+		}
 		return
 	}
 
@@ -82,11 +110,26 @@ func WriteError(w http.ResponseWriter, status int, code, message string, details
 	})
 }
 
-func getIntFromQuery(query url.Values, key string) int {
-	val, err := strconv.Atoi(query.Get(key))
-	if err != nil || val < 0 {
-		return 0
+func getIntFromQuery(query url.Values, key string) (int, error) {
+	values, present := query[key]
+	if !present {
+		return 0, nil
+	}
+	if len(values) != 1 {
+		if key == "limit" {
+			return 0, apperrors.ErrInvalidChatLimit
+		}
+		return 0, apperrors.ErrInvalidChatOffset
 	}
 
-	return val
+	val, err := strconv.Atoi(values[0])
+	if key == "limit" {
+		if err != nil || val < 1 {
+			return 0, apperrors.ErrInvalidChatLimit
+		}
+	} else if err != nil || val < 0 {
+		return 0, apperrors.ErrInvalidChatOffset
+	}
+
+	return val, nil
 }

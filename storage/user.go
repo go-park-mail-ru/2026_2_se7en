@@ -29,7 +29,33 @@ const (
 		where id = $1 
 			and deleted_at is null 
 	`
+
+	sqlCheckEmailExist = `
+		select exists (
+			select 1 from app_user
+			where email = $1 and deleted_at is null
+		)
+	`
+
+	sqlCheckPhoneExist = `
+		select exists (
+			select 1 from app_user
+			where phone_number = $1
+		)
+	`
 )
+
+func (db *DB) CheckEmailExist(ctx context.Context, email string) (bool, error) {
+	var exists bool
+	err := db.pool.QueryRow(ctx, sqlCheckEmailExist, email).Scan(&exists)
+	return exists, err
+}
+
+func (db *DB) CheckPhoneExist(ctx context.Context, phone string) (bool, error) {
+	var exists bool
+	err := db.pool.QueryRow(ctx, sqlCheckPhoneExist, phone).Scan(&exists)
+	return exists, err
+}
 
 func (db *DB) CreateUser(ctx context.Context, email, passwordHash string, phone *string) (*models.User, error) {
 	var user models.User

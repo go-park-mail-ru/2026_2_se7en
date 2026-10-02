@@ -1,16 +1,18 @@
 package middleware
 
 import (
+	"app/apperrors"
+	"app/utils"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 )
 
-type contextKey string
-
-const UserContextKey contextKey = "user_id"
+const SessionExtensionDays = 30
 
 type ErrorResponse struct {
 	Code    string        `json:"code"`
@@ -23,16 +25,17 @@ type ErrorDetail struct {
 	Reason string `json:"reason"`
 }
 
-type SesssionDB interface {
+type SessionDB interface {
 	GetSessionUser(ctx context.Context, sessionID string) (uuid.UUID, error)
+	ExtendSession(ctx context.Context, sessionID string, newExpiresAt time.Time) error
 }
 
 type AuthMiddleware struct {
-	db   SesssionDB
+	db   SessionDB
 	next http.Handler
 }
 
-func NewAuthMiddleware(db SesssionDB, next http.Handler) http.Handler {
+func NewAuthMiddleware(db SessionDB, next http.Handler) http.Handler {
 	return &AuthMiddleware{
 		db:   db,
 		next: next,
@@ -48,26 +51,59 @@ func (m *AuthMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	userID, err := m.db.GetSessionUser(r.Context(), cookie.Value)
 	if err != nil {
-		m.writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid or expired session", nil)
+		if errors.Is(err, apperrors.ErrSessionNotFound) {
+			m.writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid or expired session", nil)
+		} else {
+			m.writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error", nil)
+		}
 		return
 	}
 
-	ctx := context.WithValue(r.Context(), UserContextKey, userID)
+	newExpiresAt := time.Now().Add(SessionExtensionDays * 24 * time.Hour)
 
-	m.next.ServeHTTP(w, r.WithContext(ctx))
-}
+	err = m.db.ExtendSession(r.Context(), cookie.Value, newExpiresAt)
+	if err != nil {
+		// TODO тоже запись в логгер, как я думаю
+	}
 
-func UserIDFromContext(ctx context.Context) (uuid.UUID, bool) {
-	userID, ok := ctx.Value(UserContextKey).(uuid.UUID)
-	return userID, ok
+	utils.SetSessionCookie(w, cookie.Value)
+
+	authCtx := NewAuthContext(r.Context(), userID)
+
+	m.next.ServeHTTP(w, r.WithContext(authCtx))
 }
 
 func (m *AuthMiddleware) writeError(w http.ResponseWriter, status int, code, message string, details []ErrorDetail) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(ErrorResponse{
+	err := json.NewEncoder(w).Encode(ErrorResponse{
 		Code:    code,
 		Message: message,
 		Details: details,
 	})
+
+	if err != nil {
+		// TODO запись в логгер
+	}
+}
+
+type AuthContext interface {
+	context.Context
+	User() uuid.UUID
+}
+
+type authContext struct {
+	context.Context
+	userID uuid.UUID
+}
+
+func (a *authContext) User() uuid.UUID {
+	return a.userID
+}
+
+func NewAuthContext(ctx context.Context, userID uuid.UUID) AuthContext {
+	return &authContext{
+		Context: ctx,
+		userID:  userID,
+	}
 }

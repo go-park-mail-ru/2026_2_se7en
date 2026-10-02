@@ -8,7 +8,7 @@ import (
 )
 
 type DB struct {
-	conn *pgxpool.Pool
+	pool *pgxpool.Pool
 }
 
 func Connect(ctx context.Context, connString string) (*DB, error) {
@@ -16,16 +16,16 @@ func Connect(ctx context.Context, connString string) (*DB, error) {
 		return nil, errors.New("DATABASE_URL is empty")
 	}
 
-	conn, err := pgxpool.New(ctx, connString)
+	pool, err := pgxpool.New(ctx, connString)
 	if err != nil {
 		return nil, err
 	}
 
-	return &DB{conn: conn}, nil
+	return &DB{pool: pool}, nil
 }
 
 func Close(db *DB) {
-	if db != nil || db.conn != nil {
-		db.conn.Close()
+	if db != nil && db.pool != nil {
+		db.pool.Close()
 	}
 }

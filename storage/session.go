@@ -32,7 +32,7 @@ const (
 
 func (db *DB) CreateSession(ctx context.Context, userID uuid.UUID, expiresAt time.Time) (*models.Session, error) {
 	var session models.Session
-	err := db.conn.QueryRow(ctx, sqlCreateSession, userID, expiresAt).
+	err := db.pool.QueryRow(ctx, sqlCreateSession, userID, expiresAt).
 		Scan(&session.ID, &session.UserID, &session.ExpiresAt, &session.CreatedAt, &session.UpdatedAt)
 
 	if err != nil {
@@ -44,7 +44,7 @@ func (db *DB) CreateSession(ctx context.Context, userID uuid.UUID, expiresAt tim
 
 func (db *DB) FindSessionByID(ctx context.Context, sessionID uuid.UUID) (*models.Session, error) {
 	var session models.Session
-	err := db.conn.QueryRow(ctx, sqlFindSessionByID, sessionID).
+	err := db.pool.QueryRow(ctx, sqlFindSessionByID, sessionID).
 		Scan(&session.ID, &session.UserID, &session.ExpiresAt, &session.CreatedAt, &session.UpdatedAt)
 
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -59,6 +59,6 @@ func (db *DB) FindSessionByID(ctx context.Context, sessionID uuid.UUID) (*models
 }
 
 func (db *DB) DeleteSession(ctx context.Context, sessionID uuid.UUID) error {
-	_, err := db.conn.Exec(ctx, sqlDeleteSession, sessionID)
+	_, err := db.pool.Exec(ctx, sqlDeleteSession, sessionID)
 	return err
 }

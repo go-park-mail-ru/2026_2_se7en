@@ -44,7 +44,7 @@ func (db *DB) ListUserChats(ctx context.Context, userID uuid.UUID, limit, offset
 		return nil, errors.New("type must be dialog, group, or channel")
 	}
 
-	rows, err := db.conn.Query(ctx, sqlListUserChats, userID, limit, offset, chatType)
+	rows, err := db.pool.Query(ctx, sqlListUserChats, userID, limit, offset, chatType)
 	if err != nil {
 		return nil, err
 	}

@@ -34,6 +34,15 @@ paths:
             minimum: 0
             default: 0
           description: Смещение от начала списка
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum:
+              - channel
+              - group
+              - dialog
+          description: Фильтрация по типу чата
       responses:
         '200':
           description: Список чатов пользователя успешно получен.

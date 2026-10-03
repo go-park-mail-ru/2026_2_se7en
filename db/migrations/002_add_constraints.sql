@@ -105,7 +105,7 @@ alter table profile
     add constraint chk_profile_first_name_length
         check (char_length(first_name) <= 64),
     add constraint chk_profile_last_name_length
-        check (char_length(last_name) <= 64),
+        check (last_name is null or char_length(last_name) <= 64),
     add constraint chk_profile_bio_length
         check (bio is null or char_length(bio) <= 1000);
 

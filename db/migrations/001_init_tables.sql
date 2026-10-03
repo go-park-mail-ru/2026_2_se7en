@@ -30,7 +30,7 @@ create table if not exists profile (
     icon_id uuid,
     nickname text not null,
     first_name text not null,
-    last_name text not null,
+    last_name text,
     bio text,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()

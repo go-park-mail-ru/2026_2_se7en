@@ -95,7 +95,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", "Некорректные данные", nil)
 
-		return 
+		return
 	}
 
 	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
@@ -106,22 +106,27 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.db.GetUserByEmail(r.Context(), req.Email)
-	if err != nil {
-		if errors.Is(err, apperrors.ErrUserNotFound) {
-			_ = bcrypt.CompareHashAndPassword(fakeHash, []byte(req.Password));
+	user, dbErr := h.db.GetUserByEmail(r.Context(), req.Email)
 
+	hash := fakeHash
+	if dbErr == nil && user != nil {
+		hash = []byte(user.PasswordHash)
+	}
+	
+	passwordOk := bcrypt.CompareHashAndPassword(hash, []byte(req.Password)) == nil
+
+	if dbErr != nil {
+		if errors.Is(dbErr, apperrors.ErrUserNotFound) {
 			h.writeError(w, http.StatusUnauthorized, "INVALID_CREDENTIALS", "Неверный email или пароль", nil)
-
 			return
 		}
-		
+
 		h.writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Что-то пошло не так", nil)
 
 		return
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
+	if !passwordOk {
 		h.writeError(w, http.StatusUnauthorized, "INVALID_CREDENTIALS", "Неверный email или пароль", nil)
 
 		return
@@ -130,10 +135,12 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	sessionID, err := h.sessions.CreateSession(r.Context(), user.ID, time.Now().Add(utils.SessionTTL))
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Что-то пошло не так", nil)
+
 		return
 	}
 
 	utils.SetSessionCookie(w, sessionID)
+	
 	utils.WriteJSON(w, http.StatusOK, toUserResponse(user))
 }
 
@@ -149,11 +156,6 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	utils.ClearSessionCookie(w)
 	w.WriteHeader(http.StatusNoContent)
 }
-
-// TODO
-// func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
-
-// }
 
 const (
 	PasswordMinLength = 8

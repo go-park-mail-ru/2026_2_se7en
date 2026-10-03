@@ -1,7 +1,5 @@
 package apperrors
 
-// Отсюда импортировать в storage
-
 import "errors"
 
 var (

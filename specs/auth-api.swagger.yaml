@@ -180,9 +180,9 @@ components:
         bio:
           type: string
           nullable: true
-        icon_url:
+        icon_id:
           type: string
-          format: uri
+          format: uuid
           nullable: true
 
     User:

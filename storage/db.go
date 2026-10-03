@@ -29,3 +29,4 @@ func Close(db *DB) {
 		db.pool.Close()
 	}
 }
+

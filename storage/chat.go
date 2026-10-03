@@ -68,3 +68,4 @@ func (db *DB) ListUserChats(ctx context.Context, userID uuid.UUID, limit, offset
 
 	return chats, nil
 }
+

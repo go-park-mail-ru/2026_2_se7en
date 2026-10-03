@@ -3,15 +3,31 @@ package handlers
 import (
 	"app/apperrors"
 	"app/helpers"
-	"app/models"
 	"app/storage"
 	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"uuid"
 
 	"golang.org/x/crypto/bcrypt"
 )
+
+type User struct {
+	ID          uuid.UUID `json:"id"`
+	Email       string    `json:"email"`
+	PhoneNumber *string   `json:"phone_number"`
+	Profile     Profile   `json:"profile"`
+}
+
+type Profile struct {
+	ID        uuid.UUID  `json:"id"`
+	Nickname  string     `json:"nickname"`
+	FirstName *string    `json:"first_name"`
+	LastName  *string    `json:"last_name"`
+	Bio       *string    `json:"bio"`
+	IconID    *uuid.UUID `json:"icon_id"`
+}
 
 type RegisterRequest struct {
 	Email       string  `json:"email"`
@@ -66,7 +82,7 @@ func (h *RegisterHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(user)
 }
 
-func (h *RegisterHandler) processRegistration(ctx context.Context, req RegisterRequest) (*models.User, error) {
+func (h *RegisterHandler) processRegistration(ctx context.Context, req RegisterRequest) (*User, error) {
 	emailExists, err := h.db.CheckEmailExists(ctx, req.Email)
 	if err != nil {
 		return nil, err

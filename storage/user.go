@@ -29,7 +29,38 @@ const (
 		where id = $1 
 			and deleted_at is null 
 	`
+
+	sqlCheckEmailExist = `
+		select exists (
+			select 1 from app_user
+			where email = $1 and deleted_at is null
+		)
+	`
+
+	sqlCheckPhoneExist = `
+		select exists (
+			select 1 from app_user
+			where phone_number = $1
+		)
+	`
+
+	sqlDeleteUser = `
+		delete from app_user
+		where id = $1
+	`
 )
+
+func (db *DB) CheckEmailExist(ctx context.Context, email string) (bool, error) {
+	var exists bool
+	err := db.pool.QueryRow(ctx, sqlCheckEmailExist, email).Scan(&exists)
+	return exists, err
+}
+
+func (db *DB) CheckPhoneExist(ctx context.Context, phone string) (bool, error) {
+	var exists bool
+	err := db.pool.QueryRow(ctx, sqlCheckPhoneExist, phone).Scan(&exists)
+	return exists, err
+}
 
 func (db *DB) CreateUser(ctx context.Context, email, passwordHash string, phone *string) (*models.User, error) {
 	var user models.User
@@ -73,4 +104,9 @@ func (db *DB) FindUserByID(ctx context.Context, id uuid.UUID) (*models.User, err
 	}
 
 	return &user, nil
+}
+
+func (db *DB) DeleteUser(ctx context.Context, userID uuid.UUID) error {
+	_, err := db.pool.Exec(ctx, sqlDeleteUser, userID)
+	return err
 }

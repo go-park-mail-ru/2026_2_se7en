@@ -1,17 +1,14 @@
 package storage
 
 import (
+	apperrors "app/app_errors"
 	"app/models"
 	"context"
-	"errors"
 
 	"github.com/google/uuid"
 )
 
-const (
-	defaultChatLimit = 20
-	maxChatLimit     = 50
-)
+const defaultChatLimit = 20
 
 const sqlListUserChats = `
 	select distinct on (c.updated_at, c.id)
@@ -33,18 +30,18 @@ func (db *DB) ListUserChats(ctx context.Context, userID uuid.UUID, limit, offset
 		limit = defaultChatLimit
 	}
 
-	if limit < 1 || limit > maxChatLimit {
-		return nil, errors.New("limit must be between 1 and 50")
+	if limit < 1 {
+		return nil, apperrors.ErrInvalidChatLimit
 	}
 
 	if offset < 0 {
-		return nil, errors.New("offset must be zero or greater")
+		return nil, apperrors.ErrInvalidChatOffset
 	}
 	if chatType != "" && chatType != "dialog" && chatType != "group" && chatType != "channel" {
-		return nil, errors.New("type must be dialog, group, or channel")
+		return nil, apperrors.ErrInvalidChatType
 	}
 
-	rows, err := db.conn.Query(ctx, sqlListUserChats, userID, limit, offset, chatType)
+	rows, err := db.pool.Query(ctx, sqlListUserChats, userID, limit, offset, chatType)
 	if err != nil {
 		return nil, err
 	}
@@ -60,10 +57,6 @@ func (db *DB) ListUserChats(ctx context.Context, userID uuid.UUID, limit, offset
 			&chat.LastMessage.ID, &chat.LastMessage.Content,
 			&chat.LastMessage.Type, &chat.LastMessage.CreatedAt); err != nil {
 			return nil, err
-		}
-
-		if chat.LastMessage.ID == nil {
-			chat.LastMessage = nil
 		}
 
 		chats = append(chats, &chat)

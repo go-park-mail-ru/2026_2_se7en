@@ -1,8 +1,8 @@
 package storage
 
 import (
+	apperrors "app/app_errors"
 	"context"
-	"errors"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -13,7 +13,7 @@ type DB struct {
 
 func Connect(ctx context.Context, connString string) (*DB, error) {
 	if connString == "" {
-		return nil, errors.New("DATABASE_URL is empty")
+		return nil, apperrors.ErrDatabaseURLMissing
 	}
 
 	pool, err := pgxpool.New(ctx, connString)

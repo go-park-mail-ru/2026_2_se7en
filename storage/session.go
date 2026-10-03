@@ -1,6 +1,7 @@
 package storage
 
 import (
+	apperrors "app/app_errors"
 	"app/models"
 	"context"
 	"errors"
@@ -20,6 +21,20 @@ const (
 	sqlFindSessionByID = `
 		select * 
 		from session
+		where id = $1
+			and expires_at > now()
+	`
+
+	sqlGetSessionUser = `
+		select user_id
+		from session
+		where id = $1
+			and expires_at > now()
+	`
+
+	sqlExtendSession = `
+		update session
+		set expires_at = $2, updated_at = now()
 		where id = $1
 			and expires_at > now()
 	`
@@ -56,6 +71,29 @@ func (db *DB) FindSessionByID(ctx context.Context, sessionID uuid.UUID) (*models
 	}
 
 	return &session, nil
+}
+
+func (db *DB) GetSessionUser(ctx context.Context, sessionID uuid.UUID) (uuid.UUID, error) {
+	var userID uuid.UUID
+	err := db.pool.QueryRow(ctx, sqlGetSessionUser, sessionID).Scan(&userID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, apperrors.ErrSessionNotFound
+	}
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return userID, nil
+}
+
+func (db *DB) ExtendSession(ctx context.Context, sessionID uuid.UUID, expiresAt time.Time) error {
+	tag, err := db.pool.Exec(ctx, sqlExtendSession, sessionID, expiresAt)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return apperrors.ErrSessionNotFound
+	}
+	return nil
 }
 
 func (db *DB) DeleteSession(ctx context.Context, sessionID uuid.UUID) error {

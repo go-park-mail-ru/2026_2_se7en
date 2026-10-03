@@ -45,24 +45,24 @@ func NewAuthMiddleware(db SessionDB, next http.Handler) http.Handler {
 func (m *AuthMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie("session_id")
 	if err != nil || cookie.Value == "" {
-		m.writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Session cookie is missing", nil)
+		m.Unauthorized(w, "Session cookie is missing", nil)
 		return
 	}
 
 	userID, err := m.db.GetSessionUser(r.Context(), cookie.Value)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrSessionNotFound) {
-			m.writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid or expired session", nil)
+			m.Unauthorized(w, "Invalid or expired session", nil)
 		} else {
-			m.writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error", nil)
+			m.ServerError(w, "Internal server error", nil)
 		}
 		return
 	}
 
 	newExpiresAt := time.Now().Add(SessionExtensionDays * 24 * time.Hour)
 
-	err = m.db.ExtendSession(r.Context(), cookie.Value, newExpiresAt)
-	if err != nil {
+	errWarn := m.db.ExtendSession(r.Context(), cookie.Value, newExpiresAt)
+	if errWarn != nil {
 		// TODO тоже запись в логгер, как я думаю
 	}
 
@@ -87,23 +87,14 @@ func (m *AuthMiddleware) writeError(w http.ResponseWriter, status int, code, mes
 	}
 }
 
-type AuthContext interface {
-	context.Context
-	User() uuid.UUID
+func (m *AuthMiddleware) Unauthorized(w http.ResponseWriter, msg string, details []ErrorDetail) {
+	m.writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", msg, details)
 }
 
-type authContext struct {
-	context.Context
-	userID uuid.UUID
+func (m *AuthMiddleware) ServerError(w http.ResponseWriter, msg string, details []ErrorDetail) {
+	m.writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", msg, details)
 }
 
-func (a *authContext) User() uuid.UUID {
-	return a.userID
-}
-
-func NewAuthContext(ctx context.Context, userID uuid.UUID) AuthContext {
-	return &authContext{
-		Context: ctx,
-		userID:  userID,
-	}
+func (m *AuthMiddleware) BadRequest(w http.ResponseWriter, msg string, details []ErrorDetail) {
+	m.writeError(w, http.StatusBadRequest, "BAD_REQUEST", msg, details)
 }

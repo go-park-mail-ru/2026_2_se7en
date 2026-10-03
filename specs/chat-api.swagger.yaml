@@ -118,9 +118,6 @@ components:
           nullable: true
         members_count:
           type: integer
-        role:
-          type: string
-          enum: [owner, admin, member]
         last_message:
           $ref: '#/components/schemas/MessagePreview'
         created_at:

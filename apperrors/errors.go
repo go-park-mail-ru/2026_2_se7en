@@ -79,7 +79,7 @@ func NewNotFound(msg string) *AppError {
 	}
 }
 
-func NewConflict(msg string, details []ErrorDetail) *AppError { // <-- Добавлен details
+func NewConflict(msg string, details []ErrorDetail) *AppError {
 	return &AppError{
 		Code:    "CONFLICT",
 		Message: msg,

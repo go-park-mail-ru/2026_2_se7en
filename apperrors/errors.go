@@ -1,14 +1,15 @@
 package apperrors
 
-import "errors"
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 )
 
 var (
 	ErrUserNotFound = errors.New("user not found")
-	ErrSessionNotFound = errors.New("session not found")
+	// ErrSessionNotFound = errors.New("session not found")
+)
 
 type ErrorDetail struct {
 	Field  string `json:"field"`

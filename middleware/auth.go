@@ -26,8 +26,8 @@ type ErrorDetail struct {
 }
 
 type SessionDB interface {
-	GetSessionUser(ctx context.Context, sessionID string) (uuid.UUID, error)
-	ExtendSession(ctx context.Context, sessionID string, newExpiresAt time.Time) error
+	GetSessionUser(ctx context.Context, sessionID uuid.UUID) (uuid.UUID, error)
+	ExtendSession(ctx context.Context, sessionID uuid.UUID, newExpiresAt time.Time) error
 }
 
 type AuthMiddleware struct {
@@ -48,8 +48,13 @@ func (m *AuthMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		m.Unauthorized(w, "Session cookie is missing", nil)
 		return
 	}
+	sessionID, err := uuid.Parse(cookie.Value)
+	if err != nil {
+		m.Unauthorized(w, "Invalid session cookie", nil)
+		return
+	}
 
-	userID, err := m.db.GetSessionUser(r.Context(), cookie.Value)
+	userID, err := m.db.GetSessionUser(r.Context(), sessionID)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrSessionNotFound) {
 			m.Unauthorized(w, "Invalid or expired session", nil)
@@ -61,7 +66,7 @@ func (m *AuthMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	newExpiresAt := time.Now().Add(SessionExtensionDays * 24 * time.Hour)
 
-	errWarn := m.db.ExtendSession(r.Context(), cookie.Value, newExpiresAt)
+	errWarn := m.db.ExtendSession(r.Context(), sessionID, newExpiresAt)
 	if errWarn != nil {
 		// TODO тоже запись в логгер, как я думаю
 	}

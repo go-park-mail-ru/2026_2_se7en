@@ -13,7 +13,7 @@ import (
 
 	"app/apperrors"
 	"app/helpers"
-	"app/storage"
+	"app/models"
 	"app/utils"
 )
 
@@ -34,7 +34,7 @@ type User struct {
 type Profile struct {
 	ID        uuid.UUID
 	Nickname  string
-	FirstName *string
+	FirstName string
 	LastName  *string
 	Bio       *string
 	IconURL   *string
@@ -57,7 +57,7 @@ type RegisterRequest struct {
 type ProfileResponse struct {
 	ID        uuid.UUID `json:"id"`
 	Nickname  string    `json:"nickname"`
-	FirstName *string   `json:"first_name"`
+	FirstName string    `json:"first_name"`
 	LastName  *string   `json:"last_name"`
 	Bio       *string   `json:"bio"`
 	IconURL   *string   `json:"icon_url"`
@@ -71,16 +71,21 @@ type UserResponse struct {
 }
 
 type SessionDB interface {
-	CreateSession(ctx context.Context, userID uuid.UUID, expiresAt time.Time) (string, error)
-	DeleteSession(ctx context.Context, sessionID string) error
+	CreateSession(ctx context.Context, userID uuid.UUID, expiresAt time.Time) (*models.Session, error)
+	DeleteSession(ctx context.Context, sessionID uuid.UUID) error
+}
+
+type LoginDB interface {
+	FindUserByEmail(ctx context.Context, email string) (*models.User, error)
+	FindProfileByUserID(ctx context.Context, userID uuid.UUID) (*models.Profile, error)
 }
 
 type AuthHandler struct {
-	db       storage.DB
+	db       LoginDB
 	sessions SessionDB
 }
 
-func NewAuthHandler(db storage.DB, sessions SessionDB) *AuthHandler {
+func NewAuthHandler(db LoginDB, sessions SessionDB) *AuthHandler {
 	return &AuthHandler{db: db, sessions: sessions}
 }
 
@@ -98,48 +103,54 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, dbErr := h.db.GetUserByEmail(r.Context(), req.Email)
-
-	hash := fakeHash
-	if dbErr == nil && user != nil {
-		hash = []byte(user.PasswordHash)
-	}
-
-	passwordOk := bcrypt.CompareHashAndPassword(hash, []byte(req.Password)) == nil
-
-	if dbErr != nil {
-		if errors.Is(dbErr, apperrors.ErrUserNotFound) {
-			apperrors.WriteError(w, apperrors.NewUnauthorized("Неверный email или пароль", nil))
-			return
-		}
-
-		apperrors.WriteError(w, apperrors.NewInternalError("Что-то пошло не так", dbErr))
+	user, err := h.db.FindUserByEmail(r.Context(), req.Email)
+	if err != nil && !errors.Is(err, apperrors.ErrUserNotFound) {
+		apperrors.WriteError(w, apperrors.NewInternalError("Что-то пошло не так", err))
 		return
 	}
 
-	if !passwordOk {
-		apperrors.WriteError(w, apperrors.NewUnauthorized("Неверный email или пароль", nil))
+	if user == nil || err != nil {
+		_ = bcrypt.CompareHashAndPassword(fakeHash, []byte(req.Password))
+		apperrors.WriteError(w, apperrors.NewUnauthorized("Неверный email или пароль"))
+		return
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
+		apperrors.WriteError(w, apperrors.NewUnauthorized("Неверный email или пароль"))
 		return
 	}
 
-	sessionID, err := h.sessions.CreateSession(r.Context(), user.ID, time.Now().Add(utils.SessionTTL))
+	profile, err := h.db.FindProfileByUserID(r.Context(), user.ID)
 	if err != nil {
 		apperrors.WriteError(w, apperrors.NewInternalError("Что-то пошло не так", err))
 		return
 	}
 
-	utils.SetSessionCookie(w, sessionID)
-	utils.WriteJSON(w, http.StatusOK, toUserResponse(user))
+	session, err := h.sessions.CreateSession(r.Context(), user.ID, time.Now().Add(utils.SessionTTL))
+	if err != nil {
+		apperrors.WriteError(w, apperrors.NewInternalError("Что-то пошло не так", err))
+		return
+	}
+
+	utils.SetSessionCookie(w, session.ID.String())
+	utils.WriteJSON(w, http.StatusOK, toUserResponse(userWithProfile(user, profile)))
 }
 
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie(utils.SessionCookieName)
 	if err != nil {
-		apperrors.WriteError(w, apperrors.NewUnauthorized("Сессия недействительна", nil))
+		apperrors.WriteError(w, apperrors.NewUnauthorized("Сессия недействительна"))
 		return
 	}
 
-	_ = h.sessions.DeleteSession(r.Context(), cookie.Value)
+	sessionID, err := uuid.Parse(cookie.Value)
+	if err != nil {
+		apperrors.WriteError(w, apperrors.NewUnauthorized("Сессия недействительна"))
+		return
+	}
+	if err := h.sessions.DeleteSession(r.Context(), sessionID); err != nil {
+		apperrors.WriteError(w, apperrors.NewInternalError("Что-то пошло не так", err))
+		return
+	}
 
 	utils.ClearSessionCookie(w)
 	w.WriteHeader(http.StatusNoContent)
@@ -170,6 +181,25 @@ func validateLogin(req LoginRequest) []apperrors.ErrorDetail {
 	return details
 }
 
+func userWithProfile(user *models.User, profile *models.Profile) *User {
+	result := &User{
+		ID:           user.ID,
+		Email:        user.Email,
+		PhoneNumber:  user.PhoneNumber,
+		PasswordHash: user.PasswordHash,
+	}
+	if profile != nil {
+		result.Profile = Profile{
+			ID:        profile.ID,
+			Nickname:  profile.Nickname,
+			FirstName: profile.FirstName,
+			LastName:  profile.LastName,
+			Bio:       profile.Bio,
+		}
+	}
+	return result
+}
+
 func toUserResponse(u *User) UserResponse {
 	return UserResponse{
 		ID:          u.ID,
@@ -186,11 +216,19 @@ func toUserResponse(u *User) UserResponse {
 	}
 }
 
-type RegisterHandler struct {
-	db storage.DB
+type RegistrationDB interface {
+	CheckEmailExist(ctx context.Context, email string) (bool, error)
+	CheckNicknameExist(ctx context.Context, nickname string) (bool, error)
+	CreateUser(ctx context.Context, email, passwordHash string, phone *string) (*models.User, error)
+	CreateProfile(ctx context.Context, iconID *uuid.UUID, userID uuid.UUID, nickname, firstName string, lastName *string, bio *string) (*models.Profile, error)
+	DeleteUser(ctx context.Context, userID uuid.UUID) error
 }
 
-func NewHandler(db storage.DB) *RegisterHandler {
+type RegisterHandler struct {
+	db RegistrationDB
+}
+
+func NewHandler(db RegistrationDB) *RegisterHandler {
 	return &RegisterHandler{db: db}
 }
 
@@ -228,11 +266,11 @@ func (h *RegisterHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(user)
+	_ = json.NewEncoder(w).Encode(toUserResponse(user))
 }
 
 func (h *RegisterHandler) processRegistration(ctx context.Context, req RegisterRequest) (*User, error) {
-	emailExists, err := h.db.CheckEmailExists(ctx, req.Email)
+	emailExists, err := h.db.CheckEmailExist(ctx, req.Email)
 	if err != nil {
 		return nil, err
 	}
@@ -241,7 +279,7 @@ func (h *RegisterHandler) processRegistration(ctx context.Context, req RegisterR
 		return nil, apperrors.ErrEmailTaken
 	}
 
-	nicknameExists, err := h.db.CheckNicknameExists(ctx, req.Nickname)
+	nicknameExists, err := h.db.CheckNicknameExist(ctx, req.Nickname)
 	if err != nil {
 		return nil, err
 	}
@@ -255,18 +293,18 @@ func (h *RegisterHandler) processRegistration(ctx context.Context, req RegisterR
 		return nil, err
 	}
 
-	userID, err := h.db.CreateUser(ctx, req.Email, string(hash), req.PhoneNumber)
+	modelUser, err := h.db.CreateUser(ctx, req.Email, string(hash), req.PhoneNumber)
 	if err != nil {
 		return nil, err
 	}
 
-	err = h.db.CreateProfile(ctx, userID, req.Nickname, req.FirstName, *req.LastName)
+	profile, err := h.db.CreateProfile(ctx, nil, modelUser.ID, req.Nickname, req.FirstName, req.LastName, nil)
 	if err != nil {
-		_ = h.db.DeleteUserByID(ctx, userID)
+		_ = h.db.DeleteUser(ctx, modelUser.ID)
 		return nil, err
 	}
 
-	return h.db.GetUserByID(ctx, userID)
+	return userWithProfile(modelUser, profile), nil
 }
 
 func (h *RegisterHandler) validateRequest(req RegisterRequest) []apperrors.ErrorDetail {
@@ -304,10 +342,10 @@ func (h *RegisterHandler) validateRequest(req RegisterRequest) []apperrors.Error
 		details = append(details, apperrors.ErrorDetail{Field: "nickname", Reason: "Incorrect nickname format"})
 	}
 
-	if req.FirstName != "" {
-		if len(req.FirstName) > 32 {
-			details = append(details, apperrors.ErrorDetail{Field: "first_name", Reason: "First name maximum length is 32"})
-		}
+	if strings.TrimSpace(req.FirstName) == "" {
+		details = append(details, apperrors.ErrorDetail{Field: "first_name", Reason: "First name required"})
+	} else if len(req.FirstName) > 32 {
+		details = append(details, apperrors.ErrorDetail{Field: "first_name", Reason: "First name maximum length is 32"})
 	}
 
 	if req.LastName != nil && *req.LastName != "" {

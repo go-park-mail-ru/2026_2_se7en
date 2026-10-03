@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	apperrors "app/app_errors"
+	apperrors "app/apperrors"
 	"app/middleware"
 	"app/models"
 	"context"

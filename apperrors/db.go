@@ -7,5 +7,4 @@ var (
 	ErrInvalidChatLimit   = errors.New("limit must be greater or equal 1")
 	ErrInvalidChatOffset  = errors.New("offset must be zero or greater")
 	ErrInvalidChatType    = errors.New("type must be dialog, group, or channel")
-	ErrSessionNotFound    = errors.New("session not found or expired")
 )

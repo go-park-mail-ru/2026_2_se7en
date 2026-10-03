@@ -1,7 +1,7 @@
 package storage
 
 import (
-	apperrors "app/app_errors"
+	apperrors "app/apperrors"
 	"app/models"
 	"context"
 
@@ -68,4 +68,3 @@ func (db *DB) ListUserChats(ctx context.Context, userID uuid.UUID, limit, offset
 
 	return chats, nil
 }
-

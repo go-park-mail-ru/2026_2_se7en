@@ -11,7 +11,7 @@ func New() http.Handler {
 	api.HandleFunc("GET /health", healthCheck)
 
 	mainRouter := http.NewServeMux()
-	mainRouter.Handle("api/v1/", http.StripPrefix("api/v1/", api))
+	mainRouter.Handle("/api/v1/", http.StripPrefix("/api/v1/", api))
 
 	return mainRouter
 }

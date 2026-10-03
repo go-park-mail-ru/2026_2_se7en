@@ -3,9 +3,12 @@ package main
 import (
 	"app/config"
 	"app/router"
+	"context"
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 )
 
 func main() {
@@ -23,8 +26,18 @@ func main() {
 		IdleTimeout:  cfg.IdleTimeout,
 	}
 
-	if err := server.ListenAndServe(); err != nil {
-		fmt.Fprintf(os.Stderr, "server error: %v\n", err)
-		os.Exit(1)
-	}
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	go func() {
+		if err := server.ListenAndServe(); err != nil {
+			fmt.Fprintf(os.Stderr, "server error: %v\n", err)
+		}
+	}()
+
+	<-ctx.Done()
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
+	defer cancel()
+	server.Shutdown(shutdownCtx)
 }

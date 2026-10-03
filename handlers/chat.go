@@ -29,15 +29,15 @@ type chatDatabase interface {
 	ListUserChats(ctx context.Context, userID uuid.UUID, limit, offset int, chatType string) ([]*models.Chat, error)
 }
 
-type сhatHandler struct {
+type chatHandler struct {
 	db chatDatabase
 }
 
-func NewChatHandler(db chatDatabase) *сhatHandler {
-	return &сhatHandler{db: db}
+func NewChatHandler(db chatDatabase) *chatHandler {
+	return &chatHandler{db: db}
 }
 
-func (h *сhatHandler) GetListUserChats(w http.ResponseWriter, r *http.Request) {
+func (h *chatHandler) GetListUserChats(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
 		WriteError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Authorization required", nil)
@@ -48,18 +48,20 @@ func (h *сhatHandler) GetListUserChats(w http.ResponseWriter, r *http.Request) 
 
 	limit, err := getIntFromQuery(q, "limit")
 	if err != nil {
-		WriteError(w, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid limit", []ErrorDetail{{Field: "limit", Reason: err.Error()}})
+		writeMapped(w, err)
 		return
 	}
+
 	offset, err := getIntFromQuery(q, "offset")
 	if err != nil {
-		WriteError(w, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid offset", []ErrorDetail{{Field: "offset", Reason: err.Error()}})
+		writeMapped(w, err)
 		return
 	}
+
 	chatType := ""
 	if values, present := q["type"]; present {
 		if len(values) != 1 || values[0] == "" {
-			WriteError(w, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid type", []ErrorDetail{{Field: "type", Reason: apperrors.ErrInvalidChatType.Error()}})
+			writeMapped(w, apperrors.ErrInvalidChatType)
 			return
 		}
 		chatType = values[0]
@@ -67,18 +69,7 @@ func (h *сhatHandler) GetListUserChats(w http.ResponseWriter, r *http.Request) 
 
 	chats, err := h.db.ListUserChats(r.Context(), userID, limit, offset, chatType)
 	if err != nil {
-		switch {
-		case errors.Is(err, apperrors.ErrSessionNotFound):
-			WriteError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Session not found or expired", nil)
-		case errors.Is(err, apperrors.ErrInvalidChatLimit):
-			WriteError(w, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid limit", []ErrorDetail{{Field: "limit", Reason: err.Error()}})
-		case errors.Is(err, apperrors.ErrInvalidChatOffset):
-			WriteError(w, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid offset", []ErrorDetail{{Field: "offset", Reason: err.Error()}})
-		case errors.Is(err, apperrors.ErrInvalidChatType):
-			WriteError(w, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid type", []ErrorDetail{{Field: "type", Reason: err.Error()}})
-		default:
-			WriteError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Error while getting chats", nil)
-		}
+		writeMapped(w, err)
 		return
 	}
 
@@ -86,28 +77,61 @@ func (h *сhatHandler) GetListUserChats(w http.ResponseWriter, r *http.Request) 
 		chats = []*models.Chat{}
 	}
 
-	response := struct {
+	writeJSON(w, http.StatusOK, struct {
 		Items []*models.Chat `json:"items"`
-	}{Items: chats}
+	}{Items: chats})
+}
 
-	body, err := json.Marshal(response)
-	if err != nil {
-		WriteError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Something went wrong", nil)
-		return
+func MapDBError(err error) (int, ErrorResponse) {
+	switch {
+	case errors.Is(err, apperrors.ErrSessionNotFound):
+		return http.StatusUnauthorized, ErrorResponse{
+			Code:    "UNAUTHORIZED",
+			Message: "Session not found or expired",
+		}
+	case errors.Is(err, apperrors.ErrInvalidChatLimit):
+		return http.StatusBadRequest, ErrorResponse{
+			Code:    "VALIDATION_ERROR",
+			Message: "Invalid limit",
+			Details: []ErrorDetail{{Field: "limit", Reason: err.Error()}},
+		}
+	case errors.Is(err, apperrors.ErrInvalidChatOffset):
+		return http.StatusBadRequest, ErrorResponse{
+			Code:    "VALIDATION_ERROR",
+			Message: "Invalid offset",
+			Details: []ErrorDetail{{Field: "offset", Reason: err.Error()}},
+		}
+	case errors.Is(err, apperrors.ErrInvalidChatType):
+		return http.StatusBadRequest, ErrorResponse{
+			Code:    "VALIDATION_ERROR",
+			Message: "Invalid type",
+			Details: []ErrorDetail{{Field: "type", Reason: err.Error()}},
+		}
+	default:
+		return http.StatusInternalServerError, ErrorResponse{
+			Code:    "INTERNAL_ERROR",
+			Message: "Error while getting chats",
+		}
 	}
+}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(body)
+func writeMapped(w http.ResponseWriter, err error) {
+	status, resp := MapDBError(err)
+	WriteError(w, status, resp.Code, resp.Message, resp.Details)
 }
 
 func WriteError(w http.ResponseWriter, status int, code, message string, details []ErrorDetail) {
-	w.Header().Set("Content-type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(ErrorResponse{
+	writeJSON(w, status, ErrorResponse{
 		Code:    code,
 		Message: message,
 		Details: details,
 	})
+}
+
+func writeJSON(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(v)
 }
 
 func getIntFromQuery(query url.Values, key string) (int, error) {

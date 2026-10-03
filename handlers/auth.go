@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"regexp"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -109,12 +108,6 @@ func (h *RegisterHandler) processRegistration(ctx context.Context, req RegisterR
 	return h.db.GetUserByID(ctx, userID)
 }
 
-var (
-	emailRegex       = regexp.MustCompile(`^[a-zA-Z0-9_]+@[a-zA-Z]\.[a-zA-Z]{2,}$`)
-	phoneNumberRegex = regexp.MustCompile(`^\+?[1-9]\d{1,14}$`)
-	nicknameRegex    = regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
-)
-
 func (h *RegisterHandler) validateRequest(req RegisterRequest) []apperrors.ErrorDetail {
 	var details []apperrors.ErrorDetail
 
@@ -122,7 +115,7 @@ func (h *RegisterHandler) validateRequest(req RegisterRequest) []apperrors.Error
 		details = append(details, apperrors.ErrorDetail{Field: "email", Reason: "Email required"})
 	} else if len(req.Email) > 255 {
 		details = append(details, apperrors.ErrorDetail{Field: "email", Reason: "Email maximum length is 255"})
-	} else if !emailRegex.MatchString(req.Email) {
+	} else if !helpers.IsEmailValid(req.Email) {
 		details = append(details, apperrors.ErrorDetail{Field: "email", Reason: "Incorrect email format"})
 	}
 
@@ -135,7 +128,7 @@ func (h *RegisterHandler) validateRequest(req RegisterRequest) []apperrors.Error
 	}
 
 	if req.PhoneNumber != nil && *req.PhoneNumber != "" {
-		if !phoneNumberRegex.MatchString(*req.PhoneNumber) {
+		if !helpers.IsPhoneNumberValid(*req.PhoneNumber) {
 			details = append(details, apperrors.ErrorDetail{Field: "phone_number", Reason: "Incorrect phone number format"})
 		}
 	}
@@ -146,7 +139,7 @@ func (h *RegisterHandler) validateRequest(req RegisterRequest) []apperrors.Error
 		details = append(details, apperrors.ErrorDetail{Field: "nickname", Reason: "Nickname minimum length is 3"})
 	} else if len(req.Nickname) > 16 {
 		details = append(details, apperrors.ErrorDetail{Field: "nickname", Reason: "Nickname maximum length is 16"})
-	} else if !nicknameRegex.MatchString(req.Nickname) {
+	} else if !helpers.IsNicknameValid(req.Nickname) {
 		details = append(details, apperrors.ErrorDetail{Field: "nickname", Reason: "Incorrect nickname format"})
 	}
 

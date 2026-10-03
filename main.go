@@ -32,6 +32,7 @@ func main() {
 	go func() {
 		if err := server.ListenAndServe(); err != nil {
 			fmt.Fprintf(os.Stderr, "server error: %v\n", err)
+			os.Exit(1)
 		}
 	}()
 

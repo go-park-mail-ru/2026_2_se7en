@@ -1,32 +1,48 @@
 package handlers
 
 import (
-	"app/apperrors"
-	"app/helpers"
-	"app/storage"
 	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
-	"uuid"
+	"strings"
+	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
+
+	"app/apperrors"
+	"app/helpers"
+	"app/storage"
+	"app/utils"
 )
 
+var fakeHash []byte
+
+func init() {
+	fakeHash, _ = bcrypt.GenerateFromPassword([]byte("fake"), bcrypt.DefaultCost)
+}
+
 type User struct {
-	ID          uuid.UUID `json:"id"`
-	Email       string    `json:"email"`
-	PhoneNumber *string   `json:"phone_number"`
-	Profile     Profile   `json:"profile"`
+	ID           uuid.UUID
+	Email        string
+	PhoneNumber  *string
+	PasswordHash string
+	Profile      Profile
 }
 
 type Profile struct {
-	ID        uuid.UUID  `json:"id"`
-	Nickname  string     `json:"nickname"`
-	FirstName *string    `json:"first_name"`
-	LastName  *string    `json:"last_name"`
-	Bio       *string    `json:"bio"`
-	IconID    *uuid.UUID `json:"icon_id"`
+	ID        uuid.UUID
+	Nickname  string
+	FirstName *string
+	LastName  *string
+	Bio       *string
+	IconURL   *string
+}
+
+type LoginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 type RegisterRequest struct {
@@ -37,6 +53,139 @@ type RegisterRequest struct {
 	FirstName   string  `json:"first_name"`
 	LastName    *string `json:"last_name"`
 }
+
+type ProfileResponse struct {
+	ID        uuid.UUID `json:"id"`
+	Nickname  string    `json:"nickname"`
+	FirstName *string   `json:"first_name"`
+	LastName  *string   `json:"last_name"`
+	Bio       *string   `json:"bio"`
+	IconURL   *string   `json:"icon_url"`
+}
+
+type UserResponse struct {
+	ID          uuid.UUID       `json:"id"`
+	Email       string          `json:"email"`
+	PhoneNumber *string         `json:"phone_number"`
+	Profile     ProfileResponse `json:"profile"`
+}
+
+type SessionDB interface {
+	CreateSession(ctx context.Context, userID uuid.UUID, expiresAt time.Time) (string, error)
+	DeleteSession(ctx context.Context, sessionID string) error
+}
+
+type AuthHandler struct {
+	db       storage.DB
+	sessions SessionDB
+}
+
+func NewAuthHandler(db storage.DB, sessions SessionDB) *AuthHandler {
+	return &AuthHandler{db: db, sessions: sessions}
+}
+
+func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
+	var req LoginRequest
+	if err := helpers.DecodeJSON(r, &req); err != nil {
+		apperrors.WriteError(w, err)
+		return
+	}
+
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
+
+	if details := validateLogin(req); len(details) > 0 {
+		apperrors.WriteError(w, apperrors.NewBadRequest("Validation failed", details))
+		return
+	}
+
+	user, dbErr := h.db.GetUserByEmail(r.Context(), req.Email)
+
+	hash := fakeHash
+	if dbErr == nil && user != nil {
+		hash = []byte(user.PasswordHash)
+	}
+
+	passwordOk := bcrypt.CompareHashAndPassword(hash, []byte(req.Password)) == nil
+
+	if dbErr != nil {
+		if errors.Is(dbErr, apperrors.ErrUserNotFound) {
+			apperrors.WriteError(w, apperrors.NewUnauthorized("Неверный email или пароль", nil))
+			return
+		}
+
+		apperrors.WriteError(w, apperrors.NewInternalError("Что-то пошло не так", dbErr))
+		return
+	}
+
+	if !passwordOk {
+		apperrors.WriteError(w, apperrors.NewUnauthorized("Неверный email или пароль", nil))
+		return
+	}
+
+	sessionID, err := h.sessions.CreateSession(r.Context(), user.ID, time.Now().Add(utils.SessionTTL))
+	if err != nil {
+		apperrors.WriteError(w, apperrors.NewInternalError("Что-то пошло не так", err))
+		return
+	}
+
+	utils.SetSessionCookie(w, sessionID)
+	utils.WriteJSON(w, http.StatusOK, toUserResponse(user))
+}
+
+func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	cookie, err := r.Cookie(utils.SessionCookieName)
+	if err != nil {
+		apperrors.WriteError(w, apperrors.NewUnauthorized("Сессия недействительна", nil))
+		return
+	}
+
+	_ = h.sessions.DeleteSession(r.Context(), cookie.Value)
+
+	utils.ClearSessionCookie(w)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+const (
+	PasswordMinLength = 8
+	PasswordMaxLength = 16
+)
+
+func validateLogin(req LoginRequest) []apperrors.ErrorDetail {
+	var details []apperrors.ErrorDetail
+
+	if req.Email == "" {
+		details = append(details, apperrors.ErrorDetail{Field: "email", Reason: "required"})
+	} else if !helpers.IsEmailValid(req.Email) {
+		details = append(details, apperrors.ErrorDetail{Field: "email", Reason: "invalid_format"})
+	}
+
+	if req.Password == "" {
+		details = append(details, apperrors.ErrorDetail{Field: "password", Reason: "required"})
+	} else if len(req.Password) < PasswordMinLength {
+		details = append(details, apperrors.ErrorDetail{Field: "password", Reason: "too_short"})
+	} else if len(req.Password) > PasswordMaxLength {
+		details = append(details, apperrors.ErrorDetail{Field: "password", Reason: "too_long"})
+	}
+
+	return details
+}
+
+func toUserResponse(u *User) UserResponse {
+	return UserResponse{
+		ID:          u.ID,
+		Email:       u.Email,
+		PhoneNumber: u.PhoneNumber,
+		Profile: ProfileResponse{
+			ID:        u.Profile.ID,
+			Nickname:  u.Profile.Nickname,
+			FirstName: u.Profile.FirstName,
+			LastName:  u.Profile.LastName,
+			Bio:       u.Profile.Bio,
+			IconURL:   u.Profile.IconURL,
+		},
+	}
+}
+
 type RegisterHandler struct {
 	db storage.DB
 }
@@ -113,11 +262,7 @@ func (h *RegisterHandler) processRegistration(ctx context.Context, req RegisterR
 
 	err = h.db.CreateProfile(ctx, userID, req.Nickname, req.FirstName, *req.LastName)
 	if err != nil {
-		deleteErr := h.db.DeleteUserByID(ctx, userID)
-		if deleteErr != nil {
-			// TODO логирование
-		}
-
+		_ = h.db.DeleteUserByID(ctx, userID)
 		return nil, err
 	}
 

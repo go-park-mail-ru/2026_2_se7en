@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -51,7 +50,7 @@ type RegisterRequest struct {
 	PhoneNumber *string `json:"phone_number,omitempty"`
 	Nickname    string  `json:"nickname"`
 	FirstName   string  `json:"first_name"`
-	LastName    *string `json:"last_name"`
+	LastName    *string `json:"last_name,omitempty"`
 }
 
 type ProfileResponse struct {
@@ -238,6 +237,14 @@ func (h *RegisterHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		apperrors.WriteError(w, err)
 		return
 	}
+	if req.PhoneNumber != nil {
+		phone := strings.TrimSpace(*req.PhoneNumber)
+		if phone == "" {
+			req.PhoneNumber = nil
+		} else {
+			req.PhoneNumber = &phone
+		}
+	}
 
 	if details := h.validateRequest(req); len(details) > 0 {
 		apperrors.WriteError(w, apperrors.NewBadRequest("Validation failed", details))
@@ -247,14 +254,14 @@ func (h *RegisterHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	user, err := h.processRegistration(r.Context(), req)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrEmailTaken) {
-			apperrors.WriteError(w, apperrors.NewConflict("Email already taken", []apperrors.ErrorDetail{
+			apperrors.WriteError(w, apperrors.NewConflictWithCode(apperrors.ErrEmailTaken.Code, "Email already taken", []apperrors.ErrorDetail{
 				{Field: "email", Reason: "Email already exists"},
 			}))
 			return
 		}
 
 		if errors.Is(err, apperrors.ErrNicknameTaken) {
-			apperrors.WriteError(w, apperrors.NewConflict("Nickname already taken", []apperrors.ErrorDetail{
+			apperrors.WriteError(w, apperrors.NewConflictWithCode(apperrors.ErrNicknameTaken.Code, "Nickname already taken", []apperrors.ErrorDetail{
 				{Field: "nickname", Reason: "Nickname already exists"},
 			}))
 			return
@@ -264,9 +271,7 @@ func (h *RegisterHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	_ = json.NewEncoder(w).Encode(toUserResponse(user))
+	utils.WriteJSON(w, http.StatusCreated, toUserResponse(user))
 }
 
 func (h *RegisterHandler) processRegistration(ctx context.Context, req RegisterRequest) (*User, error) {

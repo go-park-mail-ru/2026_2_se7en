@@ -27,20 +27,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	server := &http.Server{
-		Addr:         cfg.Addr,
-		Handler:      router.New(),
-		ReadTimeout:  cfg.ReadTimeout,
-		WriteTimeout: cfg.WriteTimeout,
-		IdleTimeout:  cfg.IdleTimeout,
-	}
-
 	db, err := storage.Connect(context.Background(), cfg.DatabaseURL)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
 		os.Exit(1)
 	}
 	defer storage.Close(db)
+
+	server := &http.Server{
+		Addr:         cfg.Addr,
+		Handler:      router.New(db),
+		ReadTimeout:  cfg.ReadTimeout,
+		WriteTimeout: cfg.WriteTimeout,
+		IdleTimeout:  cfg.IdleTimeout,
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

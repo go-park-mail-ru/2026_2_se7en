@@ -86,8 +86,12 @@ func NewNotFound(msg string) *AppError {
 }
 
 func NewConflict(msg string, details []ErrorDetail) *AppError {
+	return NewConflictWithCode("CONFLICT", msg, details)
+}
+
+func NewConflictWithCode(code, msg string, details []ErrorDetail) *AppError {
 	return &AppError{
-		Code:    "CONFLICT",
+		Code:    code,
 		Message: msg,
 		Status:  http.StatusConflict,
 		Details: details,

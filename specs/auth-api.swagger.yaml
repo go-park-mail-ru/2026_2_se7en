@@ -173,7 +173,7 @@ components:
           type: string
         first_name:
           type: string
-          nullable: true
+          nullable: false
         last_name:
           type: string
           nullable: true
@@ -223,7 +223,7 @@ components:
           pattern: '^[a-zA-Z0-9_]+$'
         first_name:
           type: string
-          nullable: true
+          nullable: false
           maxLength: 32
         last_name:
           type: string

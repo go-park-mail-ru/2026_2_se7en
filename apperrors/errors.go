@@ -6,10 +6,7 @@ import (
 	"net/http"
 )
 
-var (
-	ErrUserNotFound = errors.New("user not found")
-	// ErrSessionNotFound = errors.New("session not found")
-)
+var ErrUserNotFound = errors.New("user not found")
 
 type ErrorDetail struct {
 	Field  string `json:"field"`

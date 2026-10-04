@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/mail"
 	"strings"
 	"time"
 
@@ -103,17 +104,18 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user, err := h.db.FindUserByEmail(r.Context(), req.Email)
+	hash := fakeHash
+	if err == nil && user != nil {
+		hash = []byte(user.PasswordHash)
+	}
+	passwordOk := bcrypt.CompareHashAndPassword(hash, []byte(req.Password)) == nil
+
 	if err != nil && !errors.Is(err, apperrors.ErrUserNotFound) {
 		apperrors.WriteError(w, apperrors.NewInternalError("Что-то пошло не так", err))
 		return
 	}
 
-	if user == nil || err != nil {
-		_ = bcrypt.CompareHashAndPassword(fakeHash, []byte(req.Password))
-		apperrors.WriteError(w, apperrors.NewUnauthorized("Неверный email или пароль"))
-		return
-	}
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
+	if user == nil || err != nil || !passwordOk {
 		apperrors.WriteError(w, apperrors.NewUnauthorized("Неверный email или пароль"))
 		return
 	}
@@ -165,7 +167,7 @@ func validateLogin(req LoginRequest) []apperrors.ErrorDetail {
 
 	if req.Email == "" {
 		details = append(details, apperrors.ErrorDetail{Field: "email", Reason: "required"})
-	} else if !helpers.IsEmailValid(req.Email) {
+	} else if _, err := mail.ParseAddress(req.Email); err != nil {
 		details = append(details, apperrors.ErrorDetail{Field: "email", Reason: "invalid_format"})
 	}
 
@@ -319,7 +321,7 @@ func (h *RegisterHandler) validateRequest(req RegisterRequest) []apperrors.Error
 		details = append(details, apperrors.ErrorDetail{Field: "email", Reason: "Email required"})
 	} else if len(req.Email) > 255 {
 		details = append(details, apperrors.ErrorDetail{Field: "email", Reason: "Email maximum length is 255"})
-	} else if !helpers.IsEmailValid(req.Email) {
+	} else if _, err := mail.ParseAddress(req.Email); err != nil {
 		details = append(details, apperrors.ErrorDetail{Field: "email", Reason: "Incorrect email format"})
 	}
 

@@ -1,11 +1,11 @@
 package handlers
 
 import (
-	apperrors "app/app_errors"
+	apperrors "app/apperrors"
 	"app/middleware"
 	"app/models"
+	"app/utils"
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
@@ -13,17 +13,6 @@ import (
 
 	"github.com/google/uuid"
 )
-
-type ErrorResponse struct {
-	Code    string        `json:"code"`
-	Message string        `json:"message"`
-	Details []ErrorDetail `json:"details,omitempty"`
-}
-
-type ErrorDetail struct {
-	Field  string `json:"field"`
-	Reason string `json:"reason"`
-}
 
 type chatDatabase interface {
 	ListUserChats(ctx context.Context, userID uuid.UUID, limit, offset int, chatType string) ([]*models.Chat, error)
@@ -40,7 +29,7 @@ func NewChatHandler(db chatDatabase) *chatHandler {
 func (h *chatHandler) GetListUserChats(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
-		WriteError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Authorization required", nil)
+		apperrors.WriteError(w, apperrors.NewUnauthorized("Authorization required"))
 		return
 	}
 
@@ -77,61 +66,28 @@ func (h *chatHandler) GetListUserChats(w http.ResponseWriter, r *http.Request) {
 		chats = []*models.Chat{}
 	}
 
-	writeJSON(w, http.StatusOK, struct {
+	utils.WriteJSON(w, http.StatusOK, struct {
 		Items []*models.Chat `json:"items"`
 	}{Items: chats})
 }
 
-func MapDBError(err error) (int, ErrorResponse) {
+func MapDBError(err error) *apperrors.AppError {
 	switch {
 	case errors.Is(err, apperrors.ErrSessionNotFound):
-		return http.StatusUnauthorized, ErrorResponse{
-			Code:    "UNAUTHORIZED",
-			Message: "Session not found or expired",
-		}
+		return apperrors.NewUnauthorized("Session not found or expired")
 	case errors.Is(err, apperrors.ErrInvalidChatLimit):
-		return http.StatusBadRequest, ErrorResponse{
-			Code:    "VALIDATION_ERROR",
-			Message: "Invalid limit",
-			Details: []ErrorDetail{{Field: "limit", Reason: err.Error()}},
-		}
+		return apperrors.NewBadRequest("Invalid limit", []apperrors.ErrorDetail{{Field: "limit", Reason: err.Error()}})
 	case errors.Is(err, apperrors.ErrInvalidChatOffset):
-		return http.StatusBadRequest, ErrorResponse{
-			Code:    "VALIDATION_ERROR",
-			Message: "Invalid offset",
-			Details: []ErrorDetail{{Field: "offset", Reason: err.Error()}},
-		}
+		return apperrors.NewBadRequest("Invalid offset", []apperrors.ErrorDetail{{Field: "offset", Reason: err.Error()}})
 	case errors.Is(err, apperrors.ErrInvalidChatType):
-		return http.StatusBadRequest, ErrorResponse{
-			Code:    "VALIDATION_ERROR",
-			Message: "Invalid type",
-			Details: []ErrorDetail{{Field: "type", Reason: err.Error()}},
-		}
+		return apperrors.NewBadRequest("Invalid type", []apperrors.ErrorDetail{{Field: "type", Reason: err.Error()}})
 	default:
-		return http.StatusInternalServerError, ErrorResponse{
-			Code:    "INTERNAL_ERROR",
-			Message: "Error while getting chats",
-		}
+		return apperrors.NewInternalError("Error while getting chats", err)
 	}
 }
 
 func writeMapped(w http.ResponseWriter, err error) {
-	status, resp := MapDBError(err)
-	WriteError(w, status, resp.Code, resp.Message, resp.Details)
-}
-
-func WriteError(w http.ResponseWriter, status int, code, message string, details []ErrorDetail) {
-	writeJSON(w, status, ErrorResponse{
-		Code:    code,
-		Message: message,
-		Details: details,
-	})
-}
-
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
+	apperrors.WriteError(w, MapDBError(err))
 }
 
 func getIntFromQuery(query url.Values, key string) (int, error) {

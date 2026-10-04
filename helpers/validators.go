@@ -3,7 +3,7 @@ package helpers
 import "regexp"
 
 var (
-	emailRegex       = regexp.MustCompile(`^[a-zA-Z0-9_]+@[a-zA-Z]\.[a-zA-Z]{2,}$`)
+	emailRegex       = regexp.MustCompile(`^[A-Za-z0-9._]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$`)
 	phoneNumberRegex = regexp.MustCompile(`^\+?[1-9]\d{1,14}$`)
 	nicknameRegex    = regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
 )

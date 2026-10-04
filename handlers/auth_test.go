@@ -13,42 +13,46 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"app/apperrors"
+	"app/models"
 	"app/utils"
 )
 
 type mockLoginDB struct {
-	user *UserWithProfile
-	err  error
+	user    *models.User
+	profile *models.Profile
+	err     error
 }
 
-func (m *mockLoginDB) GetUserByEmail(ctx context.Context, email string) (*UserWithProfile, error) {
+func (m *mockLoginDB) FindUserByEmail(ctx context.Context, email string) (*models.User, error) {
 	return m.user, m.err
 }
 
-func (m *mockLoginDB) GetUserByID(ctx context.Context, userID uuid.UUID) (*UserWithProfile, error) {
-	return m.user, m.err
+func (m *mockLoginDB) FindProfileByUserID(ctx context.Context, userID uuid.UUID) (*models.Profile, error) {
+	return m.profile, nil
 }
 
 type mockSessionDB struct {
-	sessionID string
+	sessionID uuid.UUID
 	createErr error
 }
 
-func (m *mockSessionDB) CreateSession(ctx context.Context, userID uuid.UUID, expiresAt time.Time) (string, error) {
-	return m.sessionID, m.createErr
+func (m *mockSessionDB) CreateSession(ctx context.Context, userID uuid.UUID, expiresAt time.Time) (*models.Session, error) {
+	if m.createErr != nil {
+		return nil, m.createErr
+	}
+	return &models.Session{ID: m.sessionID, UserID: userID, ExpiresAt: expiresAt}, nil
 }
 
-func (m *mockSessionDB) DeleteSession(ctx context.Context, sessionID string) error {
+func (m *mockSessionDB) DeleteSession(ctx context.Context, sessionID uuid.UUID) error {
 	return nil
 }
 
-func makeUser(password string) *UserWithProfile {
+func makeUser(password string) *models.User {
 	hash, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.MinCost)
-	return &UserWithProfile{
+	return &models.User{
 		ID:           uuid.New(),
 		Email:        "user@example.ru",
 		PasswordHash: string(hash),
-		Profile:      Profile{ID: uuid.New(), Nickname: "nick"},
 	}
 }
 
@@ -60,7 +64,7 @@ func TestValidateLogin(t *testing.T) {
 		wantReason string
 	}{
 		{"empty email", LoginRequest{Password: "password123"}, "email", "required"},
-		{"invalid email", LoginRequest{Email: "bad", Password: "password123"}, "email", "Invalid_format"},
+		{"invalid email", LoginRequest{Email: "bad", Password: "password123"}, "email", "invalid_format"},
 		{"empty password", LoginRequest{Email: "user@example.ru"}, "password", "required"},
 		{"short password", LoginRequest{Email: "user@example.ru", Password: "short"}, "password", "too_short"},
 		{"long password", LoginRequest{Email: "user@example.ru", Password: "verylongpassword12345"}, "password", "too_long"},
@@ -99,7 +103,7 @@ func TestLogin(t *testing.T) {
 			name:       "success",
 			body:       `{"email":"user@example.ru","password":"password123"}`,
 			db:         &mockLoginDB{user: makeUser("password123")},
-			sessions:   &mockSessionDB{sessionID: "sid"},
+			sessions:   &mockSessionDB{sessionID: uuid.New()},
 			wantStatus: http.StatusOK,
 			wantCookie: true,
 		},
@@ -185,7 +189,7 @@ func TestLogout(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		h := NewAuthHandler(&mockLoginDB{}, &mockSessionDB{})
 		req := httptest.NewRequest(http.MethodPost, "/logout", nil)
-		req.AddCookie(&http.Cookie{Name: utils.SessionCookieName, Value: "sid"})
+		req.AddCookie(&http.Cookie{Name: utils.SessionCookieName, Value: uuid.NewString()})
 		rec := httptest.NewRecorder()
 
 		h.Logout(rec, req)

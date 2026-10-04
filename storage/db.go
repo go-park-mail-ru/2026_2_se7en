@@ -1,7 +1,7 @@
 package storage
 
 import (
-	apperrors "app/app_errors"
+	apperrors "app/apperrors"
 	"context"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -29,4 +29,3 @@ func Close(db *DB) {
 		db.pool.Close()
 	}
 }
-

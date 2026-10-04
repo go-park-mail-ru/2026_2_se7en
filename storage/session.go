@@ -1,7 +1,7 @@
 package storage
 
 import (
-	apperrors "app/app_errors"
+	apperrors "app/apperrors"
 	"app/models"
 	"context"
 	"errors"

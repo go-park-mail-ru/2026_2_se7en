@@ -1,14 +1,12 @@
 package apperrors
 
-import "errors"
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 )
 
-var (
-	ErrUserNotFound = errors.New("user not found")
-	ErrSessionNotFound = errors.New("session not found")
+var ErrUserNotFound = errors.New("user not found")
 
 type ErrorDetail struct {
 	Field  string `json:"field"`
@@ -85,8 +83,12 @@ func NewNotFound(msg string) *AppError {
 }
 
 func NewConflict(msg string, details []ErrorDetail) *AppError {
+	return NewConflictWithCode("CONFLICT", msg, details)
+}
+
+func NewConflictWithCode(code, msg string, details []ErrorDetail) *AppError {
 	return &AppError{
-		Code:    "CONFLICT",
+		Code:    code,
 		Message: msg,
 		Status:  http.StatusConflict,
 		Details: details,

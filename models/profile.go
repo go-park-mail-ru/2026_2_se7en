@@ -12,7 +12,7 @@ type Profile struct {
 	IconID    *uuid.UUID
 	Nickname  string
 	FirstName string
-	LastName  string
+	LastName  *string
 	Bio       *string
 	CreatedAt time.Time
 	UpdatedAt time.Time

@@ -41,7 +41,7 @@ func (db *DB) CheckNicknameExist(ctx context.Context, nickname string) (bool, er
 	return exists, err
 }
 
-func (db *DB) CreateProfile(ctx context.Context, iconIDd *uuid.UUID, userIDd uuid.UUID, nickname, firstName, lastName string, bio *string) (*models.Profile, error) {
+func (db *DB) CreateProfile(ctx context.Context, iconIDd *uuid.UUID, userIDd uuid.UUID, nickname, firstName string, lastName *string, bio *string) (*models.Profile, error) {
 	var profile models.Profile
 	err := db.pool.QueryRow(ctx, sqlCreateProfile, iconIDd, userIDd, nickname, firstName, lastName, bio).
 		Scan(&profile.ID, &profile.IconID, &profile.UserID, &profile.Nickname, &profile.FirstName, &profile.LastName, &profile.Bio, &profile.CreatedAt, &profile.UpdatedAt)

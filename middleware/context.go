@@ -26,3 +26,11 @@ func NewAuthContext(ctx context.Context, userID uuid.UUID) Context {
 		userID:  userID,
 	}
 }
+
+func UserIDFromContext(ctx context.Context) (uuid.UUID, bool) {
+	authContext, ok := ctx.(Context)
+	if !ok {
+		return uuid.Nil, false
+	}
+	return authContext.UserID(), true
+}

@@ -11,17 +11,23 @@ import (
 const defaultChatLimit = 20
 
 const sqlListUserChats = `
-	select distinct on (c.updated_at, c.id)
+	select
 		c.*,
 		m.id, m.content, m.type, m.created_at
 	from chat c
 	join user_in_chat u on u.chat_id = c.id
-	left join message m on m.chat_id = c.id and m.deleted_at is null
+	left join lateral (
+		select m.id, m.content, m.type, m.created_at
+		from message m
+		where m.chat_id = c.id and m.deleted_at is null
+		order by m.created_at desc, m.id desc
+		limit 1
+	) m on true
 	where u.user_id = $1
 		and u.deleted_at is null
 		and c.deleted_at is null
 		and ($4 = '' or c.type = $4)
-	order by c.updated_at desc, c.id, m.created_at desc nulls last, m.id desc
+	order by m.created_at desc nulls last, c.updated_at desc, c.id
 	limit $2 offset $3
 `
 

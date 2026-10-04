@@ -175,9 +175,14 @@ components:
         first_name:
           type: string
           nullable: false
+          minLength: 2
+          maxLength: 32
+          pattern: '^[^0-9]*$'
         last_name:
           type: string
           nullable: true
+          minLength: 2
+          maxLength: 32
         bio:
           type: string
           nullable: true
@@ -225,10 +230,13 @@ components:
         first_name:
           type: string
           nullable: false
+          minLength: 2
           maxLength: 32
+          pattern: '^[^0-9]*$'
         last_name:
           type: string
           nullable: true
+          minLength: 2
           maxLength: 32
 
     LoginRequest:

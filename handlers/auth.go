@@ -7,12 +7,14 @@ import (
 	"net/mail"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
 	"app/apperrors"
 	"app/helpers"
+	"app/middleware"
 	"app/models"
 	"app/utils"
 )
@@ -77,6 +79,7 @@ type SessionDB interface {
 
 type LoginDB interface {
 	FindUserByEmail(ctx context.Context, email string) (*models.User, error)
+	FindUserByID(ctx context.Context, userID uuid.UUID) (*models.User, error)
 	FindProfileByUserID(ctx context.Context, userID uuid.UUID) (*models.Profile, error)
 }
 
@@ -133,6 +136,32 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.SetSessionCookie(w, session.ID.String())
+	utils.WriteJSON(w, http.StatusOK, toUserResponse(userWithProfile(user, profile)))
+}
+
+func (h *AuthHandler) CurrentUser(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		apperrors.WriteError(w, apperrors.NewUnauthorized("Сессия недействительна"))
+		return
+	}
+
+	user, err := h.db.FindUserByID(r.Context(), userID)
+	if err != nil {
+		apperrors.WriteError(w, apperrors.NewInternalError("Что-то пошло не так", err))
+		return
+	}
+	if user == nil {
+		apperrors.WriteError(w, apperrors.NewUnauthorized("Пользователь не найден"))
+		return
+	}
+
+	profile, err := h.db.FindProfileByUserID(r.Context(), userID)
+	if err != nil {
+		apperrors.WriteError(w, apperrors.NewInternalError("Что-то пошло не так", err))
+		return
+	}
+
 	utils.WriteJSON(w, http.StatusOK, toUserResponse(userWithProfile(user, profile)))
 }
 
@@ -247,6 +276,15 @@ func (h *RegisterHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 			req.PhoneNumber = &phone
 		}
 	}
+	req.FirstName = strings.TrimSpace(req.FirstName)
+	if req.LastName != nil {
+		lastName := strings.TrimSpace(*req.LastName)
+		if lastName == "" {
+			req.LastName = nil
+		} else {
+			req.LastName = &lastName
+		}
+	}
 
 	if details := h.validateRequest(req); len(details) > 0 {
 		apperrors.WriteError(w, apperrors.NewBadRequest("Validation failed", details))
@@ -349,14 +387,22 @@ func (h *RegisterHandler) validateRequest(req RegisterRequest) []apperrors.Error
 		details = append(details, apperrors.ErrorDetail{Field: "nickname", Reason: "Incorrect nickname format"})
 	}
 
-	if strings.TrimSpace(req.FirstName) == "" {
+	firstNameLength := utf8.RuneCountInString(strings.TrimSpace(req.FirstName))
+	if firstNameLength == 0 {
 		details = append(details, apperrors.ErrorDetail{Field: "first_name", Reason: "First name required"})
-	} else if len(req.FirstName) > 32 {
+	} else if strings.ContainsAny(req.FirstName, "0123456789") {
+		details = append(details, apperrors.ErrorDetail{Field: "first_name", Reason: "First name must not contain digits"})
+	} else if firstNameLength < 2 {
+		details = append(details, apperrors.ErrorDetail{Field: "first_name", Reason: "First name minimum length is 2"})
+	} else if firstNameLength > 32 {
 		details = append(details, apperrors.ErrorDetail{Field: "first_name", Reason: "First name maximum length is 32"})
 	}
 
-	if req.LastName != nil && *req.LastName != "" {
-		if len(*req.LastName) > 32 {
+	if req.LastName != nil && strings.TrimSpace(*req.LastName) != "" {
+		lastNameLength := utf8.RuneCountInString(strings.TrimSpace(*req.LastName))
+		if lastNameLength < 2 {
+			details = append(details, apperrors.ErrorDetail{Field: "last_name", Reason: "Last name minimum length is 2"})
+		} else if lastNameLength > 32 {
 			details = append(details, apperrors.ErrorDetail{Field: "last_name", Reason: "Last name maximum length is 32"})
 		}
 	}

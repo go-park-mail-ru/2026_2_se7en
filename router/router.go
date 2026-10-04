@@ -18,6 +18,7 @@ func New(db *storage.DB) http.Handler {
 	chats := handlers.NewChatHandler(db)
 	api.Handle("POST /auth/register", http.HandlerFunc(registration.RegisterUser))
 	api.Handle("POST /auth/login", http.HandlerFunc(auth.Login))
+	api.Handle("GET /auth/me", middleware.NewAuthMiddleware(db, http.HandlerFunc(auth.CurrentUser)))
 	api.Handle("POST /auth/logout", middleware.NewAuthMiddleware(db, http.HandlerFunc(auth.Logout)))
 	api.Handle("GET /chats", middleware.NewAuthMiddleware(db, http.HandlerFunc(chats.GetListUserChats)))
 

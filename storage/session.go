@@ -15,7 +15,7 @@ const (
 	sqlCreateSession = `
 		insert into session (user_id, expires_at)
 	 	values ($1, $2)
-		returning (id, user_id, expires_at, created_at, updated_at)
+		returning id, user_id, expires_at, created_at, updated_at
 	`
 
 	sqlFindSessionByID = `

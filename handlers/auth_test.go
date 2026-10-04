@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"app/apperrors"
+	"app/middleware"
 	"app/models"
 	"app/utils"
 )
@@ -24,6 +26,10 @@ type mockLoginDB struct {
 }
 
 func (m *mockLoginDB) FindUserByEmail(ctx context.Context, email string) (*models.User, error) {
+	return m.user, m.err
+}
+
+func (m *mockLoginDB) FindUserByID(ctx context.Context, userID uuid.UUID) (*models.User, error) {
 	return m.user, m.err
 }
 
@@ -204,3 +210,76 @@ func TestLogout(t *testing.T) {
 		}
 	})
 }
+
+func TestCurrentUser(t *testing.T) {
+	user := makeUser("password123")
+	profile := &models.Profile{FirstName: "Анна", Nickname: "anna"}
+	h := NewAuthHandler(&mockLoginDB{user: user, profile: profile}, &mockSessionDB{})
+	req := httptest.NewRequest(http.MethodGet, "/auth/me", nil)
+	req = req.WithContext(middleware.NewAuthContext(req.Context(), user.ID))
+	rec := httptest.NewRecorder()
+
+	h.CurrentUser(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body: %s)", rec.Code, rec.Body.String())
+	}
+	var response UserResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if response.Profile.FirstName != "Анна" {
+		t.Errorf("first_name = %q, want Анна", response.Profile.FirstName)
+	}
+	if !strings.Contains(rec.Body.String(), `"first_name":"Анна"`) {
+		t.Errorf("response does not contain profile.first_name: %s", rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "password_hash") {
+		t.Error("response exposes password hash")
+	}
+}
+
+func TestRegisterNameLengths(t *testing.T) {
+	base := RegisterRequest{
+		Email: "user@example.com", Password: "password", Nickname: "user", FirstName: "Анна",
+	}
+	tests := []struct {
+		name       string
+		firstName  string
+		lastName   *string
+		wantField  string
+		wantReason string
+	}{
+		{name: "first name one character", firstName: "Я", wantField: "first_name", wantReason: "First name minimum length is 2"},
+		{name: "first name two characters", firstName: "Ян"},
+		{name: "first name 32 Cyrillic characters", firstName: strings.Repeat("Я", 32)},
+		{name: "first name 33 Cyrillic characters", firstName: strings.Repeat("Я", 33), wantField: "first_name", wantReason: "First name maximum length is 32"},
+		{name: "last name omitted", firstName: base.FirstName},
+		{name: "last name empty", firstName: base.FirstName, lastName: namePointer("")},
+		{name: "last name one character", firstName: base.FirstName, lastName: namePointer("Я"), wantField: "last_name", wantReason: "Last name minimum length is 2"},
+		{name: "last name two characters", firstName: base.FirstName, lastName: namePointer("Ян")},
+		{name: "last name 32 Cyrillic characters", firstName: base.FirstName, lastName: namePointer(strings.Repeat("Я", 32))},
+		{name: "last name 33 Cyrillic characters", firstName: base.FirstName, lastName: namePointer(strings.Repeat("Я", 33)), wantField: "last_name", wantReason: "Last name maximum length is 32"},
+	}
+
+	h := NewHandler(nil)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := base
+			req.FirstName = tt.firstName
+			req.LastName = tt.lastName
+			details := h.validateRequest(req)
+			if tt.wantField == "" {
+				if len(details) != 0 {
+					t.Fatalf("unexpected validation errors: %+v", details)
+				}
+				return
+			}
+			if len(details) != 1 || details[0].Field != tt.wantField || details[0].Reason != tt.wantReason {
+				t.Fatalf("validation errors = %+v, want %s: %s", details, tt.wantField, tt.wantReason)
+			}
+		})
+	}
+}
+
+func namePointer(value string) *string { return &value }

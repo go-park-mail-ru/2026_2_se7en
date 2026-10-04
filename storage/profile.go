@@ -13,11 +13,11 @@ const (
 	sqlCreateProfile = `
 		insert into profile (icon_id, user_id, nickname, first_name, last_name, bio)
 	 	values ($1, $2, $3, $4, $5, $6)
-		returning (id, icon_id, user_id, nickname, first_name, last_name, bio, created_at, updated_at)
+		returning id, icon_id, user_id, nickname, first_name, last_name, bio, created_at, updated_at
 	`
 
 	sqlFindProfileByUserID = `
-		select * 
+		select id, icon_id, user_id, nickname, first_name, last_name, bio, created_at, updated_at
 		from profile
 		where user_id = $1
 	`

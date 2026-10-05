@@ -22,6 +22,9 @@ func New(db *storage.DB) http.Handler {
 	api.Handle("POST /auth/logout", middleware.NewAuthMiddleware(db, http.HandlerFunc(auth.Logout)))
 	api.Handle("GET /chats", middleware.NewAuthMiddleware(db, http.HandlerFunc(chats.GetListUserChats)))
 
+	api.HandleFunc("GET /swagger", swaggerUI)
+	api.Handle("GET /specs/", http.StripPrefix("/specs/", http.FileServer(http.Dir("specs"))))
+
 	mainRouter := http.NewServeMux()
 	mainRouter.Handle("/api/v1/", http.StripPrefix("/api/v1", api))
 

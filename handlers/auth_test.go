@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -19,13 +20,26 @@ import (
 	"app/utils"
 )
 
+const (
+	testEmail       = "user@example.ru"
+	testPassword    = "password123"
+	testFirstName   = "Анна"
+	testNickname    = "anna"
+	testWrongPasswd = "wrongpassword"
+	testShortPasswd = "short"
+	testLongPasswd  = "verylongpassword12345"
+)
+
 type mockLoginDB struct {
-	user    *models.User
-	profile *models.Profile
-	err     error
+	user         *models.User
+	profile      *models.Profile
+	err          error
+	profileErr   error
+	queriedEmail string
 }
 
 func (m *mockLoginDB) FindUserByEmail(ctx context.Context, email string) (*models.User, error) {
+	m.queriedEmail = email
 	return m.user, m.err
 }
 
@@ -34,12 +48,13 @@ func (m *mockLoginDB) FindUserByID(ctx context.Context, userID uuid.UUID) (*mode
 }
 
 func (m *mockLoginDB) FindProfileByUserID(ctx context.Context, userID uuid.UUID) (*models.Profile, error) {
-	return m.profile, nil
+	return m.profile, m.profileErr
 }
 
 type mockSessionDB struct {
 	sessionID uuid.UUID
 	createErr error
+	deleteErr error
 }
 
 func (m *mockSessionDB) CreateSession(ctx context.Context, userID uuid.UUID, expiresAt time.Time) (*models.Session, error) {
@@ -50,16 +65,20 @@ func (m *mockSessionDB) CreateSession(ctx context.Context, userID uuid.UUID, exp
 }
 
 func (m *mockSessionDB) DeleteSession(ctx context.Context, sessionID uuid.UUID) error {
-	return nil
+	return m.deleteErr
 }
 
 func makeUser(password string) *models.User {
 	hash, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.MinCost)
 	return &models.User{
 		ID:           uuid.New(),
-		Email:        "user@example.ru",
+		Email:        testEmail,
 		PasswordHash: string(hash),
 	}
+}
+
+func loginBody(email, password string) string {
+	return fmt.Sprintf(`{"email":%q,"password":%q}`, email, password)
 }
 
 func TestValidateLogin(t *testing.T) {
@@ -69,11 +88,11 @@ func TestValidateLogin(t *testing.T) {
 		wantField  string
 		wantReason string
 	}{
-		{"empty email", LoginRequest{Password: "password123"}, "email", "required"},
-		{"invalid email", LoginRequest{Email: "bad", Password: "password123"}, "email", "invalid_format"},
-		{"empty password", LoginRequest{Email: "user@example.ru"}, "password", "required"},
-		{"short password", LoginRequest{Email: "user@example.ru", Password: "short"}, "password", "too_short"},
-		{"long password", LoginRequest{Email: "user@example.ru", Password: "verylongpassword12345"}, "password", "too_long"},
+		{"empty email", LoginRequest{Password: testPassword}, "email", "required"},
+		{"invalid email", LoginRequest{Email: "bad", Password: testPassword}, "email", "invalid_format"},
+		{"empty password", LoginRequest{Email: testEmail}, "password", "required"},
+		{"short password", LoginRequest{Email: testEmail, Password: testShortPasswd}, "password", "too_short"},
+		{"long password", LoginRequest{Email: testEmail, Password: testLongPasswd}, "password", "too_long"},
 	}
 
 	for _, tt := range tests {
@@ -107,8 +126,8 @@ func TestLogin(t *testing.T) {
 	}{
 		{
 			name:       "success",
-			body:       `{"email":"user@example.ru","password":"password123"}`,
-			db:         &mockLoginDB{user: makeUser("password123")},
+			body:       loginBody(testEmail, testPassword),
+			db:         &mockLoginDB{user: makeUser(testPassword)},
 			sessions:   &mockSessionDB{sessionID: uuid.New()},
 			wantStatus: http.StatusOK,
 			wantCookie: true,
@@ -122,38 +141,67 @@ func TestLogin(t *testing.T) {
 		},
 		{
 			name:       "empty password",
-			body:       `{"email":"user@example.ru","password":""}`,
+			body:       loginBody(testEmail, ""),
 			db:         &mockLoginDB{},
 			sessions:   &mockSessionDB{},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "short password",
-			body:       `{"email":"user@example.ru","password":"short"}`,
+			body:       loginBody(testEmail, testShortPasswd),
 			db:         &mockLoginDB{},
 			sessions:   &mockSessionDB{},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "user not found",
-			body:       `{"email":"user@example.ru","password":"password228"}`,
+			body:       loginBody(testEmail, testPassword),
 			db:         &mockLoginDB{err: apperrors.ErrUserNotFound},
 			sessions:   &mockSessionDB{},
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
+			name:       "nil user",
+			body:       loginBody(testEmail, testPassword),
+			db:         &mockLoginDB{},
+			sessions:   &mockSessionDB{},
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
 			name:       "wrong password",
-			body:       `{"email":"user@example.ru","password":"wrongpassword"}`,
-			db:         &mockLoginDB{user: makeUser("password123")},
+			body:       loginBody(testEmail, testWrongPasswd),
+			db:         &mockLoginDB{user: makeUser(testPassword)},
 			sessions:   &mockSessionDB{},
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
 			name:       "db error",
-			body:       `{"email":"user@example.ru","password":"password228"}`,
+			body:       loginBody(testEmail, testPassword),
 			db:         &mockLoginDB{err: errors.New("db down")},
 			sessions:   &mockSessionDB{},
 			wantStatus: http.StatusInternalServerError,
+		},
+		{
+			name:       "profile db error",
+			body:       loginBody(testEmail, testPassword),
+			db:         &mockLoginDB{user: makeUser(testPassword), profileErr: errors.New("profile db down")},
+			sessions:   &mockSessionDB{},
+			wantStatus: http.StatusInternalServerError,
+		},
+		{
+			name:       "session db error",
+			body:       loginBody(testEmail, testPassword),
+			db:         &mockLoginDB{user: makeUser(testPassword)},
+			sessions:   &mockSessionDB{createErr: errors.New("session db down")},
+			wantStatus: http.StatusInternalServerError,
+		},
+		{
+			name:       "normalizes email",
+			body:       loginBody(strings.ToUpper(" "+testEmail+" "), testPassword),
+			db:         &mockLoginDB{user: makeUser(testPassword)},
+			sessions:   &mockSessionDB{sessionID: uuid.New()},
+			wantStatus: http.StatusOK,
+			wantCookie: true,
 		},
 	}
 
@@ -164,6 +212,9 @@ func TestLogin(t *testing.T) {
 			rec := httptest.NewRecorder()
 
 			h.Login(rec, req)
+			if tt.name == "normalizes email" && tt.db.queriedEmail != testEmail {
+				t.Errorf("queried email = %q, want normalized email", tt.db.queriedEmail)
+			}
 
 			if rec.Code != tt.wantStatus {
 				t.Errorf("status = %d, want %d (body: %s)", rec.Code, tt.wantStatus, rec.Body.String())
@@ -209,11 +260,33 @@ func TestLogout(t *testing.T) {
 			t.Errorf("expected cookie cleared (MaxAge=-1)")
 		}
 	})
+
+	t.Run("invalid session id", func(t *testing.T) {
+		h := NewAuthHandler(&mockLoginDB{}, &mockSessionDB{})
+		req := httptest.NewRequest(http.MethodPost, "/logout", nil)
+		req.AddCookie(&http.Cookie{Name: utils.SessionCookieName, Value: "not-a-uuid"})
+		rec := httptest.NewRecorder()
+		h.Logout(rec, req)
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+		}
+	})
+
+	t.Run("session deletion error", func(t *testing.T) {
+		h := NewAuthHandler(&mockLoginDB{}, &mockSessionDB{deleteErr: errors.New("db down")})
+		req := httptest.NewRequest(http.MethodPost, "/logout", nil)
+		req.AddCookie(&http.Cookie{Name: utils.SessionCookieName, Value: uuid.NewString()})
+		rec := httptest.NewRecorder()
+		h.Logout(rec, req)
+		if rec.Code != http.StatusInternalServerError {
+			t.Errorf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
+		}
+	})
 }
 
 func TestCurrentUser(t *testing.T) {
-	user := makeUser("password123")
-	profile := &models.Profile{FirstName: "Анна", Nickname: "anna"}
+	user := makeUser(testPassword)
+	profile := &models.Profile{FirstName: testFirstName, Nickname: testNickname}
 	h := NewAuthHandler(&mockLoginDB{user: user, profile: profile}, &mockSessionDB{})
 	req := httptest.NewRequest(http.MethodGet, "/auth/me", nil)
 	req = req.WithContext(middleware.NewAuthContext(req.Context(), user.ID))
@@ -228,10 +301,10 @@ func TestCurrentUser(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
 		t.Fatal(err)
 	}
-	if response.Profile.FirstName != "Анна" {
-		t.Errorf("first_name = %q, want Анна", response.Profile.FirstName)
+	if response.Profile.FirstName != testFirstName {
+		t.Errorf("first_name = %q, want %s", response.Profile.FirstName, testFirstName)
 	}
-	if !strings.Contains(rec.Body.String(), `"first_name":"Анна"`) {
+	if !strings.Contains(rec.Body.String(), fmt.Sprintf(`"first_name":%q`, testFirstName)) {
 		t.Errorf("response does not contain profile.first_name: %s", rec.Body.String())
 	}
 	if strings.Contains(rec.Body.String(), "password_hash") {
@@ -239,9 +312,38 @@ func TestCurrentUser(t *testing.T) {
 	}
 }
 
+func TestCurrentUserFailures(t *testing.T) {
+	userID := uuid.New()
+	tests := []struct {
+		name       string
+		db         *mockLoginDB
+		withAuth   bool
+		wantStatus int
+	}{
+		{name: "missing auth context", db: &mockLoginDB{}, wantStatus: http.StatusUnauthorized},
+		{name: "database error", db: &mockLoginDB{err: errors.New("db down")}, withAuth: true, wantStatus: http.StatusInternalServerError},
+		{name: "missing user", db: &mockLoginDB{}, withAuth: true, wantStatus: http.StatusUnauthorized},
+		{name: "profile database error", db: &mockLoginDB{user: makeUser(testPassword), profileErr: errors.New("profile db down")}, withAuth: true, wantStatus: http.StatusInternalServerError},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/auth/me", nil)
+			if tt.withAuth {
+				req = req.WithContext(middleware.NewAuthContext(req.Context(), userID))
+			}
+			rec := httptest.NewRecorder()
+			NewAuthHandler(tt.db, &mockSessionDB{}).CurrentUser(rec, req)
+			if rec.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d (body: %s)", rec.Code, tt.wantStatus, rec.Body.String())
+			}
+		})
+	}
+}
+
 func TestRegisterNameLengths(t *testing.T) {
 	base := RegisterRequest{
-		Email: "user@example.com", Password: "password", Nickname: "user", FirstName: "Анна",
+		Email: testEmail, Password: testPassword, Nickname: testNickname, FirstName: testFirstName,
 	}
 	tests := []struct {
 		name       string

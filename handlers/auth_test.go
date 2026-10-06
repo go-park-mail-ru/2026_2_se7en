@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,6 +18,16 @@ import (
 	"app/middleware"
 	"app/models"
 	"app/utils"
+)
+
+const (
+	testEmail       = "user@example.ru"
+	testPassword    = "password123"
+	testFirstName   = "Анна"
+	testNickname    = "anna"
+	testWrongPasswd = "wrongpassword"
+	testShortPasswd = "short"
+	testLongPasswd  = "verylongpassword12345"
 )
 
 type mockLoginDB struct {
@@ -61,9 +72,13 @@ func makeUser(password string) *models.User {
 	hash, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.MinCost)
 	return &models.User{
 		ID:           uuid.New(),
-		Email:        "user@example.ru",
+		Email:        testEmail,
 		PasswordHash: string(hash),
 	}
+}
+
+func loginBody(email, password string) string {
+	return fmt.Sprintf(`{"email":%q,"password":%q}`, email, password)
 }
 
 func TestValidateLogin(t *testing.T) {
@@ -73,11 +88,11 @@ func TestValidateLogin(t *testing.T) {
 		wantField  string
 		wantReason string
 	}{
-		{"empty email", LoginRequest{Password: "password123"}, "email", "required"},
-		{"invalid email", LoginRequest{Email: "bad", Password: "password123"}, "email", "invalid_format"},
-		{"empty password", LoginRequest{Email: "user@example.ru"}, "password", "required"},
-		{"short password", LoginRequest{Email: "user@example.ru", Password: "short"}, "password", "too_short"},
-		{"long password", LoginRequest{Email: "user@example.ru", Password: "verylongpassword12345"}, "password", "too_long"},
+		{"empty email", LoginRequest{Password: testPassword}, "email", "required"},
+		{"invalid email", LoginRequest{Email: "bad", Password: testPassword}, "email", "invalid_format"},
+		{"empty password", LoginRequest{Email: testEmail}, "password", "required"},
+		{"short password", LoginRequest{Email: testEmail, Password: testShortPasswd}, "password", "too_short"},
+		{"long password", LoginRequest{Email: testEmail, Password: testLongPasswd}, "password", "too_long"},
 	}
 
 	for _, tt := range tests {
@@ -111,8 +126,8 @@ func TestLogin(t *testing.T) {
 	}{
 		{
 			name:       "success",
-			body:       `{"email":"user@example.ru","password":"password123"}`,
-			db:         &mockLoginDB{user: makeUser("password123")},
+			body:       loginBody(testEmail, testPassword),
+			db:         &mockLoginDB{user: makeUser(testPassword)},
 			sessions:   &mockSessionDB{sessionID: uuid.New()},
 			wantStatus: http.StatusOK,
 			wantCookie: true,
@@ -126,64 +141,64 @@ func TestLogin(t *testing.T) {
 		},
 		{
 			name:       "empty password",
-			body:       `{"email":"user@example.ru","password":""}`,
+			body:       loginBody(testEmail, ""),
 			db:         &mockLoginDB{},
 			sessions:   &mockSessionDB{},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "short password",
-			body:       `{"email":"user@example.ru","password":"short"}`,
+			body:       loginBody(testEmail, testShortPasswd),
 			db:         &mockLoginDB{},
 			sessions:   &mockSessionDB{},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "user not found",
-			body:       `{"email":"user@example.ru","password":"password228"}`,
+			body:       loginBody(testEmail, testPassword),
 			db:         &mockLoginDB{err: apperrors.ErrUserNotFound},
 			sessions:   &mockSessionDB{},
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
 			name:       "nil user",
-			body:       `{"email":"user@example.ru","password":"password123"}`,
+			body:       loginBody(testEmail, testPassword),
 			db:         &mockLoginDB{},
 			sessions:   &mockSessionDB{},
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
 			name:       "wrong password",
-			body:       `{"email":"user@example.ru","password":"wrongpassword"}`,
-			db:         &mockLoginDB{user: makeUser("password123")},
+			body:       loginBody(testEmail, testWrongPasswd),
+			db:         &mockLoginDB{user: makeUser(testPassword)},
 			sessions:   &mockSessionDB{},
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
 			name:       "db error",
-			body:       `{"email":"user@example.ru","password":"password228"}`,
+			body:       loginBody(testEmail, testPassword),
 			db:         &mockLoginDB{err: errors.New("db down")},
 			sessions:   &mockSessionDB{},
 			wantStatus: http.StatusInternalServerError,
 		},
 		{
 			name:       "profile db error",
-			body:       `{"email":"user@example.ru","password":"password123"}`,
-			db:         &mockLoginDB{user: makeUser("password123"), profileErr: errors.New("profile db down")},
+			body:       loginBody(testEmail, testPassword),
+			db:         &mockLoginDB{user: makeUser(testPassword), profileErr: errors.New("profile db down")},
 			sessions:   &mockSessionDB{},
 			wantStatus: http.StatusInternalServerError,
 		},
 		{
 			name:       "session db error",
-			body:       `{"email":"user@example.ru","password":"password123"}`,
-			db:         &mockLoginDB{user: makeUser("password123")},
+			body:       loginBody(testEmail, testPassword),
+			db:         &mockLoginDB{user: makeUser(testPassword)},
 			sessions:   &mockSessionDB{createErr: errors.New("session db down")},
 			wantStatus: http.StatusInternalServerError,
 		},
 		{
 			name:       "normalizes email",
-			body:       `{"email":" USER@EXAMPLE.RU ","password":"password123"}`,
-			db:         &mockLoginDB{user: makeUser("password123")},
+			body:       loginBody(strings.ToUpper(" "+testEmail+" "), testPassword),
+			db:         &mockLoginDB{user: makeUser(testPassword)},
 			sessions:   &mockSessionDB{sessionID: uuid.New()},
 			wantStatus: http.StatusOK,
 			wantCookie: true,
@@ -197,7 +212,7 @@ func TestLogin(t *testing.T) {
 			rec := httptest.NewRecorder()
 
 			h.Login(rec, req)
-			if tt.name == "normalizes email" && tt.db.queriedEmail != "user@example.ru" {
+			if tt.name == "normalizes email" && tt.db.queriedEmail != testEmail {
 				t.Errorf("queried email = %q, want normalized email", tt.db.queriedEmail)
 			}
 
@@ -270,8 +285,8 @@ func TestLogout(t *testing.T) {
 }
 
 func TestCurrentUser(t *testing.T) {
-	user := makeUser("password123")
-	profile := &models.Profile{FirstName: "Анна", Nickname: "anna"}
+	user := makeUser(testPassword)
+	profile := &models.Profile{FirstName: testFirstName, Nickname: testNickname}
 	h := NewAuthHandler(&mockLoginDB{user: user, profile: profile}, &mockSessionDB{})
 	req := httptest.NewRequest(http.MethodGet, "/auth/me", nil)
 	req = req.WithContext(middleware.NewAuthContext(req.Context(), user.ID))
@@ -286,10 +301,10 @@ func TestCurrentUser(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
 		t.Fatal(err)
 	}
-	if response.Profile.FirstName != "Анна" {
-		t.Errorf("first_name = %q, want Анна", response.Profile.FirstName)
+	if response.Profile.FirstName != testFirstName {
+		t.Errorf("first_name = %q, want %s", response.Profile.FirstName, testFirstName)
 	}
-	if !strings.Contains(rec.Body.String(), `"first_name":"Анна"`) {
+	if !strings.Contains(rec.Body.String(), fmt.Sprintf(`"first_name":%q`, testFirstName)) {
 		t.Errorf("response does not contain profile.first_name: %s", rec.Body.String())
 	}
 	if strings.Contains(rec.Body.String(), "password_hash") {
@@ -308,7 +323,7 @@ func TestCurrentUserFailures(t *testing.T) {
 		{name: "missing auth context", db: &mockLoginDB{}, wantStatus: http.StatusUnauthorized},
 		{name: "database error", db: &mockLoginDB{err: errors.New("db down")}, withAuth: true, wantStatus: http.StatusInternalServerError},
 		{name: "missing user", db: &mockLoginDB{}, withAuth: true, wantStatus: http.StatusUnauthorized},
-		{name: "profile database error", db: &mockLoginDB{user: makeUser("password123"), profileErr: errors.New("profile db down")}, withAuth: true, wantStatus: http.StatusInternalServerError},
+		{name: "profile database error", db: &mockLoginDB{user: makeUser(testPassword), profileErr: errors.New("profile db down")}, withAuth: true, wantStatus: http.StatusInternalServerError},
 	}
 
 	for _, tt := range tests {
@@ -328,7 +343,7 @@ func TestCurrentUserFailures(t *testing.T) {
 
 func TestRegisterNameLengths(t *testing.T) {
 	base := RegisterRequest{
-		Email: "user@example.com", Password: "password", Nickname: "user", FirstName: "Анна",
+		Email: testEmail, Password: testPassword, Nickname: testNickname, FirstName: testFirstName,
 	}
 	tests := []struct {
 		name       string

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -37,6 +38,29 @@ const (
 	longName         = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	databaseErrorMsg = "database unavailable"
 )
+
+func validRegisterData() map[string]any {
+	return map[string]any{
+		"email":        testEmail,
+		"password":     testPassword,
+		"phone_number": testPhoneRaw,
+		"nickname":     testNickname,
+		"first_name":   testFirstNameRaw,
+		"last_name":    testLastNameRaw,
+	}
+}
+
+func modifyRegisterData(modifier func(map[string]any)) string {
+	data := validRegisterData()
+	modifier(data)
+
+	body, err := json.Marshal(data)
+	if err != nil {
+		panic("failed to marshal test data: " + err.Error())
+	}
+
+	return string(body)
+}
 
 type mockRegistrationDB struct {
 	emailExists      bool
@@ -92,7 +116,11 @@ func (m *mockRegistrationDB) DeleteUser(_ context.Context, userID uuid.UUID) err
 
 func validRegisterBody(t *testing.T) string {
 	t.Helper()
-	return `{"email":"` + testEmail + `","password":"` + testPassword + `","phone_number":"` + testPhoneRaw + `","nickname":"` + testNickname + `","first_name":"` + testFirstNameRaw + `","last_name":"` + testLastNameRaw + `"}`
+	body, err := json.Marshal(validRegisterData())
+	if err != nil {
+		t.Fatalf("failed to marshal valid register data: %v", err)
+	}
+	return string(body)
 }
 
 func TestRegisterUserSuccess(t *testing.T) {
@@ -129,31 +157,34 @@ func TestRegisterUserInvalidJSON(t *testing.T) {
 
 func TestRegisterUserValidation(t *testing.T) {
 	tests := []struct {
-		name string
-		body string
+		name     string
+		modifier func(map[string]any)
 	}{
-		{name: "missing email", body: `{"password":"` + testPassword + `","nickname":"` + testNickname + `","first_name":"` + testFirstName + `"}`},
-		{name: "long email", body: `{"email":"` + strings.Repeat("a", longEmailPrefix) + `@x.co","password":"` + testPassword + `","nickname":"` + testNickname + `","first_name":"` + testFirstName + `"}`},
-		{name: "invalid email", body: `{"email":"bad","password":"` + testPassword + `","nickname":"` + testNickname + `","first_name":"` + testFirstName + `"}`},
-		{name: "missing password", body: `{"email":"` + testEmail + `","nickname":"` + testNickname + `","first_name":"` + testFirstName + `"}`},
-		{name: "short password", body: `{"email":"` + testEmail + `","password":"` + shortPassword + `","nickname":"` + testNickname + `","first_name":"` + testFirstName + `"}`},
-		{name: "long password", body: `{"email":"` + testEmail + `","password":"` + longPassword + `","nickname":"` + testNickname + `","first_name":"` + testFirstName + `"}`},
-		{name: "invalid phone", body: `{"email":"` + testEmail + `","password":"` + testPassword + `","phone_number":"` + invalidPhone + `","nickname":"` + testNickname + `","first_name":"` + testFirstName + `"}`},
-		{name: "missing nickname", body: `{"email":"` + testEmail + `","password":"` + testPassword + `","first_name":"` + testFirstName + `"}`},
-		{name: "short nickname", body: `{"email":"` + testEmail + `","password":"` + testPassword + `","nickname":"` + shortNickname + `","first_name":"` + testFirstName + `"}`},
-		{name: "long nickname", body: `{"email":"` + testEmail + `","password":"` + testPassword + `","nickname":"` + longNickname + `","first_name":"` + testFirstName + `"}`},
-		{name: "invalid nickname", body: `{"email":"` + testEmail + `","password":"` + testPassword + `","nickname":"` + invalidNickname + `","first_name":"` + testFirstName + `"}`},
-		{name: "missing first name", body: `{"email":"` + testEmail + `","password":"` + testPassword + `","nickname":"` + testNickname + `","first_name":" "}`},
-		{name: "first name contains digits", body: `{"email":"` + testEmail + `","password":"` + testPassword + `","nickname":"` + testNickname + `","first_name":"Ann2"}`},
-		{name: "long first name", body: `{"email":"` + testEmail + `","password":"` + testPassword + `","nickname":"` + testNickname + `","first_name":"` + longName + `"}`},
-		{name: "short last name", body: `{"email":"` + testEmail + `","password":"` + testPassword + `","nickname":"` + testNickname + `","first_name":"` + testFirstName + `","last_name":"X"}`},
-		{name: "long last name", body: `{"email":"` + testEmail + `","password":"` + testPassword + `","nickname":"` + testNickname + `","first_name":"` + testFirstName + `","last_name":"` + longName + `"}`},
+		{name: "missing email", modifier: func(d map[string]any) { delete(d, "email") }},
+		{name: "long email", modifier: func(d map[string]any) { d["email"] = strings.Repeat("a", longEmailPrefix) + "@x.co" }},
+		{name: "invalid email", modifier: func(d map[string]any) { d["email"] = "bad" }},
+		{name: "missing password", modifier: func(d map[string]any) { delete(d, "password") }},
+		{name: "short password", modifier: func(d map[string]any) { d["password"] = shortPassword }},
+		{name: "long password", modifier: func(d map[string]any) { d["password"] = longPassword }},
+		{name: "invalid phone", modifier: func(d map[string]any) { d["phone_number"] = invalidPhone }},
+		{name: "missing nickname", modifier: func(d map[string]any) { delete(d, "nickname") }},
+		{name: "short nickname", modifier: func(d map[string]any) { d["nickname"] = shortNickname }},
+		{name: "long nickname", modifier: func(d map[string]any) { d["nickname"] = longNickname }},
+		{name: "invalid nickname", modifier: func(d map[string]any) { d["nickname"] = invalidNickname }},
+		{name: "missing first name", modifier: func(d map[string]any) { d["first_name"] = " " }},
+		{name: "first name contains digits", modifier: func(d map[string]any) { d["first_name"] = "Ann2" }},
+		{name: "long first name", modifier: func(d map[string]any) { d["first_name"] = longName }},
+		{name: "short last name", modifier: func(d map[string]any) { d["last_name"] = "X" }},
+		{name: "long last name", modifier: func(d map[string]any) { d["last_name"] = longName }},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			db := &mockRegistrationDB{}
 			rec := httptest.NewRecorder()
-			NewHandler(db).RegisterUser(rec, httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(tt.body)))
+			body := modifyRegisterData(tt.modifier)
+			NewHandler(db).RegisterUser(rec, httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(body)))
+
 			if rec.Code != http.StatusBadRequest {
 				t.Fatalf("status = %d, want %d (body: %s)", rec.Code, http.StatusBadRequest, rec.Body.String())
 			}

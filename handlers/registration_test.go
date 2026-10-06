@@ -14,6 +14,30 @@ import (
 	"app/models"
 )
 
+const (
+	testEmail        = "user@example.com"
+	testPassword     = "password123"
+	testPhone        = "+1234567890"
+	testPhoneRaw     = " " + testPhone + " "
+	testNickname     = "anna_1"
+	testFirstName    = "Anna"
+	testFirstNameRaw = "  " + testFirstName + "  "
+	testLastName     = "Smith"
+	testLastNameRaw  = "  " + testLastName + "  "
+)
+
+const (
+	invalidPhone     = "+12 34"
+	shortPassword    = "short"
+	longPassword     = "12345678901234567"
+	shortNickname    = "ab"
+	longNickname     = "aaaaaaaaaaaaaaaaa"
+	invalidNickname  = "anna!"
+	longEmailPrefix  = 251
+	longName         = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	databaseErrorMsg = "database unavailable"
+)
+
 type mockRegistrationDB struct {
 	emailExists      bool
 	nickExists       bool
@@ -68,7 +92,7 @@ func (m *mockRegistrationDB) DeleteUser(_ context.Context, userID uuid.UUID) err
 
 func validRegisterBody(t *testing.T) string {
 	t.Helper()
-	return `{"email":"user@example.com","password":"password123","phone_number":" +1234567890 ","nickname":"anna_1","first_name":"  Anna  ","last_name":"  Smith  "}`
+	return `{"email":"` + testEmail + `","password":"` + testPassword + `","phone_number":"` + testPhoneRaw + `","nickname":"` + testNickname + `","first_name":"` + testFirstNameRaw + `","last_name":"` + testLastNameRaw + `"}`
 }
 
 func TestRegisterUserSuccess(t *testing.T) {
@@ -81,13 +105,13 @@ func TestRegisterUserSuccess(t *testing.T) {
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want %d (body: %s)", rec.Code, http.StatusCreated, rec.Body.String())
 	}
-	if db.createdEmail != "user@example.com" || db.createdNickname != "anna_1" || db.createdFirstName != "Anna" || db.createdLastName == nil || *db.createdLastName != "Smith" {
+	if db.createdEmail != testEmail || db.createdNickname != testNickname || db.createdFirstName != testFirstName || db.createdLastName == nil || *db.createdLastName != testLastName {
 		t.Fatalf("registration fields were not normalized: %+v", db)
 	}
-	if db.createdPhone == nil || *db.createdPhone != "+1234567890" {
+	if db.createdPhone == nil || *db.createdPhone != testPhone {
 		t.Fatalf("phone number = %v, want trimmed phone", db.createdPhone)
 	}
-	if err := bcrypt.CompareHashAndPassword([]byte(db.createdHash), []byte("password123")); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(db.createdHash), []byte(testPassword)); err != nil {
 		t.Fatalf("stored password is not a bcrypt hash of submitted password: %v", err)
 	}
 	if len(db.deletedUserIDs) != 0 {
@@ -108,22 +132,22 @@ func TestRegisterUserValidation(t *testing.T) {
 		name string
 		body string
 	}{
-		{name: "missing email", body: `{"password":"password123","nickname":"anna_1","first_name":"Anna"}`},
-		{name: "long email", body: `{"email":"` + strings.Repeat("a", 251) + `@x.co","password":"password123","nickname":"anna_1","first_name":"Anna"}`},
-		{name: "invalid email", body: `{"email":"bad","password":"password123","nickname":"anna_1","first_name":"Anna"}`},
-		{name: "missing password", body: `{"email":"user@example.com","nickname":"anna_1","first_name":"Anna"}`},
-		{name: "short password", body: `{"email":"user@example.com","password":"short","nickname":"anna_1","first_name":"Anna"}`},
-		{name: "long password", body: `{"email":"user@example.com","password":"12345678901234567","nickname":"anna_1","first_name":"Anna"}`},
-		{name: "invalid phone", body: `{"email":"user@example.com","password":"password123","phone_number":"+12 34","nickname":"anna_1","first_name":"Anna"}`},
-		{name: "missing nickname", body: `{"email":"user@example.com","password":"password123","first_name":"Anna"}`},
-		{name: "short nickname", body: `{"email":"user@example.com","password":"password123","nickname":"ab","first_name":"Anna"}`},
-		{name: "long nickname", body: `{"email":"user@example.com","password":"password123","nickname":"` + strings.Repeat("a", 17) + `","first_name":"Anna"}`},
-		{name: "invalid nickname", body: `{"email":"user@example.com","password":"password123","nickname":"anna!","first_name":"Anna"}`},
-		{name: "missing first name", body: `{"email":"user@example.com","password":"password123","nickname":"anna_1","first_name":" "}`},
-		{name: "first name contains digits", body: `{"email":"user@example.com","password":"password123","nickname":"anna_1","first_name":"Ann2"}`},
-		{name: "long first name", body: `{"email":"user@example.com","password":"password123","nickname":"anna_1","first_name":"` + strings.Repeat("a", 33) + `"}`},
-		{name: "short last name", body: `{"email":"user@example.com","password":"password123","nickname":"anna_1","first_name":"Anna","last_name":"X"}`},
-		{name: "long last name", body: `{"email":"user@example.com","password":"password123","nickname":"anna_1","first_name":"Anna","last_name":"` + strings.Repeat("a", 33) + `"}`},
+		{name: "missing email", body: `{"password":"` + testPassword + `","nickname":"` + testNickname + `","first_name":"` + testFirstName + `"}`},
+		{name: "long email", body: `{"email":"` + strings.Repeat("a", longEmailPrefix) + `@x.co","password":"` + testPassword + `","nickname":"` + testNickname + `","first_name":"` + testFirstName + `"}`},
+		{name: "invalid email", body: `{"email":"bad","password":"` + testPassword + `","nickname":"` + testNickname + `","first_name":"` + testFirstName + `"}`},
+		{name: "missing password", body: `{"email":"` + testEmail + `","nickname":"` + testNickname + `","first_name":"` + testFirstName + `"}`},
+		{name: "short password", body: `{"email":"` + testEmail + `","password":"` + shortPassword + `","nickname":"` + testNickname + `","first_name":"` + testFirstName + `"}`},
+		{name: "long password", body: `{"email":"` + testEmail + `","password":"` + longPassword + `","nickname":"` + testNickname + `","first_name":"` + testFirstName + `"}`},
+		{name: "invalid phone", body: `{"email":"` + testEmail + `","password":"` + testPassword + `","phone_number":"` + invalidPhone + `","nickname":"` + testNickname + `","first_name":"` + testFirstName + `"}`},
+		{name: "missing nickname", body: `{"email":"` + testEmail + `","password":"` + testPassword + `","first_name":"` + testFirstName + `"}`},
+		{name: "short nickname", body: `{"email":"` + testEmail + `","password":"` + testPassword + `","nickname":"` + shortNickname + `","first_name":"` + testFirstName + `"}`},
+		{name: "long nickname", body: `{"email":"` + testEmail + `","password":"` + testPassword + `","nickname":"` + longNickname + `","first_name":"` + testFirstName + `"}`},
+		{name: "invalid nickname", body: `{"email":"` + testEmail + `","password":"` + testPassword + `","nickname":"` + invalidNickname + `","first_name":"` + testFirstName + `"}`},
+		{name: "missing first name", body: `{"email":"` + testEmail + `","password":"` + testPassword + `","nickname":"` + testNickname + `","first_name":" "}`},
+		{name: "first name contains digits", body: `{"email":"` + testEmail + `","password":"` + testPassword + `","nickname":"` + testNickname + `","first_name":"Ann2"}`},
+		{name: "long first name", body: `{"email":"` + testEmail + `","password":"` + testPassword + `","nickname":"` + testNickname + `","first_name":"` + longName + `"}`},
+		{name: "short last name", body: `{"email":"` + testEmail + `","password":"` + testPassword + `","nickname":"` + testNickname + `","first_name":"` + testFirstName + `","last_name":"X"}`},
+		{name: "long last name", body: `{"email":"` + testEmail + `","password":"` + testPassword + `","nickname":"` + testNickname + `","first_name":"` + testFirstName + `","last_name":"` + longName + `"}`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -141,7 +165,7 @@ func TestRegisterUserValidation(t *testing.T) {
 }
 
 func TestRegisterUserDatabaseFailures(t *testing.T) {
-	commonErr := errors.New("database unavailable")
+	commonErr := errors.New(databaseErrorMsg)
 	tests := []struct {
 		name         string
 		db           *mockRegistrationDB

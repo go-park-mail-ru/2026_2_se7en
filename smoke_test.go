@@ -38,11 +38,17 @@ func TestConfigLoadUsesDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Addr != ":8080" || cfg.LogLevel != "info" || cfg.DatabaseURL != "postgres://example" {
-		t.Fatalf("unexpected default config: %+v", cfg)
+	want := config.Config{
+		Addr:            ":8080",
+		ReadTimeout:     5 * time.Second,
+		WriteTimeout:    10 * time.Second,
+		IdleTimeout:     time.Minute,
+		ShutdownTimeout: time.Minute,
+		LogLevel:        "info",
+		DatabaseURL:     "postgres://example",
 	}
-	if cfg.ReadTimeout != 5*time.Second || cfg.WriteTimeout != 10*time.Second || cfg.IdleTimeout != time.Minute || cfg.ShutdownTimeout != time.Minute {
-		t.Fatalf("unexpected default timeouts: %+v", cfg)
+	if cfg != want {
+		t.Fatalf("config = %+v, want %+v", cfg, want)
 	}
 }
 
@@ -74,8 +80,17 @@ func TestConfigLoadRejectsInvalidValues(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if cfg.Addr != ":9090" || cfg.LogLevel != "debug" || cfg.ReadTimeout != 2*time.Second || cfg.WriteTimeout != 3*time.Second || cfg.IdleTimeout != 4*time.Second || cfg.ShutdownTimeout != 5*time.Second {
-			t.Fatalf("unexpected overridden config: %+v", cfg)
+		want := config.Config{
+			Addr:            ":9090",
+			ReadTimeout:     2 * time.Second,
+			WriteTimeout:    3 * time.Second,
+			IdleTimeout:     4 * time.Second,
+			ShutdownTimeout: 5 * time.Second,
+			LogLevel:        "debug",
+			DatabaseURL:     "postgres://example",
+		}
+		if cfg != want {
+			t.Fatalf("config = %+v, want %+v", cfg, want)
 		}
 	})
 }

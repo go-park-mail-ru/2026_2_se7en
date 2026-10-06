@@ -2,10 +2,11 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"strings"
+	"reflect"
 	"testing"
 
 	"github.com/google/uuid"
@@ -25,6 +26,15 @@ type mockChatDB struct {
 	chatType string
 }
 
+type chatResponseItem struct {
+	Name string `json:"name"`
+	Type string `json:"type"`
+}
+
+type chatListResponse struct {
+	Items []chatResponseItem `json:"items"`
+}
+
 func (m *mockChatDB) ListUserChats(_ context.Context, userID uuid.UUID, limit, offset int, chatType string) ([]*models.Chat, error) {
 	m.called = true
 	m.userID = userID
@@ -32,6 +42,14 @@ func (m *mockChatDB) ListUserChats(_ context.Context, userID uuid.UUID, limit, o
 	m.offset = offset
 	m.chatType = chatType
 	return m.chats, m.err
+}
+
+func performAuthenticatedChatRequest(target string, db *mockChatDB, userID uuid.UUID) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodGet, target, nil)
+	req = req.WithContext(middleware.NewAuthContext(req.Context(), userID))
+	rec := httptest.NewRecorder()
+	NewChatHandler(db).GetListUserChats(rec, req)
+	return rec
 }
 
 func TestGetListUserChatsRequiresAuthentication(t *testing.T) {
@@ -59,10 +77,7 @@ func TestGetListUserChatsQueryValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			db := &mockChatDB{}
-			req := httptest.NewRequest(http.MethodGet, "/chats"+tt.target, nil)
-			req = req.WithContext(middleware.NewAuthContext(req.Context(), uuid.New()))
-			rec := httptest.NewRecorder()
-			NewChatHandler(db).GetListUserChats(rec, req)
+			rec := performAuthenticatedChatRequest("/chats"+tt.target, db, uuid.New())
 			if rec.Code != http.StatusBadRequest {
 				t.Fatalf("status = %d, want %d (body: %s)", rec.Code, http.StatusBadRequest, rec.Body.String())
 			}
@@ -79,29 +94,43 @@ func TestGetListUserChatsSuccess(t *testing.T) {
 		name       string
 		target     string
 		chats      []*models.Chat
+		wantItems  []chatResponseItem
 		wantLimit  int
 		wantOffset int
 		wantType   string
-		wantBody   string
 	}{
-		{name: "defaults to empty items", target: "/chats", wantBody: `{"items":[]}`},
-		{name: "passes query values", target: "/chats?limit=10&offset=3&type=group", chats: []*models.Chat{{Name: "team"}}, wantLimit: 10, wantOffset: 3, wantType: "group", wantBody: `"name":"team"`},
+		{name: "defaults to empty items", target: "/chats", wantItems: []chatResponseItem{}},
+		{name: "passes query values", target: "/chats?limit=10&offset=3&type=group", chats: []*models.Chat{{Name: "team", Type: "group"}}, wantItems: []chatResponseItem{{Name: "team", Type: "group"}}, wantLimit: 10, wantOffset: 3, wantType: "group"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			db := &mockChatDB{chats: tt.chats}
-			req := httptest.NewRequest(http.MethodGet, tt.target, nil)
-			req = req.WithContext(middleware.NewAuthContext(req.Context(), userID))
-			rec := httptest.NewRecorder()
-			NewChatHandler(db).GetListUserChats(rec, req)
+			rec := performAuthenticatedChatRequest(tt.target, db, userID)
 			if rec.Code != http.StatusOK {
 				t.Fatalf("status = %d, want %d (body: %s)", rec.Code, http.StatusOK, rec.Body.String())
 			}
-			if !db.called || db.userID != userID || db.limit != tt.wantLimit || db.offset != tt.wantOffset || db.chatType != tt.wantType {
-				t.Fatalf("database arguments = %+v", db)
+			if !db.called {
+				t.Fatal("database was not called")
 			}
-			if !strings.Contains(rec.Body.String(), tt.wantBody) {
-				t.Fatalf("response %q does not contain %q", rec.Body.String(), tt.wantBody)
+			if db.userID != userID {
+				t.Errorf("user id = %s, want %s", db.userID, userID)
+			}
+			if db.limit != tt.wantLimit {
+				t.Errorf("limit = %d, want %d", db.limit, tt.wantLimit)
+			}
+			if db.offset != tt.wantOffset {
+				t.Errorf("offset = %d, want %d", db.offset, tt.wantOffset)
+			}
+			if db.chatType != tt.wantType {
+				t.Errorf("chat type = %q, want %q", db.chatType, tt.wantType)
+			}
+
+			var response chatListResponse
+			if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+				t.Fatalf("decode response: %v", err)
+			}
+			if !reflect.DeepEqual(response.Items, tt.wantItems) {
+				t.Errorf("response items = %+v, want %+v", response.Items, tt.wantItems)
 			}
 		})
 	}
@@ -122,10 +151,7 @@ func TestGetListUserChatsDatabaseErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			db := &mockChatDB{err: tt.err}
-			req := httptest.NewRequest(http.MethodGet, "/chats", nil)
-			req = req.WithContext(middleware.NewAuthContext(req.Context(), uuid.New()))
-			rec := httptest.NewRecorder()
-			NewChatHandler(db).GetListUserChats(rec, req)
+			rec := performAuthenticatedChatRequest("/chats", db, uuid.New())
 			if rec.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d (body: %s)", rec.Code, tt.wantStatus, rec.Body.String())
 			}

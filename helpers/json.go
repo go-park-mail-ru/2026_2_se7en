@@ -10,7 +10,9 @@ func DecodeJSON(r *http.Request, v any) *apperrors.AppError {
 	if r.Body == nil {
 		return apperrors.NewBadRequest("Request body is empty", nil)
 	}
-	defer r.Body.Close()
+	defer func() {
+		_ = r.Body.Close()
+	}()
 
 	decoder := json.NewDecoder(r.Body)
 

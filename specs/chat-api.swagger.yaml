@@ -1,0 +1,175 @@
+openapi: 3.0.3
+
+info:
+  title: API чатов
+  version: 1.0.0
+
+tags:
+  - name: Chats
+    description: Операции с чатами
+
+security:
+  - SessionCookie: []
+
+paths:
+  /api/v1/chats:
+    get:
+      tags:
+        - Chats
+      operationId: getChats
+      summary: Список чатов пользователя
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+          description: Размер списка
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Смещение от начала списка
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum:
+              - channel
+              - group
+              - dialog
+          description: Фильтрация по типу чата
+      responses:
+        '200':
+          description: Список чатов пользователя успешно получен.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  securitySchemes:
+    SessionCookie:
+      type: apiKey
+      in: cookie
+      name: session_id
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          example: Некорректные данные
+        details:
+          type: array
+          nullable: true
+          description: Детали ошибки
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+                example: email
+              reason:
+                type: string
+                example: invalid_format
+
+    MessagePreview:
+      type: object
+      nullable: true
+      properties:
+        id:
+          type: string
+          format: uuid
+        content:
+          type: string
+          nullable: true
+        type:
+          type: string
+          enum: [text, sticker]
+        created_at:
+          type: string
+          format: date-time
+
+    Chat:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [dialog, group, channel]
+        name:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        icon_url:
+          type: string
+          format: uri
+          nullable: true
+        members_count:
+          type: integer
+        last_message:
+          $ref: '#/components/schemas/MessagePreview'
+        created_at:
+          type: string
+          format: date-time
+
+    ChatsResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Chat'
+
+  responses:
+    BadRequest:
+      description: Ошибка валидации
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: VALIDATION_ERROR
+            message: Некорректные данные
+
+    Unauthorized:
+      description: Сессия недействительна
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: UNAUTHORIZED
+            message: Сессия недействительна
+
+    InternalServerError:
+      description: Внутренняя ошибка сервера
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: INTERNAL_ERROR
+            message: Что-то пошло не так
+            

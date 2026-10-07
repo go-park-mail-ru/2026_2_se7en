@@ -16,37 +16,37 @@ import (
 )
 
 const (
-	testEmail        = "user@example.com"
-	testPassword     = "password123"
-	testPhone        = "+1234567890"
-	testPhoneRaw     = " " + testPhone + " "
-	testNickname     = "anna_1"
-	testFirstName    = "Anna"
-	testFirstNameRaw = "  " + testFirstName + "  "
-	testLastName     = "Smith"
-	testLastNameRaw  = "  " + testLastName + "  "
+	registerTestEmail        = "user@example.com"
+	registerTestPassword     = "password123"
+	registerTestPhone        = "+1234567890"
+	registerTestPhoneRaw     = " " + registerTestPhone + " "
+	registerTestNickname     = "anna_1"
+	registerTestFirstName    = "Anna"
+	registerTestFirstNameRaw = "  " + registerTestFirstName + "  "
+	registerTestLastName     = "Smith"
+	registerTestLastNameRaw  = "  " + registerTestLastName + "  "
 )
 
 const (
-	invalidPhone     = "+12 34"
-	shortPassword    = "short"
-	longPassword     = "12345678901234567"
-	shortNickname    = "ab"
-	longNickname     = "aaaaaaaaaaaaaaaaa"
-	invalidNickname  = "anna!"
-	longEmailPrefix  = 251
-	longName         = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	databaseErrorMsg = "database unavailable"
+	registerInvalidPhone     = "+12 34"
+	registerShortPassword    = "short"
+	registerLongPassword     = "12345678901234567"
+	registerShortNickname    = "ab"
+	registerLongNickname     = "aaaaaaaaaaaaaaaaa"
+	registerInvalidNickname  = "anna!"
+	registerLongEmailPrefix  = 251
+	registerLongName         = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	registerDatabaseErrorMsg = "database unavailable"
 )
 
 func validRegisterData() map[string]any {
 	return map[string]any{
-		"email":        testEmail,
-		"password":     testPassword,
-		"phone_number": testPhoneRaw,
-		"nickname":     testNickname,
-		"first_name":   testFirstNameRaw,
-		"last_name":    testLastNameRaw,
+		"email":        registerTestEmail,
+		"password":     registerTestPassword,
+		"phone_number": registerTestPhoneRaw,
+		"nickname":     registerTestNickname,
+		"first_name":   registerTestFirstNameRaw,
+		"last_name":    registerTestLastNameRaw,
 	}
 }
 
@@ -133,13 +133,13 @@ func TestRegisterUserSuccess(t *testing.T) {
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want %d (body: %s)", rec.Code, http.StatusCreated, rec.Body.String())
 	}
-	if db.createdEmail != testEmail || db.createdNickname != testNickname || db.createdFirstName != testFirstName || db.createdLastName == nil || *db.createdLastName != testLastName {
+	if db.createdEmail != registerTestEmail || db.createdNickname != registerTestNickname || db.createdFirstName != registerTestFirstName || db.createdLastName == nil || *db.createdLastName != registerTestLastName {
 		t.Fatalf("registration fields were not normalized: %+v", db)
 	}
-	if db.createdPhone == nil || *db.createdPhone != testPhone {
+	if db.createdPhone == nil || *db.createdPhone != registerTestPhone {
 		t.Fatalf("phone number = %v, want trimmed phone", db.createdPhone)
 	}
-	if err := bcrypt.CompareHashAndPassword([]byte(db.createdHash), []byte(testPassword)); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(db.createdHash), []byte(registerTestPassword)); err != nil {
 		t.Fatalf("stored password is not a bcrypt hash of submitted password: %v", err)
 	}
 	if len(db.deletedUserIDs) != 0 {
@@ -161,21 +161,21 @@ func TestRegisterUserValidation(t *testing.T) {
 		modifier func(map[string]any)
 	}{
 		{name: "missing email", modifier: func(d map[string]any) { delete(d, "email") }},
-		{name: "long email", modifier: func(d map[string]any) { d["email"] = strings.Repeat("a", longEmailPrefix) + "@x.co" }},
+		{name: "long email", modifier: func(d map[string]any) { d["email"] = strings.Repeat("a", registerLongEmailPrefix) + "@x.co" }},
 		{name: "invalid email", modifier: func(d map[string]any) { d["email"] = "bad" }},
 		{name: "missing password", modifier: func(d map[string]any) { delete(d, "password") }},
-		{name: "short password", modifier: func(d map[string]any) { d["password"] = shortPassword }},
-		{name: "long password", modifier: func(d map[string]any) { d["password"] = longPassword }},
-		{name: "invalid phone", modifier: func(d map[string]any) { d["phone_number"] = invalidPhone }},
+		{name: "short password", modifier: func(d map[string]any) { d["password"] = registerShortPassword }},
+		{name: "long password", modifier: func(d map[string]any) { d["password"] = registerLongPassword }},
+		{name: "invalid phone", modifier: func(d map[string]any) { d["phone_number"] = registerInvalidPhone }},
 		{name: "missing nickname", modifier: func(d map[string]any) { delete(d, "nickname") }},
-		{name: "short nickname", modifier: func(d map[string]any) { d["nickname"] = shortNickname }},
-		{name: "long nickname", modifier: func(d map[string]any) { d["nickname"] = longNickname }},
-		{name: "invalid nickname", modifier: func(d map[string]any) { d["nickname"] = invalidNickname }},
+		{name: "short nickname", modifier: func(d map[string]any) { d["nickname"] = registerShortNickname }},
+		{name: "long nickname", modifier: func(d map[string]any) { d["nickname"] = registerLongNickname }},
+		{name: "invalid nickname", modifier: func(d map[string]any) { d["nickname"] = registerInvalidNickname }},
 		{name: "missing first name", modifier: func(d map[string]any) { d["first_name"] = " " }},
 		{name: "first name contains digits", modifier: func(d map[string]any) { d["first_name"] = "Ann2" }},
-		{name: "long first name", modifier: func(d map[string]any) { d["first_name"] = longName }},
+		{name: "long first name", modifier: func(d map[string]any) { d["first_name"] = registerLongName }},
 		{name: "short last name", modifier: func(d map[string]any) { d["last_name"] = "X" }},
-		{name: "long last name", modifier: func(d map[string]any) { d["last_name"] = longName }},
+		{name: "long last name", modifier: func(d map[string]any) { d["last_name"] = registerLongName }},
 	}
 
 	for _, tt := range tests {
@@ -196,7 +196,7 @@ func TestRegisterUserValidation(t *testing.T) {
 }
 
 func TestRegisterUserDatabaseFailures(t *testing.T) {
-	commonErr := errors.New(databaseErrorMsg)
+	commonErr := errors.New(registerDatabaseErrorMsg)
 	tests := []struct {
 		name         string
 		db           *mockRegistrationDB

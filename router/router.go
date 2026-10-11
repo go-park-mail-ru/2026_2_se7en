@@ -14,7 +14,7 @@ func New(db *storage.DB) http.Handler {
 	api.HandleFunc("GET /health", healthCheck)
 
 	auth := handlers.NewAuthHandler(db, db)
-	registration := handlers.NewHandler(db)
+	registration := handlers.NewHandler(db, db)
 	chats := handlers.NewChatHandler(db)
 	api.Handle("POST /auth/register", http.HandlerFunc(registration.RegisterUser))
 	api.Handle("POST /auth/login", http.HandlerFunc(auth.Login))

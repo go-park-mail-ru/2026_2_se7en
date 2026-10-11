@@ -11,8 +11,6 @@ import (
 	"github.com/google/uuid"
 )
 
-const SessionExtensionDays = 30
-
 type contextKey string
 
 const userIDKey contextKey = "userID"
@@ -56,7 +54,7 @@ func (m *AuthMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newExpiresAt := time.Now().Add(SessionExtensionDays * 24 * time.Hour)
+	newExpiresAt := time.Now().Add(utils.SessionTTL)
 	if err := m.db.ExtendSession(r.Context(), sessionID, newExpiresAt); err != nil {
 		if errors.Is(err, apperrors.ErrSessionNotFound) {
 			apperrors.WriteError(w, apperrors.NewUnauthorized("Invalid or expired session"))

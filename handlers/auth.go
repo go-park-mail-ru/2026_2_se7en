@@ -254,11 +254,12 @@ type RegistrationDB interface {
 }
 
 type RegisterHandler struct {
-	db RegistrationDB
+	db       RegistrationDB
+	sessions SessionDB
 }
 
-func NewHandler(db RegistrationDB) *RegisterHandler {
-	return &RegisterHandler{db: db}
+func NewHandler(db RegistrationDB, sessions SessionDB) *RegisterHandler {
+	return &RegisterHandler{db: db, sessions: sessions}
 }
 
 func (h *RegisterHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
@@ -309,6 +310,14 @@ func (h *RegisterHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		apperrors.WriteError(w, apperrors.NewInternalError("Something went wrong", err))
 		return
 	}
+
+	session, err := h.sessions.CreateSession(r.Context(), user.ID, time.Now().Add(utils.SessionTTL))
+	if err != nil {
+		apperrors.WriteError(w, apperrors.NewInternalError("Failed to create session", err))
+		return
+	}
+
+	utils.SetSessionCookie(w, session.ID.String())
 
 	utils.WriteJSON(w, http.StatusCreated, toUserResponse(user))
 }

@@ -364,7 +364,7 @@ func TestRegisterNameLengths(t *testing.T) {
 		{name: "last name 33 Cyrillic characters", firstName: base.FirstName, lastName: namePointer(strings.Repeat("Я", 33)), wantField: "last_name", wantReason: "Last name maximum length is 32"},
 	}
 
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := base

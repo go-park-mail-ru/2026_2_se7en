@@ -8,11 +8,13 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
 	"app/models"
+	"app/utils"
 )
 
 const (
@@ -114,6 +116,23 @@ func (m *mockRegistrationDB) DeleteUser(_ context.Context, userID uuid.UUID) err
 	return nil
 }
 
+type mockRegSessionDB struct {
+	createdUserID uuid.UUID
+	createErr     error
+}
+
+func (m *mockRegSessionDB) CreateSession(ctx context.Context, userID uuid.UUID, expiresAt time.Time) (*models.Session, error) {
+	m.createdUserID = userID
+	if m.createErr != nil {
+		return nil, m.createErr
+	}
+	return &models.Session{ID: uuid.New(), UserID: userID, ExpiresAt: expiresAt}, nil
+}
+
+func (m *mockRegSessionDB) DeleteSession(ctx context.Context, sessionID uuid.UUID) error {
+	return nil
+}
+
 func validRegisterBody(t *testing.T) string {
 	t.Helper()
 	body, err := json.Marshal(validRegisterData())
@@ -126,9 +145,12 @@ func validRegisterBody(t *testing.T) string {
 func TestRegisterUserSuccess(t *testing.T) {
 	userID := uuid.New()
 	db := &mockRegistrationDB{userID: userID}
+	sessionDB := &mockRegSessionDB{}
+
 	req := httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(validRegisterBody(t)))
 	rec := httptest.NewRecorder()
-	NewHandler(db).RegisterUser(rec, req)
+
+	NewHandler(db, sessionDB).RegisterUser(rec, req)
 
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want %d (body: %s)", rec.Code, http.StatusCreated, rec.Body.String())
@@ -145,11 +167,23 @@ func TestRegisterUserSuccess(t *testing.T) {
 	if len(db.deletedUserIDs) != 0 {
 		t.Fatalf("unexpected rollback deletes: %v", db.deletedUserIDs)
 	}
+
+	if sessionDB.createdUserID != userID {
+		t.Fatalf("session not created for user: got %v, want %v", sessionDB.createdUserID, userID)
+	}
+
+	cookies := rec.Result().Cookies()
+	if len(cookies) == 0 {
+		t.Fatalf("expected Set-Cookie header, got none")
+	}
+	if cookies[0].Name != utils.SessionCookieName {
+		t.Errorf("expected cookie name 'session_id', got %q", cookies[0].Name)
+	}
 }
 
 func TestRegisterUserInvalidJSON(t *testing.T) {
 	rec := httptest.NewRecorder()
-	NewHandler(&mockRegistrationDB{}).RegisterUser(rec, httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader("not json")))
+	NewHandler(&mockRegistrationDB{}, &mockRegSessionDB{}).RegisterUser(rec, httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader("not json")))
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
 	}
@@ -181,9 +215,10 @@ func TestRegisterUserValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			db := &mockRegistrationDB{}
+			sessionDB := &mockRegSessionDB{}
 			rec := httptest.NewRecorder()
 			body := modifyRegisterData(tt.modifier)
-			NewHandler(db).RegisterUser(rec, httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(body)))
+			NewHandler(db, sessionDB).RegisterUser(rec, httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(body)))
 
 			if rec.Code != http.StatusBadRequest {
 				t.Fatalf("status = %d, want %d (body: %s)", rec.Code, http.StatusBadRequest, rec.Body.String())
@@ -212,8 +247,11 @@ func TestRegisterUserDatabaseFailures(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			sessionDB := &mockRegSessionDB{}
 			rec := httptest.NewRecorder()
-			NewHandler(tt.db).RegisterUser(rec, httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(validRegisterBody(t))))
+
+			NewHandler(tt.db, sessionDB).RegisterUser(rec, httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(validRegisterBody(t))))
+
 			if rec.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d (body: %s)", rec.Code, tt.wantStatus, rec.Body.String())
 			}

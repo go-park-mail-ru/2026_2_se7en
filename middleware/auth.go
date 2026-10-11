@@ -13,6 +13,10 @@ import (
 
 const SessionExtensionDays = 30
 
+type contextKey string
+
+const userIDKey contextKey = "userID"
+
 type SessionDB interface {
 	GetSessionUser(ctx context.Context, sessionID uuid.UUID) (uuid.UUID, error)
 	ExtendSession(ctx context.Context, sessionID uuid.UUID, newExpiresAt time.Time) error
@@ -67,4 +71,13 @@ func (m *AuthMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	authCtx := NewAuthContext(r.Context(), userID)
 
 	m.next.ServeHTTP(w, r.WithContext(authCtx))
+}
+
+func NewAuthContext(ctx context.Context, userID uuid.UUID) context.Context {
+	return context.WithValue(ctx, userIDKey, userID)
+}
+
+func UserIDFromContext(ctx context.Context) (uuid.UUID, bool) {
+	userID, ok := ctx.Value(userIDKey).(uuid.UUID)
+	return userID, ok
 }

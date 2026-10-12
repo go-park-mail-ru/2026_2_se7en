@@ -13,7 +13,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"app/apperrors"
-	"app/helpers"
 	"app/middleware"
 	"app/models"
 	"app/utils"
@@ -94,7 +93,7 @@ func NewAuthHandler(db LoginDB, sessions SessionDB) *AuthHandler {
 
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
-	if err := helpers.DecodeJSON(r, &req); err != nil {
+	if err := utils.DecodeJSON(r, &req); err != nil {
 		apperrors.WriteError(w, err)
 		return
 	}
@@ -264,7 +263,7 @@ func NewHandler(db RegistrationDB) *RegisterHandler {
 
 func (h *RegisterHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	var req RegisterRequest
-	if err := helpers.DecodeJSON(r, &req); err != nil {
+	if err := utils.DecodeJSON(r, &req); err != nil {
 		apperrors.WriteError(w, err)
 		return
 	}
@@ -372,7 +371,7 @@ func (h *RegisterHandler) validateRequest(req RegisterRequest) []apperrors.Error
 	}
 
 	if req.PhoneNumber != nil && *req.PhoneNumber != "" {
-		if !helpers.IsPhoneNumberValid(*req.PhoneNumber) {
+		if !utils.IsPhoneNumberValid(*req.PhoneNumber) {
 			details = append(details, apperrors.ErrorDetail{Field: "phone_number", Reason: "Incorrect phone number format"})
 		}
 	}
@@ -383,7 +382,7 @@ func (h *RegisterHandler) validateRequest(req RegisterRequest) []apperrors.Error
 		details = append(details, apperrors.ErrorDetail{Field: "nickname", Reason: "Nickname minimum length is 3"})
 	} else if len(req.Nickname) > 16 {
 		details = append(details, apperrors.ErrorDetail{Field: "nickname", Reason: "Nickname maximum length is 16"})
-	} else if !helpers.IsNicknameValid(req.Nickname) {
+	} else if !utils.IsNicknameValid(req.Nickname) {
 		details = append(details, apperrors.ErrorDetail{Field: "nickname", Reason: "Incorrect nickname format"})
 	}
 

@@ -80,6 +80,9 @@ type mockRegistrationDB struct {
 	createdFirstName string
 	createdLastName  *string
 	deletedUserIDs   []uuid.UUID
+
+	createdUserID uuid.UUID
+	createErr     error
 }
 
 func (m *mockRegistrationDB) CheckEmailExist(context.Context, string) (bool, error) {
@@ -117,20 +120,14 @@ func (m *mockRegistrationDB) DeleteUser(_ context.Context, userID uuid.UUID) err
 }
 
 type mockRegSessionDB struct {
-	createdUserID uuid.UUID
-	createErr     error
 }
 
-func (m *mockRegSessionDB) CreateSession(ctx context.Context, userID uuid.UUID, expiresAt time.Time) (*models.Session, error) {
+func (m *mockRegistrationDB) CreateSession(ctx context.Context, userID uuid.UUID, expiresAt time.Time) (*models.Session, error) {
 	m.createdUserID = userID
 	if m.createErr != nil {
 		return nil, m.createErr
 	}
 	return &models.Session{ID: uuid.New(), UserID: userID, ExpiresAt: expiresAt}, nil
-}
-
-func (m *mockRegSessionDB) DeleteSession(ctx context.Context, sessionID uuid.UUID) error {
-	return nil
 }
 
 func validRegisterBody(t *testing.T) string {
@@ -145,12 +142,11 @@ func validRegisterBody(t *testing.T) string {
 func TestRegisterUserSuccess(t *testing.T) {
 	userID := uuid.New()
 	db := &mockRegistrationDB{userID: userID}
-	sessionDB := &mockRegSessionDB{}
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(validRegisterBody(t)))
 	rec := httptest.NewRecorder()
 
-	NewHandler(db, sessionDB).RegisterUser(rec, req)
+	NewHandler(db).RegisterUser(rec, req)
 
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want %d (body: %s)", rec.Code, http.StatusCreated, rec.Body.String())
@@ -168,8 +164,8 @@ func TestRegisterUserSuccess(t *testing.T) {
 		t.Fatalf("unexpected rollback deletes: %v", db.deletedUserIDs)
 	}
 
-	if sessionDB.createdUserID != userID {
-		t.Fatalf("session not created for user: got %v, want %v", sessionDB.createdUserID, userID)
+	if db.createdUserID != userID {
+		t.Fatalf("session not created for user: got %v, want %v", db.createdUserID, userID)
 	}
 
 	cookies := rec.Result().Cookies()
@@ -183,7 +179,7 @@ func TestRegisterUserSuccess(t *testing.T) {
 
 func TestRegisterUserInvalidJSON(t *testing.T) {
 	rec := httptest.NewRecorder()
-	NewHandler(&mockRegistrationDB{}, &mockRegSessionDB{}).RegisterUser(rec, httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader("not json")))
+	NewHandler(&mockRegistrationDB{}).RegisterUser(rec, httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader("not json")))
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
 	}
@@ -215,10 +211,9 @@ func TestRegisterUserValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			db := &mockRegistrationDB{}
-			sessionDB := &mockRegSessionDB{}
 			rec := httptest.NewRecorder()
 			body := modifyRegisterData(tt.modifier)
-			NewHandler(db, sessionDB).RegisterUser(rec, httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(body)))
+			NewHandler(db).RegisterUser(rec, httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(body)))
 
 			if rec.Code != http.StatusBadRequest {
 				t.Fatalf("status = %d, want %d (body: %s)", rec.Code, http.StatusBadRequest, rec.Body.String())
@@ -247,10 +242,9 @@ func TestRegisterUserDatabaseFailures(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sessionDB := &mockRegSessionDB{}
 			rec := httptest.NewRecorder()
 
-			NewHandler(tt.db, sessionDB).RegisterUser(rec, httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(validRegisterBody(t))))
+			NewHandler(tt.db).RegisterUser(rec, httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(validRegisterBody(t))))
 
 			if rec.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d (body: %s)", rec.Code, tt.wantStatus, rec.Body.String())

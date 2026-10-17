@@ -71,24 +71,21 @@ type UserResponse struct {
 	Profile     ProfileResponse `json:"profile"`
 }
 
-type SessionDB interface {
-	CreateSession(ctx context.Context, userID uuid.UUID, expiresAt time.Time) (*models.Session, error)
-	DeleteSession(ctx context.Context, sessionID uuid.UUID) error
-}
-
 type LoginDB interface {
 	FindUserByEmail(ctx context.Context, email string) (*models.User, error)
 	FindUserByID(ctx context.Context, userID uuid.UUID) (*models.User, error)
 	FindProfileByUserID(ctx context.Context, userID uuid.UUID) (*models.Profile, error)
+
+	CreateSession(ctx context.Context, userID uuid.UUID, expiresAt time.Time) (*models.Session, error)
+	DeleteSession(ctx context.Context, sessionID uuid.UUID) error
 }
 
 type AuthHandler struct {
-	db       LoginDB
-	sessions SessionDB
+	db LoginDB
 }
 
-func NewAuthHandler(db LoginDB, sessions SessionDB) *AuthHandler {
-	return &AuthHandler{db: db, sessions: sessions}
+func NewAuthHandler(db LoginDB) *AuthHandler {
+	return &AuthHandler{db: db}
 }
 
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
@@ -128,7 +125,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	session, err := h.sessions.CreateSession(r.Context(), user.ID, time.Now().Add(utils.SessionTTL))
+	session, err := h.db.CreateSession(r.Context(), user.ID, time.Now().Add(utils.SessionTTL))
 	if err != nil {
 		apperrors.WriteError(w, apperrors.NewInternalError("Что-то пошло не так", err))
 		return
@@ -176,7 +173,7 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		apperrors.WriteError(w, apperrors.NewUnauthorized("Сессия недействительна"))
 		return
 	}
-	if err := h.sessions.DeleteSession(r.Context(), sessionID); err != nil {
+	if err := h.db.DeleteSession(r.Context(), sessionID); err != nil {
 		apperrors.WriteError(w, apperrors.NewInternalError("Что-то пошло не так", err))
 		return
 	}
@@ -251,6 +248,8 @@ type RegistrationDB interface {
 	CreateUser(ctx context.Context, email, passwordHash string, phone *string) (*models.User, error)
 	CreateProfile(ctx context.Context, iconID *uuid.UUID, userID uuid.UUID, nickname, firstName string, lastName *string, bio *string) (*models.Profile, error)
 	DeleteUser(ctx context.Context, userID uuid.UUID) error
+
+	CreateSession(ctx context.Context, userID uuid.UUID, expiresAt time.Time) (*models.Session, error)
 }
 
 type RegisterHandler struct {
@@ -309,6 +308,14 @@ func (h *RegisterHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		apperrors.WriteError(w, apperrors.NewInternalError("Something went wrong", err))
 		return
 	}
+
+	session, err := h.db.CreateSession(r.Context(), user.ID, time.Now().Add(utils.SessionTTL))
+	if err != nil {
+		apperrors.WriteError(w, apperrors.NewInternalError("Failed to create session", err))
+		return
+	}
+
+	utils.SetSessionCookie(w, session.ID.String())
 
 	utils.WriteJSON(w, http.StatusCreated, toUserResponse(user))
 }

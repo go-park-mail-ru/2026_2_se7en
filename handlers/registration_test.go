@@ -8,11 +8,13 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
 	"app/models"
+	"app/utils"
 )
 
 const (
@@ -78,6 +80,9 @@ type mockRegistrationDB struct {
 	createdFirstName string
 	createdLastName  *string
 	deletedUserIDs   []uuid.UUID
+
+	createdUserID uuid.UUID
+	createErr     error
 }
 
 func (m *mockRegistrationDB) CheckEmailExist(context.Context, string) (bool, error) {
@@ -114,6 +119,17 @@ func (m *mockRegistrationDB) DeleteUser(_ context.Context, userID uuid.UUID) err
 	return nil
 }
 
+type mockRegSessionDB struct {
+}
+
+func (m *mockRegistrationDB) CreateSession(ctx context.Context, userID uuid.UUID, expiresAt time.Time) (*models.Session, error) {
+	m.createdUserID = userID
+	if m.createErr != nil {
+		return nil, m.createErr
+	}
+	return &models.Session{ID: uuid.New(), UserID: userID, ExpiresAt: expiresAt}, nil
+}
+
 func validRegisterBody(t *testing.T) string {
 	t.Helper()
 	body, err := json.Marshal(validRegisterData())
@@ -126,8 +142,10 @@ func validRegisterBody(t *testing.T) string {
 func TestRegisterUserSuccess(t *testing.T) {
 	userID := uuid.New()
 	db := &mockRegistrationDB{userID: userID}
+
 	req := httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(validRegisterBody(t)))
 	rec := httptest.NewRecorder()
+
 	NewHandler(db).RegisterUser(rec, req)
 
 	if rec.Code != http.StatusCreated {
@@ -144,6 +162,18 @@ func TestRegisterUserSuccess(t *testing.T) {
 	}
 	if len(db.deletedUserIDs) != 0 {
 		t.Fatalf("unexpected rollback deletes: %v", db.deletedUserIDs)
+	}
+
+	if db.createdUserID != userID {
+		t.Fatalf("session not created for user: got %v, want %v", db.createdUserID, userID)
+	}
+
+	cookies := rec.Result().Cookies()
+	if len(cookies) == 0 {
+		t.Fatalf("expected Set-Cookie header, got none")
+	}
+	if cookies[0].Name != utils.SessionCookieName {
+		t.Errorf("expected cookie name 'session_id', got %q", cookies[0].Name)
 	}
 }
 
@@ -213,7 +243,9 @@ func TestRegisterUserDatabaseFailures(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
+
 			NewHandler(tt.db).RegisterUser(rec, httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(validRegisterBody(t))))
+
 			if rec.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d (body: %s)", rec.Code, tt.wantStatus, rec.Body.String())
 			}

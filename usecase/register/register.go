@@ -8,17 +8,19 @@ import (
 
 	"app/apperrors"
 	"app/models"
-	reporegister "app/repository/register"
+	"app/repository/profile"
+	"app/repository/session"
+	"app/repository/user"
 	"app/utils"
 )
 
 type RegisterUsecaseImpl struct {
-	userRepo    reporegister.UserRepository
-	profileRepo reporegister.ProfileRepository
-	sessionRepo reporegister.SessionRepository
+	userRepo    user.Repository
+	profileRepo profile.Repository
+	sessionRepo session.Repository
 }
 
-func NewRegisterUsecase(userRepo reporegister.UserRepository, profileRepo reporegister.ProfileRepository, sessionRepo reporegister.SessionRepository) *RegisterUsecaseImpl {
+func NewRegisterUsecase(userRepo user.Repository, profileRepo profile.Repository, sessionRepo session.Repository) *RegisterUsecaseImpl {
 	return &RegisterUsecaseImpl{
 		userRepo:    userRepo,
 		profileRepo: profileRepo,
@@ -26,7 +28,7 @@ func NewRegisterUsecase(userRepo reporegister.UserRepository, profileRepo repore
 	}
 }
 
-func (uc *RegisterUsecaseImpl) Register(ctx context.Context, user *models.User, plainPassword string) (*RegisterResult, error) {
+func (uc *RegisterUsecaseImpl) Register(ctx context.Context, user *models.User, plainPassword string) (*models.UserWithSession, error) {
 	emailExists, err := uc.userRepo.CheckEmailExist(ctx, user.Email)
 	if err != nil {
 		return nil, err
@@ -80,7 +82,7 @@ func (uc *RegisterUsecaseImpl) Register(ctx context.Context, user *models.User, 
 		return nil, err
 	}
 
-	return &RegisterResult{
+	return &models.UserWithSession{
 		User:      modelUser,
 		SessionID: session.ID,
 	}, nil

@@ -39,6 +39,14 @@ func (m *mockRepo) DeleteUser(ctx context.Context, userID uuid.UUID) error {
 	m.deleteUserCalled = true
 	return nil
 }
+
+func (m *mockRepo) FindByEmail(ctx context.Context, email string) (*models.User, error) {
+	return nil, nil
+}
+func (m *mockRepo) FindByID(ctx context.Context, userID uuid.UUID) (*models.User, error) {
+	return nil, nil
+}
+
 func (m *mockRepo) CheckNicknameExist(ctx context.Context, nickname string) (bool, error) {
 	return m.nickExists, m.checkNickErr
 }
@@ -48,6 +56,11 @@ func (m *mockRepo) CreateProfile(ctx context.Context, iconID *uuid.UUID, userID 
 	}
 	return &models.Profile{ID: uuid.New(), UserID: userID, Nickname: nickname, FirstName: firstName, LastName: lastName}, nil
 }
+
+func (m *mockRepo) FindByUserID(ctx context.Context, userID uuid.UUID) (*models.Profile, error) {
+	return nil, nil
+}
+
 func (m *mockRepo) CreateSession(ctx context.Context, userID uuid.UUID, expiresAt time.Time) (*models.Session, error) {
 	if m.createSessionErr != nil {
 		return nil, m.createSessionErr
@@ -55,8 +68,17 @@ func (m *mockRepo) CreateSession(ctx context.Context, userID uuid.UUID, expiresA
 	return &models.Session{ID: uuid.New(), UserID: userID, ExpiresAt: expiresAt}, nil
 }
 
+func (m *mockRepo) DeleteSession(ctx context.Context, sessionID uuid.UUID) error { return nil }
+func (m *mockRepo) GetSessionUser(ctx context.Context, sessionID uuid.UUID) (uuid.UUID, error) {
+	return uuid.Nil, nil
+}
+func (m *mockRepo) ExtendSession(ctx context.Context, sessionID uuid.UUID, expiresAt time.Time) error {
+	return nil
+}
+
 func TestRegisterUsecase_Success(t *testing.T) {
 	repo := &mockRepo{}
+
 	uc := NewRegisterUsecase(repo, repo, repo)
 
 	user := &models.User{

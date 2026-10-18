@@ -14,26 +14,25 @@ import (
 	"app/apperrors"
 	"app/middleware"
 	"app/models"
-	usecaseauth "app/usecase/auth"
 	"app/utils"
 )
 
 type mockAuthUsecase struct {
-	loginResult *usecaseauth.LoginResult
+	loginResult *models.UserWithSession
 	loginErr    error
-	meResult    *usecaseauth.MeResult
+	meResult    *models.UserWithSession
 	meErr       error
 	logoutErr   error
 
 	loginEmail string
 }
 
-func (m *mockAuthUsecase) Login(ctx context.Context, email, password string) (*usecaseauth.LoginResult, error) {
+func (m *mockAuthUsecase) Login(ctx context.Context, email, password string) (*models.UserWithSession, error) {
 	m.loginEmail = email
 	return m.loginResult, m.loginErr
 }
 
-func (m *mockAuthUsecase) GetMe(ctx context.Context, userID uuid.UUID) (*usecaseauth.MeResult, error) {
+func (m *mockAuthUsecase) GetMe(ctx context.Context, userID uuid.UUID) (*models.UserWithSession, error) {
 	return m.meResult, m.meErr
 }
 
@@ -44,7 +43,7 @@ func (m *mockAuthUsecase) Logout(ctx context.Context, sessionID uuid.UUID) error
 func TestAuthDelivery_HandleLogin_Success(t *testing.T) {
 	userID := uuid.New()
 	mockUC := &mockAuthUsecase{
-		loginResult: &usecaseauth.LoginResult{
+		loginResult: &models.UserWithSession{
 			User: &models.User{
 				ID:    userID,
 				Email: "test@example.com",
@@ -131,7 +130,7 @@ func TestAuthDelivery_HandleLogin_InvalidCredentials(t *testing.T) {
 func TestAuthDelivery_HandleMe_Success(t *testing.T) {
 	userID := uuid.New()
 	mockUC := &mockAuthUsecase{
-		meResult: &usecaseauth.MeResult{
+		meResult: &models.UserWithSession{
 			User: &models.User{
 				ID:    userID,
 				Email: "test@example.com",

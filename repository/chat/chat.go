@@ -1,20 +1,25 @@
-package storage
+package chat
 
 import (
+	"app/models"
 	"context"
 	"time"
 
-	"app/apperrors"
-	"app/models"
-
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-const defaultChatLimit = 20
+type chatRepository struct {
+	pool *pgxpool.Pool
+}
+
+func NewChatRepository(pool *pgxpool.Pool) Repository {
+	return &chatRepository{pool: pool}
+}
 
 const sqlListUserChats = `
 	select
-		c.*,
+		c.id, c.icon_id, c.name, c.description, c.type, c.members_count, c.created_at, c.updated_at, c.deleted_at,
 		m.id, m.content, m.type, m.created_at
 	from chat c
 	join user_in_chat u on u.chat_id = c.id
@@ -33,23 +38,8 @@ const sqlListUserChats = `
 	limit $2 offset $3
 `
 
-func (db *DB) ListUserChats(ctx context.Context, userID uuid.UUID, limit, offset int, chatType string) ([]*models.ChatListItem, error) {
-	if limit == 0 {
-		limit = defaultChatLimit
-	}
-
-	if limit < 1 {
-		return nil, apperrors.ErrInvalidChatLimit
-	}
-
-	if offset < 0 {
-		return nil, apperrors.ErrInvalidChatOffset
-	}
-	if chatType != "" && chatType != "dialog" && chatType != "group" && chatType != "channel" {
-		return nil, apperrors.ErrInvalidChatType
-	}
-
-	rows, err := db.pool.Query(ctx, sqlListUserChats, userID, limit, offset, chatType)
+func (r *chatRepository) ListUserChats(ctx context.Context, userID uuid.UUID, limit, offset int, chatType string) ([]*models.ChatListItem, error) {
+	rows, err := r.pool.Query(ctx, sqlListUserChats, userID, limit, offset, chatType)
 	if err != nil {
 		return nil, err
 	}
@@ -57,19 +47,15 @@ func (db *DB) ListUserChats(ctx context.Context, userID uuid.UUID, limit, offset
 
 	var items []*models.ChatListItem
 	for rows.Next() {
-
-		item := &models.ChatListItem{
-			Chat: &models.Chat{},
-		}
-
+		var dbItem ChatListItemDB
 		var msgID uuid.UUID
 		var msgContent *string
 		var msgType string
 		var msgCreatedAt time.Time
 
 		err := rows.Scan(
-			&item.Chat.ID, &item.Chat.IconID, &item.Chat.Name, &item.Chat.Description, &item.Chat.Type,
-			&item.Chat.MembersCount, &item.Chat.CreatedAt, &item.Chat.UpdatedAt, &item.Chat.DeletedAt,
+			&dbItem.Chat.ID, &dbItem.Chat.IconID, &dbItem.Chat.Name, &dbItem.Chat.Description, &dbItem.Chat.Type,
+			&dbItem.Chat.MembersCount, &dbItem.Chat.CreatedAt, &dbItem.Chat.UpdatedAt, &dbItem.Chat.DeletedAt,
 			&msgID, &msgContent, &msgType, &msgCreatedAt,
 		)
 		if err != nil {
@@ -77,7 +63,7 @@ func (db *DB) ListUserChats(ctx context.Context, userID uuid.UUID, limit, offset
 		}
 
 		if msgType != "" || msgContent != nil {
-			item.LastMessage = &models.MessagePreview{
+			dbItem.LastMessage = &MessagePreviewDB{
 				ID:        msgID,
 				Content:   msgContent,
 				Type:      msgType,
@@ -85,7 +71,7 @@ func (db *DB) ListUserChats(ctx context.Context, userID uuid.UUID, limit, offset
 			}
 		}
 
-		items = append(items, item)
+		items = append(items, ChatListItemDBToModel(&dbItem))
 	}
 
 	if err := rows.Err(); err != nil {

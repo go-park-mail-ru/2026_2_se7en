@@ -1,9 +1,6 @@
 package main
 
 import (
-	"app/config"
-	"app/router"
-	"app/storage"
 	"context"
 	"errors"
 	"fmt"
@@ -11,6 +8,10 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	"app/config"
+	"app/router"
+	"app/storage"
 
 	"github.com/joho/godotenv"
 )

@@ -1,13 +1,12 @@
 package chat
 
 import (
-	"context"
-
 	"app/models"
+	"context"
 
 	"github.com/google/uuid"
 )
 
-type ChatRepository interface {
+type Repository interface {
 	ListUserChats(ctx context.Context, userID uuid.UUID, limit, offset int, chatType string) ([]*models.ChatListItem, error)
 }

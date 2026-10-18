@@ -4,16 +4,16 @@ import (
 	"context"
 
 	"app/models"
-	repochat "app/repository/chat"
+	"app/repository/chat"
 
 	"github.com/google/uuid"
 )
 
 type ChatUsecaseImpl struct {
-	chatRepo repochat.ChatRepository
+	chatRepo chat.Repository
 }
 
-func NewChatUsecase(chatRepo repochat.ChatRepository) *ChatUsecaseImpl {
+func NewChatUsecase(chatRepo chat.Repository) *ChatUsecaseImpl {
 	return &ChatUsecaseImpl{chatRepo: chatRepo}
 }
 

@@ -12,32 +12,31 @@ import (
 
 	"app/apperrors"
 	"app/models"
-	auth "app/usecase/register"
 	"app/utils"
 )
 
 type mockRegisterUsecase struct {
-	result *auth.RegisterResult
+	result *models.UserWithSession
 	err    error
 }
 
-func (m *mockRegisterUsecase) HandleRegister(ctx context.Context, user interface{}, password string) (*auth.RegisterResult, error) {
+func (m *mockRegisterUsecase) HandleRegister(ctx context.Context, user interface{}, password string) (*models.UserWithSession, error) {
 
 	return m.result, m.err
 }
 
 type mockUsecase struct {
-	result *auth.RegisterResult
+	result *models.UserWithSession
 	err    error
 }
 
-func (m *mockUsecase) Register(ctx context.Context, user *models.User, password string) (*auth.RegisterResult, error) {
+func (m *mockUsecase) Register(ctx context.Context, user *models.User, password string) (*models.UserWithSession, error) {
 	return m.result, m.err
 }
 
 func TestRegisterDelivery_Success(t *testing.T) {
 	mockUC := &mockUsecase{
-		result: &auth.RegisterResult{
+		result: &models.UserWithSession{
 			User: &models.User{
 				ID:    uuid.New(),
 				Email: "test@example.com",

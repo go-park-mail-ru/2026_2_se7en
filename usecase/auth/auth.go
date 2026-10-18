@@ -9,7 +9,10 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"app/apperrors"
-	repoauth "app/repository/auth"
+	"app/models"
+	"app/repository/profile"
+	"app/repository/session"
+	"app/repository/user"
 	"app/utils"
 )
 
@@ -20,16 +23,12 @@ func init() {
 }
 
 type AuthUsecaseImpl struct {
-	userRepo    repoauth.UserRepository
-	profileRepo repoauth.ProfileRepository
-	sessionRepo repoauth.SessionRepository
+	userRepo    user.Repository
+	profileRepo profile.Repository
+	sessionRepo session.Repository
 }
 
-func NewAuthUsecase(
-	userRepo repoauth.UserRepository,
-	profileRepo repoauth.ProfileRepository,
-	sessionRepo repoauth.SessionRepository,
-) *AuthUsecaseImpl {
+func NewAuthUsecase(userRepo user.Repository, profileRepo profile.Repository, sessionRepo session.Repository) *AuthUsecaseImpl {
 	return &AuthUsecaseImpl{
 		userRepo:    userRepo,
 		profileRepo: profileRepo,
@@ -37,7 +36,7 @@ func NewAuthUsecase(
 	}
 }
 
-func (uc *AuthUsecaseImpl) Login(ctx context.Context, email, password string) (*LoginResult, error) {
+func (uc *AuthUsecaseImpl) Login(ctx context.Context, email, password string) (*models.UserWithSession, error) {
 	user, err := uc.userRepo.FindByEmail(ctx, email)
 	if err != nil && !errors.Is(err, apperrors.ErrUserNotFound) {
 		return nil, err
@@ -70,13 +69,13 @@ func (uc *AuthUsecaseImpl) Login(ctx context.Context, email, password string) (*
 		return nil, err
 	}
 
-	return &LoginResult{
+	return &models.UserWithSession{
 		User:      user,
 		SessionID: session.ID,
 	}, nil
 }
 
-func (uc *AuthUsecaseImpl) GetMe(ctx context.Context, userID uuid.UUID) (*MeResult, error) {
+func (uc *AuthUsecaseImpl) GetMe(ctx context.Context, userID uuid.UUID) (*models.UserWithSession, error) {
 	user, err := uc.userRepo.FindByID(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -92,7 +91,7 @@ func (uc *AuthUsecaseImpl) GetMe(ctx context.Context, userID uuid.UUID) (*MeResu
 
 	user.Profile = profile
 
-	return &MeResult{
+	return &models.UserWithSession{
 		User: user,
 	}, nil
 }

@@ -16,3 +16,8 @@ type User struct {
 	UpdatedAt    time.Time
 	DeletedAt    *time.Time
 }
+
+type UserWithSession struct {
+	User      *User
+	SessionID uuid.UUID
+}

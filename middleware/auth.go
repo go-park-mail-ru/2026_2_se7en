@@ -1,34 +1,31 @@
 package middleware
 
 import (
-	"app/apperrors"
-	"app/utils"
 	"context"
 	"errors"
 	"net/http"
 	"time"
 
 	"github.com/google/uuid"
+
+	"app/apperrors"
+	"app/repository/session"
+	"app/utils"
 )
 
 type contextKey string
 
 const userIDKey contextKey = "userID"
 
-type SessionDB interface {
-	GetSessionUser(ctx context.Context, sessionID uuid.UUID) (uuid.UUID, error)
-	ExtendSession(ctx context.Context, sessionID uuid.UUID, newExpiresAt time.Time) error
-}
-
 type AuthMiddleware struct {
-	db   SessionDB
-	next http.Handler
+	sessionRepo session.Repository
+	next        http.Handler
 }
 
-func NewAuthMiddleware(db SessionDB, next http.Handler) http.Handler {
+func NewAuthMiddleware(sessionRepo session.Repository, next http.Handler) http.Handler {
 	return &AuthMiddleware{
-		db:   db,
-		next: next,
+		sessionRepo: sessionRepo,
+		next:        next,
 	}
 }
 
@@ -38,13 +35,14 @@ func (m *AuthMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		apperrors.WriteError(w, apperrors.NewUnauthorized("Session cookie is missing"))
 		return
 	}
+
 	sessionID, err := uuid.Parse(cookie.Value)
 	if err != nil {
 		apperrors.WriteError(w, apperrors.NewUnauthorized("Invalid session cookie"))
 		return
 	}
 
-	userID, err := m.db.GetSessionUser(r.Context(), sessionID)
+	userID, err := m.sessionRepo.GetSessionUser(r.Context(), sessionID)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrSessionNotFound) {
 			apperrors.WriteError(w, apperrors.NewUnauthorized("Invalid or expired session"))
@@ -55,7 +53,7 @@ func (m *AuthMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	newExpiresAt := time.Now().Add(utils.SessionTTL)
-	if err := m.db.ExtendSession(r.Context(), sessionID, newExpiresAt); err != nil {
+	if err := m.sessionRepo.ExtendSession(r.Context(), sessionID, newExpiresAt); err != nil {
 		if errors.Is(err, apperrors.ErrSessionNotFound) {
 			apperrors.WriteError(w, apperrors.NewUnauthorized("Invalid or expired session"))
 		} else {

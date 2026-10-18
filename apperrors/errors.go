@@ -120,4 +120,9 @@ var (
 		Message: "Nickname already taken",
 		Status:  http.StatusConflict,
 	}
+	ErrInvalidCredentials = &AppError{
+		Code:    "INVALID_CREDENTIALS",
+		Message: "Invalid email or password",
+		Status:  http.StatusUnauthorized,
+	}
 )

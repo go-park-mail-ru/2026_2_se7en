@@ -8,10 +8,16 @@ import (
 
 type User struct {
 	ID           uuid.UUID
-	PasswordHash string
 	Email        string
 	PhoneNumber  *string
+	PasswordHash string
+	Profile      *Profile
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 	DeletedAt    *time.Time
+}
+
+type UserWithSession struct {
+	User      *User
+	SessionID uuid.UUID
 }

@@ -1,14 +1,19 @@
 package storage
 
 import (
-	apperrors "app/apperrors"
 	"context"
+
+	"app/apperrors"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type DB struct {
 	pool *pgxpool.Pool
+}
+
+func (db *DB) Pool() *pgxpool.Pool {
+	return db.pool
 }
 
 func Connect(ctx context.Context, connString string) (*DB, error) {

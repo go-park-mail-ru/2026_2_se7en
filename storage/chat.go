@@ -1,9 +1,11 @@
 package storage
 
 import (
-	apperrors "app/apperrors"
-	"app/models"
 	"context"
+	"time"
+
+	"app/apperrors"
+	"app/models"
 
 	"github.com/google/uuid"
 )
@@ -31,7 +33,7 @@ const sqlListUserChats = `
 	limit $2 offset $3
 `
 
-func (db *DB) ListUserChats(ctx context.Context, userID uuid.UUID, limit, offset int, chatType string) ([]*models.Chat, error) {
+func (db *DB) ListUserChats(ctx context.Context, userID uuid.UUID, limit, offset int, chatType string) ([]*models.ChatListItem, error) {
 	if limit == 0 {
 		limit = defaultChatLimit
 	}
@@ -51,26 +53,44 @@ func (db *DB) ListUserChats(ctx context.Context, userID uuid.UUID, limit, offset
 	if err != nil {
 		return nil, err
 	}
-
 	defer rows.Close()
 
-	var chats []*models.Chat
+	var items []*models.ChatListItem
 	for rows.Next() {
-		chat := models.Chat{LastMessage: &models.MessagePreview{}}
 
-		if err := rows.Scan(&chat.ID, &chat.IconID, &chat.Name, &chat.Description, &chat.Type,
-			&chat.MembersCount, &chat.CreatedAt, &chat.UpdatedAt, &chat.DeletedAt,
-			&chat.LastMessage.ID, &chat.LastMessage.Content,
-			&chat.LastMessage.Type, &chat.LastMessage.CreatedAt); err != nil {
+		item := &models.ChatListItem{
+			Chat: &models.Chat{},
+		}
+
+		var msgID uuid.UUID
+		var msgContent *string
+		var msgType string
+		var msgCreatedAt time.Time
+
+		err := rows.Scan(
+			&item.Chat.ID, &item.Chat.IconID, &item.Chat.Name, &item.Chat.Description, &item.Chat.Type,
+			&item.Chat.MembersCount, &item.Chat.CreatedAt, &item.Chat.UpdatedAt, &item.Chat.DeletedAt,
+			&msgID, &msgContent, &msgType, &msgCreatedAt,
+		)
+		if err != nil {
 			return nil, err
 		}
 
-		chats = append(chats, &chat)
+		if msgType != "" || msgContent != nil {
+			item.LastMessage = &models.MessagePreview{
+				ID:        msgID,
+				Content:   msgContent,
+				Type:      msgType,
+				CreatedAt: msgCreatedAt,
+			}
+		}
+
+		items = append(items, item)
 	}
 
-	if rows.Err() != nil {
-		return nil, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
-	return chats, nil
+	return items, nil
 }

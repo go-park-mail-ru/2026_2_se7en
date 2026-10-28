@@ -44,6 +44,15 @@ const sqlListUserChats = `
 	limit $2 offset $3
 `
 
+const sqlFindForUser = `
+	select c.id, c.icon_id, c.name, c.description, c.type, c.members_count,
+		c.created_at, c.updated_at, c.deleted_at, role.type
+	from chat c
+	join user_in_chat m on m.chat_id = c.id and m.user_id = $1 and m.deleted_at is null
+	join chat_role role on role.id = m.role_id
+	where c.id = $2 and c.deleted_at is null
+`
+
 func (r *chatRepository) ListUserChats(ctx context.Context, userID uuid.UUID, limit, offset int, chatType string) ([]*models.ChatListItem, error) {
 	rows, err := r.pool.Query(ctx, sqlListUserChats, userID, limit, offset, chatType)
 	if err != nil {
@@ -101,16 +110,13 @@ func scanDetail(row pgx.Row) (*models.ChatDetail, error) {
 }
 
 func (r *chatRepository) FindForUser(ctx context.Context, userID, chatID uuid.UUID) (*models.ChatDetail, error) {
-	const query = `select c.id, c.icon_id, c.name, c.description, c.type, c.members_count, c.created_at, c.updated_at, c.deleted_at, role.type from chat c
-		join user_in_chat m on m.chat_id=c.id and m.user_id=$1 and m.deleted_at is null
-		join chat_role role on role.id=m.role_id
-		where c.id=$2 and c.deleted_at is null`
-	return scanDetail(r.pool.QueryRow(ctx, query, userID, chatID))
+	return scanDetail(r.pool.QueryRow(ctx, sqlFindForUser, userID, chatID))
 }
 
 func role(ctx context.Context, tx pgx.Tx, kind string) (uuid.UUID, error) {
+	const query = `select id from chat_role where type = $1`
 	var id uuid.UUID
-	err := tx.QueryRow(ctx, `select id from chat_role where type=$1`, kind).Scan(&id)
+	err := tx.QueryRow(ctx, query, kind).Scan(&id)
 	return id, err
 }
 
@@ -140,12 +146,14 @@ func (r *chatRepository) GetOrCreateDialog(ctx context.Context, userID, peerID u
 	defer tx.Rollback(ctx)
 	ids := []string{userID.String(), peerID.String()}
 	sort.Strings(ids)
-	_, err = tx.Exec(ctx, `select pg_advisory_xact_lock(hashtextextended($1,0))`, ids[0]+ids[1])
+	const lockDialog = `select pg_advisory_xact_lock(hashtextextended($1, 0))`
+	_, err = tx.Exec(ctx, lockDialog, ids[0]+ids[1])
 	if err != nil {
 		return nil, err
 	}
 	var exists bool
-	err = tx.QueryRow(ctx, `select exists(select 1 from app_user where id=$1 and deleted_at is null)`, peerID).Scan(&exists)
+	const peerExists = `select exists(select 1 from app_user where id = $1 and deleted_at is null)`
+	err = tx.QueryRow(ctx, peerExists, peerID).Scan(&exists)
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +175,8 @@ func (r *chatRepository) GetOrCreateDialog(ctx context.Context, userID, peerID u
 		return nil, err
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
-		err = tx.QueryRow(ctx, `insert into chat(name,type,members_count) values('','dialog',2) returning id`).Scan(&chatID)
+		const insertDialog = `insert into chat (name, type, members_count) values ('', 'dialog', 2) returning id`
+		err = tx.QueryRow(ctx, insertDialog).Scan(&chatID)
 		if err != nil {
 			return nil, err
 		}
@@ -291,21 +300,20 @@ func (r *chatRepository) CreateGroup(ctx context.Context, userID uuid.UUID, name
 	if err != nil {
 		return nil, err
 	}
-	const insertMember = `
+	const insertMembers = `
 		insert into user_in_chat (user_id, chat_id, role_id)
-		select $1, $2, $3
-		where exists (select 1 from app_user where id = $1 and deleted_at is null)
+		select u.id, $2, $3
+		from unnest($1::uuid[]) as requested(user_id)
+		join app_user u on u.id = requested.user_id and u.deleted_at is null
 	`
-	for _, id := range members {
-		tag, err := tx.Exec(ctx, insertMember, id, chatID, memberRole)
-		if err != nil {
-			return nil, err
-		}
-		if tag.RowsAffected() == 0 {
-			return nil, apperrors.NewNotFound("Resource not found")
-		}
+	tag, err := tx.Exec(ctx, insertMembers, members, chatID, memberRole)
+	if err != nil {
+		return nil, err
 	}
-	d, err := scanDetail(tx.QueryRow(ctx, `select c.id, c.icon_id, c.name, c.description, c.type, c.members_count, c.created_at, c.updated_at, c.deleted_at, role.type, 'creator' from chat c where c.id = $1`, chatID))
+	if tag.RowsAffected() != int64(len(members)) {
+		return nil, apperrors.NewNotFound("Resource not found")
+	}
+	d, err := scanDetail(tx.QueryRow(ctx, sqlFindForUser, userID, chatID))
 	if err != nil {
 		return nil, err
 	}
@@ -342,7 +350,7 @@ func (r *chatRepository) UpdateGroup(ctx context.Context, userID, chatID uuid.UU
 	if err != nil {
 		return nil, err
 	}
-	d, err := scanDetail(tx.QueryRow(ctx, `select c.id, c.icon_id, c.name, c.description, c.type, c.members_count, c.created_at, c.updated_at, c.deleted_at, role.type, $2::text from chat c where c.id = $1`, chatID, roleType))
+	d, err := scanDetail(tx.QueryRow(ctx, sqlFindForUser, userID, chatID))
 	if err != nil {
 		return nil, err
 	}
@@ -425,7 +433,8 @@ func (r *chatRepository) AddMember(ctx context.Context, userID, chatID, newUserI
 		return apperrors.NewForbidden("No permissions")
 	}
 	var exists bool
-	err = tx.QueryRow(ctx, `select exists(select 1 from app_user where id = $1 and deleted_at is null)`, newUserID).Scan(&exists)
+	const userExists = `select exists(select 1 from app_user where id = $1 and deleted_at is null)`
+	err = tx.QueryRow(ctx, userExists, newUserID).Scan(&exists)
 	if err != nil {
 		return err
 	}
@@ -461,7 +470,8 @@ func (r *chatRepository) AddMember(ctx context.Context, userID, chatID, newUserI
 		}
 		return err
 	}
-	_, err = tx.Exec(ctx, `update chat set members_count = members_count + 1, updated_at = now() where id = $1`, chatID)
+	const updateCount = `update chat set members_count = members_count + 1, updated_at = now() where id = $1`
+	_, err = tx.Exec(ctx, updateCount, chatID)
 	if err != nil {
 		return err
 	}
@@ -508,7 +518,8 @@ func (r *chatRepository) RemoveMember(ctx context.Context, userID, chatID, targe
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(ctx, `update chat set members_count = members_count - 1, updated_at = now() where id = $1`, chatID)
+	const updateCount = `update chat set members_count = members_count - 1, updated_at = now() where id = $1`
+	_, err = tx.Exec(ctx, updateCount, chatID)
 	if err != nil {
 		return err
 	}

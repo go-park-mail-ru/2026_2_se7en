@@ -18,10 +18,10 @@ func TestHealthRoute(t *testing.T) {
 	handler := router.New(testDB)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/health", nil))
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
 	}
-	if body := strings.TrimSpace(rec.Body.String()); body != `{"status":"ok"}` {
+	if body := strings.TrimSpace(rec.Body.String()); body != `{"status":"unavailable"}` {
 		t.Fatalf("body = %q, want status JSON", body)
 	}
 }

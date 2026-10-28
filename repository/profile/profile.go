@@ -89,8 +89,9 @@ func (r *profileRepository) UpdateProfile(ctx context.Context, userID uuid.UUID,
 }
 
 func (r *profileRepository) FindPasswordHash(ctx context.Context, userID uuid.UUID) (string, error) {
+	const query = `select password_hash from app_user where id = $1 and deleted_at is null`
 	var hash string
-	err := r.pool.QueryRow(ctx, `select password_hash from app_user where id = $1 and deleted_at is null`, userID).Scan(&hash)
+	err := r.pool.QueryRow(ctx, query, userID).Scan(&hash)
 	return hash, err
 }
 

@@ -33,6 +33,9 @@ func (d *ChatDeliveryImpl) HandleListUserChats(w http.ResponseWriter, r *http.Re
 		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid limit format", []apperrors.ErrorDetail{{Field: "limit", Reason: err.Error()}}))
 		return
 	}
+	if _, present := q["limit"]; !present {
+		limit = 20
+	}
 
 	offset, err := parseQueryInt(q, "offset")
 	if err != nil {
@@ -78,7 +81,7 @@ func parseQueryInt(query url.Values, key string) (int, error) {
 func mapChatError(err error) *apperrors.AppError {
 	switch {
 	case err == apperrors.ErrInvalidChatLimit:
-		return apperrors.NewBadRequest("Invalid limit", []apperrors.ErrorDetail{{Field: "limit", Reason: "Limit must be >= 1"}})
+		return apperrors.NewBadRequest("Invalid limit", []apperrors.ErrorDetail{{Field: "limit", Reason: "Limit must be between 1 and 50"}})
 	case err == apperrors.ErrInvalidChatOffset:
 		return apperrors.NewBadRequest("Invalid offset", []apperrors.ErrorDetail{{Field: "offset", Reason: "Offset must be >= 0"}})
 	case err == apperrors.ErrInvalidChatType:

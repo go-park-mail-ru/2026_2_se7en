@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -37,6 +38,7 @@ func NewAuthUsecase(userRepo user.Repository, profileRepo profile.Repository, se
 }
 
 func (uc *AuthUsecaseImpl) Login(ctx context.Context, email, password string) (*models.UserWithSession, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
 	user, err := uc.userRepo.FindByEmail(ctx, email)
 	if err != nil && !errors.Is(err, apperrors.ErrUserNotFound) {
 		return nil, err

@@ -28,7 +28,7 @@ func New(db *storage.DB) http.Handler {
 	chatRepo := repochat.NewChatRepository(db.Pool())
 
 	authUsecase := usecaseauth.NewAuthUsecase(userRepo, profileRepo, sessionRepo)
-	registerUsecase := usecaseregister.NewRegisterUsecase(userRepo, profileRepo, sessionRepo)
+	registerUsecase := usecaseregister.NewRegisterUsecase(userRepo, profileRepo)
 	chatUsecase := usecasechat.NewChatUsecase(chatRepo)
 
 	authDelivery := deliveryauth.NewAuthDelivery(authUsecase)

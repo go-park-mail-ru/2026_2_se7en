@@ -52,11 +52,13 @@ func (r *contactRepository) ListContacts(ctx context.Context, userID uuid.UUID, 
 }
 
 func (r *contactRepository) AddContact(ctx context.Context, userID, contactID uuid.UUID) error {
-	_, err := r.pool.Exec(ctx, `insert into user_contact (user_id, contact_user_id) values ($1, $2)`, userID, contactID)
+	const query = `insert into user_contact (user_id, contact_user_id) values ($1, $2)`
+	_, err := r.pool.Exec(ctx, query, userID, contactID)
 	return err
 }
 
 func (r *contactRepository) DeleteContact(ctx context.Context, userID, contactID uuid.UUID) (bool, error) {
-	tag, err := r.pool.Exec(ctx, `delete from user_contact where user_id = $1 and contact_user_id = $2`, userID, contactID)
+	const query = `delete from user_contact where user_id = $1 and contact_user_id = $2`
+	tag, err := r.pool.Exec(ctx, query, userID, contactID)
 	return tag.RowsAffected() > 0, err
 }

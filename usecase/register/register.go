@@ -2,6 +2,7 @@ package register
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -9,7 +10,6 @@ import (
 	"app/apperrors"
 	"app/models"
 	"app/repository/profile"
-	"app/repository/session"
 	"app/repository/user"
 	"app/utils"
 )
@@ -17,18 +17,17 @@ import (
 type RegisterUsecaseImpl struct {
 	userRepo    user.Repository
 	profileRepo profile.Repository
-	sessionRepo session.Repository
 }
 
-func NewRegisterUsecase(userRepo user.Repository, profileRepo profile.Repository, sessionRepo session.Repository) *RegisterUsecaseImpl {
+func NewRegisterUsecase(userRepo user.Repository, profileRepo profile.Repository) *RegisterUsecaseImpl {
 	return &RegisterUsecaseImpl{
 		userRepo:    userRepo,
 		profileRepo: profileRepo,
-		sessionRepo: sessionRepo,
 	}
 }
 
 func (uc *RegisterUsecaseImpl) Register(ctx context.Context, user *models.User, plainPassword string) (*models.UserWithSession, error) {
+	user.Email = strings.ToLower(strings.TrimSpace(user.Email))
 	emailExists, err := uc.userRepo.CheckEmailExist(ctx, user.Email)
 	if err != nil {
 		return nil, err
@@ -56,34 +55,5 @@ func (uc *RegisterUsecaseImpl) Register(ctx context.Context, user *models.User, 
 		return nil, err
 	}
 
-	modelUser, err := uc.userRepo.CreateUser(ctx, user.Email, string(hash), user.PhoneNumber)
-	if err != nil {
-		return nil, err
-	}
-
-	profile, err := uc.profileRepo.CreateProfile(
-		ctx,
-		user.Profile.IconID,
-		modelUser.ID,
-		user.Profile.Nickname,
-		user.Profile.FirstName,
-		user.Profile.LastName,
-		user.Profile.Bio,
-	)
-	if err != nil {
-		_ = uc.userRepo.DeleteUser(ctx, modelUser.ID)
-		return nil, err
-	}
-
-	modelUser.Profile = profile
-
-	session, err := uc.sessionRepo.CreateSession(ctx, modelUser.ID, time.Now().Add(utils.SessionTTL))
-	if err != nil {
-		return nil, err
-	}
-
-	return &models.UserWithSession{
-		User:      modelUser,
-		SessionID: session.ID,
-	}, nil
+	return uc.userRepo.CreateUserProfileAndSession(ctx, user, string(hash), time.Now().Add(utils.SessionTTL))
 }

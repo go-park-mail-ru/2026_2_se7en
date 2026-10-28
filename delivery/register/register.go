@@ -28,6 +28,7 @@ func (d *RegisterDeliveryImpl) HandleRegister(w http.ResponseWriter, r *http.Req
 		apperrors.WriteError(w, err)
 		return
 	}
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
 	if req.PhoneNumber != nil {
 		phone := strings.TrimSpace(*req.PhoneNumber)
 		if phone == "" {

@@ -28,6 +28,36 @@ func (m *mockChatRepo) ListUserChats(ctx context.Context, userID uuid.UUID, limi
 	m.chatType = chatType
 	return m.items, m.err
 }
+func (m *mockChatRepo) FindForUser(ctx context.Context, userID, chatID uuid.UUID) (*models.ChatDetail, error) {
+	return nil, nil
+}
+func (m *mockChatRepo) GetOrCreateDialog(ctx context.Context, userID, peerID uuid.UUID) (*models.ChatDetail, error) {
+	return nil, nil
+}
+func (m *mockChatRepo) HideDialog(ctx context.Context, userID, chatID uuid.UUID) error {
+	return nil
+}
+func (m *mockChatRepo) CreateGroup(ctx context.Context, userID uuid.UUID, name string, description *string, members []uuid.UUID) (*models.ChatDetail, error) {
+	return nil, nil
+}
+func (m *mockChatRepo) UpdateGroup(ctx context.Context, userID, chatID uuid.UUID, name, description *string, setDescription bool) (*models.ChatDetail, error) {
+	return nil, nil
+}
+func (m *mockChatRepo) DeleteGroup(ctx context.Context, userID, chatID uuid.UUID) error {
+	return nil
+}
+func (m *mockChatRepo) ListMembers(ctx context.Context, userID, chatID uuid.UUID) ([]models.ChatMember, error) {
+	return nil, nil
+}
+func (m *mockChatRepo) AddMember(ctx context.Context, userID, chatID, newUserID uuid.UUID) error {
+	return nil
+}
+func (m *mockChatRepo) RemoveMember(ctx context.Context, userID, chatID, targetID uuid.UUID) error {
+	return nil
+}
+func (m *mockChatRepo) ListMessages(ctx context.Context, userID, chatID uuid.UUID, limit int, before *uuid.UUID) ([]models.Message, error) {
+	return nil, nil
+}
 
 func TestChatUsecase_ListUserChats_Success(t *testing.T) {
 	userID := uuid.New()

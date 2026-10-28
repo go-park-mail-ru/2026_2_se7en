@@ -32,6 +32,9 @@ func (m *mockUserRepo) CheckEmailExist(ctx context.Context, email string) (bool,
 func (m *mockUserRepo) CreateUser(ctx context.Context, email, hash string, phone *string) (*models.User, error) {
 	return nil, nil
 }
+func (m *mockUserRepo) CreateUserProfileAndSession(ctx context.Context, user *models.User, hash string, expiresAt time.Time) (*models.UserWithSession, error) {
+	return nil, nil
+}
 func (m *mockUserRepo) DeleteUser(ctx context.Context, userID uuid.UUID) error { return nil }
 
 type mockProfileRepo struct {
@@ -47,6 +50,21 @@ func (m *mockProfileRepo) CheckNicknameExist(ctx context.Context, nickname strin
 }
 func (m *mockProfileRepo) CreateProfile(ctx context.Context, iconID *uuid.UUID, userID uuid.UUID, nickname, firstName string, lastName *string, bio *string) (*models.Profile, error) {
 	return nil, nil
+}
+func (m *mockProfileRepo) FindProfile(ctx context.Context, userID uuid.UUID) (*models.Profile, error) {
+	return nil, nil
+}
+func (m *mockProfileRepo) UpdateProfile(ctx context.Context, userID uuid.UUID, profile models.Profile) (*models.Profile, error) {
+	return nil, nil
+}
+func (m *mockProfileRepo) FindPasswordHash(ctx context.Context, userID uuid.UUID) (string, error) {
+	return "", nil
+}
+func (m *mockProfileRepo) UpdatePassword(ctx context.Context, userID uuid.UUID, oldHash, newHash string) (bool, error) {
+	return false, nil
+}
+func (m *mockProfileRepo) UpdatePhone(ctx context.Context, userID uuid.UUID, phone *string) error {
+	return nil
 }
 
 type mockSessionRepo struct {

@@ -13,8 +13,6 @@ package main
 // @externalDocs.description Документация проекта
 // @externalDocs.url https://github.com/go-park-mail-ru/2026_2_se7en
 
-//go:generate swag init -g main.go --v3.1 -o ../../docs
-
 import (
 	"context"
 	"errors"

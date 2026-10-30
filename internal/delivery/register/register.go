@@ -22,6 +22,18 @@ func NewRegisterDelivery(registerUsecase RegisterUsecase) *RegisterDeliveryImpl 
 	}
 }
 
+// HandleRegister godoc
+// @Summary      Регистрация пользователя
+// @Description  Регистрация нового пользователя с автоматическим входом
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request body RegisterRequest true "Данные для регистрации"
+// @Success      201  {object} RegisterResponse
+// @Failure      400  {object} apperrors.ErrorResponse
+// @Failure      409  {object} apperrors.ErrorResponse
+// @Failure      500  {object} apperrors.ErrorResponse
+// @Router       /auth/register [post]
 func (d *RegisterDeliveryImpl) HandleRegister(w http.ResponseWriter, r *http.Request) {
 	var req RegisterRequest
 	if err := tools.DecodeJSON(r, &req); err != nil {

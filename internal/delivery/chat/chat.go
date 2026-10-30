@@ -18,6 +18,21 @@ func NewChatDelivery(chatUsecase ChatUsecase) *ChatDeliveryImpl {
 	return &ChatDeliveryImpl{chatUsecase: chatUsecase}
 }
 
+// HandleListUserChats godoc
+// @Summary      Список чатов пользователя
+// @Description  Возвращает список чатов с поддержкой пагинации и фильтрации по типу
+// @Tags         chats
+// @Produce      json
+// @Security     SessionCookie
+// @Param        limit  query    int     false  "Размер списка (1-50)"  default(20)
+// @Param        offset query    int     false  "Смещение от начала"     default(0)
+// @Param        type   query    string  false  "Фильтр по типу чата"    Enums(dialog, group, channel)
+// @Success      200  {object} ListChatsResponse
+// @Failure 400 {object} apperrors.ErrorResponse
+// @Failure 401 {object} apperrors.ErrorResponse
+// @Failure 409 {object} apperrors.ErrorResponse
+// @Failure 500 {object} apperrors.ErrorResponse
+// @Router       /chats [get]
 func (d *ChatDeliveryImpl) HandleListUserChats(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {

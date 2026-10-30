@@ -1,0 +1,28 @@
+{
+    "components": {
+        "securitySchemes": {
+            "SessionCookie": {
+                "description": "Session ID",
+                "in": "cookie",
+                "name": "session_id",
+                "type": "apiKey"
+            }
+        }
+    },
+    "info": {
+        "description": "API для мессенджера \"Связь\"",
+        "title": "Messenger API",
+        "version": "1.0"
+    },
+    "externalDocs": {
+        "description": "Документация проекта",
+        "url": "https://github.com/go-park-mail-ru/2026_2_se7en"
+    },
+    "paths": {},
+    "openapi": "3.1.0",
+    "servers": [
+        {
+            "url": "/api/v1"
+        }
+    ]
+}

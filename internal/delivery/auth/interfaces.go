@@ -1,9 +1,14 @@
 package auth
 
-import "net/http"
+import (
+	"context"
 
-type AuthDelivery interface {
-	HandleLogin(w http.ResponseWriter, r *http.Request)
-	HandleMe(w http.ResponseWriter, r *http.Request)
-	HandleLogout(w http.ResponseWriter, r *http.Request)
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
+	"github.com/google/uuid"
+)
+
+type AuthUsecase interface {
+	Login(ctx context.Context, email, password string) (*models.UserWithSession, error)
+	GetMe(ctx context.Context, userID uuid.UUID) (*models.UserWithSession, error)
+	Logout(ctx context.Context, sessionID uuid.UUID) error
 }

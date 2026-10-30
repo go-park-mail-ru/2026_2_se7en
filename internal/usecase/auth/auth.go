@@ -10,9 +10,6 @@ import (
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/repository/profile"
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/repository/session"
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/repository/user"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/utils"
 )
 
@@ -23,12 +20,12 @@ func init() {
 }
 
 type AuthUsecaseImpl struct {
-	userRepo    user.Repository
-	profileRepo profile.Repository
-	sessionRepo session.Repository
+	userRepo    UserRepository
+	profileRepo ProfileRepository
+	sessionRepo SessionRepository
 }
 
-func NewAuthUsecase(userRepo user.Repository, profileRepo profile.Repository, sessionRepo session.Repository) *AuthUsecaseImpl {
+func NewAuthUsecase(userRepo UserRepository, profileRepo ProfileRepository, sessionRepo SessionRepository) *AuthUsecaseImpl {
 	return &AuthUsecaseImpl{
 		userRepo:    userRepo,
 		profileRepo: profileRepo,

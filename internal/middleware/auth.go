@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/repository/session"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/utils"
 )
 
@@ -18,11 +17,11 @@ type contextKey string
 const userIDKey contextKey = "userID"
 
 type AuthMiddleware struct {
-	sessionRepo session.Repository
+	sessionRepo SessionRepository
 	next        http.Handler
 }
 
-func NewAuthMiddleware(sessionRepo session.Repository, next http.Handler) http.Handler {
+func NewAuthMiddleware(sessionRepo SessionRepository, next http.Handler) http.Handler {
 	return &AuthMiddleware{
 		sessionRepo: sessionRepo,
 		next:        next,

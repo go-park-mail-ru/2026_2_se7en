@@ -8,15 +8,14 @@ import (
 	"unicode/utf8"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
-	ucregister "github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/register"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/utils"
 )
 
 type RegisterDeliveryImpl struct {
-	registerUsecase ucregister.RegisterUsecase
+	registerUsecase RegisterUsecase
 }
 
-func NewRegisterDelivery(registerUsecase ucregister.RegisterUsecase) *RegisterDeliveryImpl {
+func NewRegisterDelivery(registerUsecase RegisterUsecase) *RegisterDeliveryImpl {
 	return &RegisterDeliveryImpl{
 		registerUsecase: registerUsecase,
 	}

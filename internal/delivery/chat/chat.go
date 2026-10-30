@@ -7,15 +7,14 @@ import (
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
-	usecasechat "github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/chat"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/utils"
 )
 
 type ChatDeliveryImpl struct {
-	chatUsecase usecasechat.ChatUsecase
+	chatUsecase ChatUsecase
 }
 
-func NewChatDelivery(chatUsecase usecasechat.ChatUsecase) *ChatDeliveryImpl {
+func NewChatDelivery(chatUsecase ChatUsecase) *ChatDeliveryImpl {
 	return &ChatDeliveryImpl{chatUsecase: chatUsecase}
 }
 

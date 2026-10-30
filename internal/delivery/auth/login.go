@@ -7,15 +7,14 @@ import (
 	"strings"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
-	ucauth "github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/auth"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/utils"
 )
 
 type AuthDeliveryImpl struct {
-	authUsecase ucauth.AuthUsecase
+	authUsecase AuthUsecase
 }
 
-func NewAuthDelivery(authUsecase ucauth.AuthUsecase) *AuthDeliveryImpl {
+func NewAuthDelivery(authUsecase AuthUsecase) *AuthDeliveryImpl {
 	return &AuthDeliveryImpl{
 		authUsecase: authUsecase,
 	}

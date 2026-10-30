@@ -4,16 +4,15 @@ import (
 	"context"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/repository/chat"
 
 	"github.com/google/uuid"
 )
 
 type ChatUsecaseImpl struct {
-	chatRepo chat.Repository
+	chatRepo ChatRepository
 }
 
-func NewChatUsecase(chatRepo chat.Repository) *ChatUsecaseImpl {
+func NewChatUsecase(chatRepo ChatRepository) *ChatUsecaseImpl {
 	return &ChatUsecaseImpl{chatRepo: chatRepo}
 }
 

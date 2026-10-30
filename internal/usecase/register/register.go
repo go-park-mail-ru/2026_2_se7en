@@ -8,19 +8,16 @@ import (
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/repository/profile"
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/repository/session"
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/repository/user"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/utils"
 )
 
 type RegisterUsecaseImpl struct {
-	userRepo    user.Repository
-	profileRepo profile.Repository
-	sessionRepo session.Repository
+	userRepo    UserRepository
+	profileRepo ProfileRepository
+	sessionRepo SessionRepository
 }
 
-func NewRegisterUsecase(userRepo user.Repository, profileRepo profile.Repository, sessionRepo session.Repository) *RegisterUsecaseImpl {
+func NewRegisterUsecase(userRepo UserRepository, profileRepo ProfileRepository, sessionRepo SessionRepository) *RegisterUsecaseImpl {
 	return &RegisterUsecaseImpl{
 		userRepo:    userRepo,
 		profileRepo: profileRepo,

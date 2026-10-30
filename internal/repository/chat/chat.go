@@ -1,20 +1,21 @@
 package chat
 
 import (
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"context"
 	"time"
+
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type chatRepository struct {
+type ChatRepositoryImpl struct {
 	pool *pgxpool.Pool
 }
 
-func NewChatRepository(pool *pgxpool.Pool) Repository {
-	return &chatRepository{pool: pool}
+func NewChatRepository(pool *pgxpool.Pool) *ChatRepositoryImpl {
+	return &ChatRepositoryImpl{pool: pool}
 }
 
 const sqlListUserChats = `
@@ -38,7 +39,7 @@ const sqlListUserChats = `
 	limit $2 offset $3
 `
 
-func (r *chatRepository) ListUserChats(ctx context.Context, userID uuid.UUID, limit, offset int, chatType string) ([]*models.ChatListItem, error) {
+func (r *ChatRepositoryImpl) ListUserChats(ctx context.Context, userID uuid.UUID, limit, offset int, chatType string) ([]*models.ChatListItem, error) {
 	rows, err := r.pool.Query(ctx, sqlListUserChats, userID, limit, offset, chatType)
 	if err != nil {
 		return nil, err

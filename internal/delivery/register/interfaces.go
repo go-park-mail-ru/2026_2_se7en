@@ -1,9 +1,11 @@
 package register
 
 import (
-	"net/http"
+	"context"
+
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 )
 
-type RegisterDelivery interface {
-	HandleRegister(w http.ResponseWriter, r *http.Request)
+type RegisterUsecase interface {
+	Register(ctx context.Context, user *models.User, plainPassword string) (*models.UserWithSession, error)
 }

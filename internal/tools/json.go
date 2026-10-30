@@ -7,21 +7,46 @@ import (
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 )
 
-func DecodeJSON(r *http.Request, v any) *apperrors.AppError {
+type Validatable interface {
+	IsValid() []apperrors.ErrorDetail
+}
+
+type Handler[T any] func(w http.ResponseWriter, r *http.Request, req *T) *apperrors.AppError
+
+type JSONDecoder[T any] struct {
+	handler Handler[T]
+}
+
+func (d *JSONDecoder[T]) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	var req T
+
 	if r.Body == nil {
-		return apperrors.NewBadRequest("Request body is empty", nil)
+		apperrors.WriteError(w, apperrors.NewBadRequest("Request body is empty", nil))
+		return
 	}
-	defer func() {
-		_ = r.Body.Close()
-	}()
+	defer r.Body.Close()
 
-	decoder := json.NewDecoder(r.Body)
-
-	if err := decoder.Decode(v); err != nil {
-		return apperrors.NewBadRequest("Invalid JSON format", nil)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid JSON format", nil))
+		return
 	}
 
-	return nil
+	if v, ok := any(&req).(Validatable); ok {
+		if details := v.IsValid(); len(details) > 0 {
+			apperrors.WriteError(w, apperrors.NewBadRequest("Validation failed", details))
+			return
+		}
+	}
+
+	if appErr := d.handler(w, r, &req); appErr != nil {
+		apperrors.WriteError(w, appErr)
+	}
+}
+
+func NewJSONDecoder[T any](handler Handler[T]) http.Handler {
+	return &JSONDecoder[T]{
+		handler: handler,
+	}
 }
 
 func WriteJSON(w http.ResponseWriter, status int, v any) {

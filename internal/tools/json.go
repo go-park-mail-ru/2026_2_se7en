@@ -1,9 +1,10 @@
-package utils
+package tools
 
 import (
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"encoding/json"
 	"net/http"
+
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 )
 
 func DecodeJSON(r *http.Request, v any) *apperrors.AppError {
@@ -21,4 +22,10 @@ func DecodeJSON(r *http.Request, v any) *apperrors.AppError {
 	}
 
 	return nil
+}
+
+func WriteJSON(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(v)
 }

@@ -14,7 +14,6 @@ import (
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/utils"
 )
 
 type mockAuthUsecase struct {
@@ -73,7 +72,7 @@ func TestAuthDelivery_HandleLogin_Success(t *testing.T) {
 	}
 
 	cookies := rec.Result().Cookies()
-	if len(cookies) == 0 || cookies[0].Name != utils.SessionCookieName {
+	if len(cookies) == 0 || cookies[0].Name != middleware.SessionCookieName {
 		t.Errorf("expected session cookie to be set")
 	}
 
@@ -180,7 +179,7 @@ func TestAuthDelivery_HandleLogout_Success(t *testing.T) {
 	delivery := NewAuthDelivery(mockUC)
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/logout", nil)
-	req.AddCookie(&http.Cookie{Name: utils.SessionCookieName, Value: sessionID.String()})
+	req.AddCookie(&http.Cookie{Name: middleware.SessionCookieName, Value: sessionID.String()})
 	rec := httptest.NewRecorder()
 
 	delivery.HandleLogout(rec, req)
@@ -214,7 +213,7 @@ func TestAuthDelivery_HandleLogout_Errors(t *testing.T) {
 
 			req := httptest.NewRequest(http.MethodPost, "/auth/logout", nil)
 			if tt.cookieVal != "" {
-				req.AddCookie(&http.Cookie{Name: utils.SessionCookieName, Value: tt.cookieVal})
+				req.AddCookie(&http.Cookie{Name: middleware.SessionCookieName, Value: tt.cookieVal})
 			}
 			rec := httptest.NewRecorder()
 

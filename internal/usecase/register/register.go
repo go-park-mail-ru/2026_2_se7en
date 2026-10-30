@@ -7,8 +7,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/utils"
 )
 
 type RegisterUsecaseImpl struct {
@@ -74,7 +74,7 @@ func (uc *RegisterUsecaseImpl) Register(ctx context.Context, user *models.User, 
 
 	modelUser.Profile = profile
 
-	session, err := uc.sessionRepo.CreateSession(ctx, modelUser.ID, time.Now().Add(utils.SessionTTL))
+	session, err := uc.sessionRepo.CreateSession(ctx, modelUser.ID, time.Now().Add(middleware.SessionTTL))
 	if err != nil {
 		return nil, err
 	}

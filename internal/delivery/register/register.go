@@ -8,7 +8,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/utils"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
 )
 
 type RegisterDeliveryImpl struct {
@@ -23,7 +24,7 @@ func NewRegisterDelivery(registerUsecase RegisterUsecase) *RegisterDeliveryImpl 
 
 func (d *RegisterDeliveryImpl) HandleRegister(w http.ResponseWriter, r *http.Request) {
 	var req RegisterRequest
-	if err := utils.DecodeJSON(r, &req); err != nil {
+	if err := tools.DecodeJSON(r, &req); err != nil {
 		apperrors.WriteError(w, err)
 		return
 	}
@@ -75,9 +76,9 @@ func (d *RegisterDeliveryImpl) HandleRegister(w http.ResponseWriter, r *http.Req
 
 	response := ModelToRegisterResponse(registerRes.User)
 
-	utils.SetSessionCookie(w, registerRes.SessionID.String())
+	middleware.SetSessionCookie(w, registerRes.SessionID.String())
 
-	utils.WriteJSON(w, http.StatusCreated, response)
+	tools.WriteJSON(w, http.StatusCreated, response)
 }
 
 func (h *RegisterDeliveryImpl) validateRequest(req RegisterRequest) []apperrors.ErrorDetail {
@@ -100,7 +101,7 @@ func (h *RegisterDeliveryImpl) validateRequest(req RegisterRequest) []apperrors.
 	}
 
 	if req.PhoneNumber != nil && *req.PhoneNumber != "" {
-		if !utils.IsPhoneNumberValid(*req.PhoneNumber) {
+		if !tools.IsPhoneNumberValid(*req.PhoneNumber) {
 			details = append(details, apperrors.ErrorDetail{Field: "phone_number", Reason: "Incorrect phone number format"})
 		}
 	}
@@ -111,7 +112,7 @@ func (h *RegisterDeliveryImpl) validateRequest(req RegisterRequest) []apperrors.
 		details = append(details, apperrors.ErrorDetail{Field: "nickname", Reason: "Nickname minimum length is 3"})
 	} else if len(req.Nickname) > 16 {
 		details = append(details, apperrors.ErrorDetail{Field: "nickname", Reason: "Nickname maximum length is 16"})
-	} else if !utils.IsNicknameValid(req.Nickname) {
+	} else if !tools.IsNicknameValid(req.Nickname) {
 		details = append(details, apperrors.ErrorDetail{Field: "nickname", Reason: "Incorrect nickname format"})
 	}
 

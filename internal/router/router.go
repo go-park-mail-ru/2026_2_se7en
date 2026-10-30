@@ -5,7 +5,7 @@ import (
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/storage"
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/utils"
+	utils "github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
 
 	deliveryauth "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/auth"
 	deliverychat "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/chat"

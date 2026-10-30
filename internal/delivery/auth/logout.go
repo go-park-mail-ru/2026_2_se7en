@@ -6,11 +6,11 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/utils"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 )
 
 func (d *AuthDeliveryImpl) HandleLogout(w http.ResponseWriter, r *http.Request) {
-	cookie, err := r.Cookie(utils.SessionCookieName)
+	cookie, err := r.Cookie(middleware.SessionCookieName)
 	if err != nil {
 		apperrors.WriteError(w, apperrors.NewUnauthorized("Сессия недействительна"))
 		return
@@ -27,6 +27,6 @@ func (d *AuthDeliveryImpl) HandleLogout(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	utils.ClearSessionCookie(w)
+	middleware.ClearSessionCookie(w)
 	w.WriteHeader(http.StatusNoContent)
 }

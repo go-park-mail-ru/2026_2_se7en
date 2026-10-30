@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/utils"
 )
 
 type contextKey string
@@ -29,7 +28,7 @@ func NewAuthMiddleware(sessionRepo SessionRepository, next http.Handler) http.Ha
 }
 
 func (m *AuthMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	cookie, err := r.Cookie(utils.SessionCookieName)
+	cookie, err := r.Cookie(SessionCookieName)
 	if err != nil || cookie.Value == "" {
 		apperrors.WriteError(w, apperrors.NewUnauthorized("Session cookie is missing"))
 		return
@@ -51,7 +50,7 @@ func (m *AuthMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newExpiresAt := time.Now().Add(utils.SessionTTL)
+	newExpiresAt := time.Now().Add(SessionTTL)
 	if err := m.sessionRepo.ExtendSession(r.Context(), sessionID, newExpiresAt); err != nil {
 		if errors.Is(err, apperrors.ErrSessionNotFound) {
 			apperrors.WriteError(w, apperrors.NewUnauthorized("Invalid or expired session"))
@@ -61,7 +60,7 @@ func (m *AuthMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.SetSessionCookie(w, cookie.Value)
+	SetSessionCookie(w, cookie.Value)
 
 	authCtx := NewAuthContext(r.Context(), userID)
 

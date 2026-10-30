@@ -9,8 +9,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/utils"
 )
 
 var fakeHash []byte
@@ -61,7 +61,7 @@ func (uc *AuthUsecaseImpl) Login(ctx context.Context, email, password string) (*
 
 	user.Profile = profile
 
-	session, err := uc.sessionRepo.CreateSession(ctx, user.ID, time.Now().Add(utils.SessionTTL))
+	session, err := uc.sessionRepo.CreateSession(ctx, user.ID, time.Now().Add(middleware.SessionTTL))
 	if err != nil {
 		return nil, err
 	}

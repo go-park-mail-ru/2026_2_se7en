@@ -5,7 +5,7 @@ import (
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/utils"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
 )
 
 func (d *AuthDeliveryImpl) HandleMe(w http.ResponseWriter, r *http.Request) {
@@ -26,5 +26,5 @@ func (d *AuthDeliveryImpl) HandleMe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := ModelToUserResponse(result.User)
-	utils.WriteJSON(w, http.StatusOK, response)
+	tools.WriteJSON(w, http.StatusOK, response)
 }

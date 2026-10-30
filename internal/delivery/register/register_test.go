@@ -11,8 +11,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/utils"
 )
 
 type mockRegisterUsecase struct {
@@ -63,7 +63,7 @@ func TestRegisterDelivery_Success(t *testing.T) {
 	}
 
 	cookies := rec.Result().Cookies()
-	if len(cookies) == 0 || cookies[0].Name != utils.SessionCookieName {
+	if len(cookies) == 0 || cookies[0].Name != middleware.SessionCookieName {
 		t.Errorf("expected session cookie to be set")
 	}
 

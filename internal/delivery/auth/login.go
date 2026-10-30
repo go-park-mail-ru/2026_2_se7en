@@ -7,7 +7,8 @@ import (
 	"strings"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/utils"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
 )
 
 type AuthDeliveryImpl struct {
@@ -22,7 +23,7 @@ func NewAuthDelivery(authUsecase AuthUsecase) *AuthDeliveryImpl {
 
 func (d *AuthDeliveryImpl) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
-	if err := utils.DecodeJSON(r, &req); err != nil {
+	if err := tools.DecodeJSON(r, &req); err != nil {
 		apperrors.WriteError(w, err)
 		return
 	}
@@ -45,10 +46,10 @@ func (d *AuthDeliveryImpl) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.SetSessionCookie(w, result.SessionID.String())
+	middleware.SetSessionCookie(w, result.SessionID.String())
 
 	response := ModelToUserResponse(result.User)
-	utils.WriteJSON(w, http.StatusOK, response)
+	tools.WriteJSON(w, http.StatusOK, response)
 }
 
 func validateLogin(req LoginRequest) []apperrors.ErrorDetail {

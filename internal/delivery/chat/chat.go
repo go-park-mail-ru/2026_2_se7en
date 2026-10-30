@@ -7,7 +7,7 @@ import (
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/utils"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
 )
 
 type ChatDeliveryImpl struct {
@@ -55,7 +55,7 @@ func (d *ChatDeliveryImpl) HandleListUserChats(w http.ResponseWriter, r *http.Re
 	}
 
 	response := ChatItemsToResponse(items)
-	utils.WriteJSON(w, http.StatusOK, response)
+	tools.WriteJSON(w, http.StatusOK, response)
 }
 
 func parseQueryInt(query url.Values, key string) (int, error) {

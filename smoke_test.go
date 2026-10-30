@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"app/config"
-	"app/router"
-	"app/storage"
+	"app/internal/config"
+	"app/internal/router"
+	"app/internal/storage"
 )
 
 func TestHealthRoute(t *testing.T) {

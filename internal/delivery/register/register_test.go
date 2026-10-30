@@ -5,14 +5,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
-
-	"github.com/google/uuid"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
+	"github.com/google/uuid"
 )
 
 type mockRegisterUsecase struct {
@@ -20,22 +18,12 @@ type mockRegisterUsecase struct {
 	err    error
 }
 
-func (m *mockRegisterUsecase) HandleRegister(ctx context.Context, user interface{}, password string) (*models.UserWithSession, error) {
-
-	return m.result, m.err
-}
-
-type mockUsecase struct {
-	result *models.UserWithSession
-	err    error
-}
-
-func (m *mockUsecase) Register(ctx context.Context, user *models.User, password string) (*models.UserWithSession, error) {
+func (m *mockRegisterUsecase) Register(ctx context.Context, user *models.User, password string) (*models.UserWithSession, error) {
 	return m.result, m.err
 }
 
 func TestRegisterDelivery_Success(t *testing.T) {
-	mockUC := &mockUsecase{
+	mockUC := &mockRegisterUsecase{
 		result: &models.UserWithSession{
 			User: &models.User{
 				ID:    uuid.New(),
@@ -52,12 +40,21 @@ func TestRegisterDelivery_Success(t *testing.T) {
 
 	delivery := NewRegisterDelivery(mockUC)
 
-	body := `{"email":"test@example.com","password":"password123","nickname":"testnick","first_name":"Test"}`
-	req := httptest.NewRequest(http.MethodPost, "/auth/HandleRegister", strings.NewReader(body))
+	reqData := &RegisterRequest{
+		Email:     "test@example.com",
+		Password:  "password123",
+		Nickname:  "testnick",
+		FirstName: "Test",
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/register", nil)
 	rec := httptest.NewRecorder()
 
-	delivery.HandleRegister(rec, req)
+	appErr := delivery.HandleRegister(rec, req, reqData)
 
+	if appErr != nil {
+		t.Fatalf("expected no error, got %v", appErr)
+	}
 	if rec.Code != http.StatusCreated {
 		t.Errorf("expected status 201, got %d. Body: %s", rec.Code, rec.Body.String())
 	}
@@ -76,44 +73,48 @@ func TestRegisterDelivery_Success(t *testing.T) {
 	}
 }
 
-func TestRegisterDelivery_InvalidJSON(t *testing.T) {
-	delivery := NewRegisterDelivery(&mockUsecase{})
-
-	req := httptest.NewRequest(http.MethodPost, "/auth/HandleRegister", strings.NewReader(`{invalid json}`))
-	rec := httptest.NewRecorder()
-
-	delivery.HandleRegister(rec, req)
-
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("expected status 400, got %d", rec.Code)
+func TestRegisterDelivery_Validation(t *testing.T) {
+	tests := []struct {
+		name string
+		req  *RegisterRequest
+	}{
+		{
+			name: "short password",
+			req:  &RegisterRequest{Email: "test@example.com", Password: "123", Nickname: "testnick", FirstName: "Test"},
+		},
+		{
+			name: "invalid nickname",
+			req:  &RegisterRequest{Email: "test@example.com", Password: "password123", Nickname: "ab", FirstName: "Test"},
+		},
 	}
-}
 
-func TestRegisterDelivery_ValidationErrors(t *testing.T) {
-	delivery := NewRegisterDelivery(&mockUsecase{})
-
-	body := `{"email":"test@example.com","password":"123","nickname":"testnick","first_name":"Test"}`
-	req := httptest.NewRequest(http.MethodPost, "/auth/HandleRegister", strings.NewReader(body))
-	rec := httptest.NewRecorder()
-
-	delivery.HandleRegister(rec, req)
-
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("expected status 400 for validation error, got %d", rec.Code)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			details := tt.req.IsValid()
+			if len(details) == 0 {
+				t.Errorf("expected validation errors, got none")
+			}
+		})
 	}
 }
 
 func TestRegisterDelivery_EmailConflict(t *testing.T) {
-	mockUC := &mockUsecase{err: apperrors.ErrEmailTaken}
+	mockUC := &mockRegisterUsecase{err: apperrors.ErrEmailTaken}
 	delivery := NewRegisterDelivery(mockUC)
 
-	body := `{"email":"test@example.com","password":"password123","nickname":"testnick","first_name":"Test"}`
-	req := httptest.NewRequest(http.MethodPost, "/auth/HandleRegister", strings.NewReader(body))
+	reqData := &RegisterRequest{
+		Email:     "test@example.com",
+		Password:  "password123",
+		Nickname:  "testnick",
+		FirstName: "Test",
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/register", nil)
 	rec := httptest.NewRecorder()
 
-	delivery.HandleRegister(rec, req)
+	appErr := delivery.HandleRegister(rec, req, reqData)
 
-	if rec.Code != http.StatusConflict {
+	if appErr == nil || appErr.Status != http.StatusConflict {
 		t.Errorf("expected status 409, got %d", rec.Code)
 	}
 }

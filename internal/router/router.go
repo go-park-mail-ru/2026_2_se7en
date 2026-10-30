@@ -5,7 +5,7 @@ import (
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/storage"
-	utils "github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
 	httpSwagger "github.com/swaggo/http-swagger"
 
 	deliveryauth "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/auth"
@@ -40,8 +40,8 @@ func New(db *storage.DB) http.Handler {
 
 	api.HandleFunc("GET /health", healthCheck)
 
-	api.Handle("POST /auth/register", http.HandlerFunc(registerDelivery.HandleRegister))
-	api.Handle("POST /auth/login", http.HandlerFunc(authDelivery.HandleLogin))
+	api.Handle("POST /auth/register", tools.NewJSONDecoder(registerDelivery.HandleRegister))
+	api.Handle("POST /auth/login", tools.NewJSONDecoder(authDelivery.HandleLogin))
 
 	api.Handle("GET /auth/me", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(authDelivery.HandleMe)))
 	api.Handle("POST /auth/logout", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(authDelivery.HandleLogout)))
@@ -56,5 +56,5 @@ func New(db *storage.DB) http.Handler {
 }
 
 func healthCheck(w http.ResponseWriter, r *http.Request) {
-	utils.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	tools.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }

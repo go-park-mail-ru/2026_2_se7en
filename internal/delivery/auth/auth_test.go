@@ -6,14 +6,12 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
-
-	"github.com/google/uuid"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
+	"github.com/google/uuid"
 )
 
 type mockAuthUsecase struct {
@@ -22,8 +20,7 @@ type mockAuthUsecase struct {
 	meResult    *models.UserWithSession
 	meErr       error
 	logoutErr   error
-
-	loginEmail string
+	loginEmail  string
 }
 
 func (m *mockAuthUsecase) Login(ctx context.Context, email, password string) (*models.UserWithSession, error) {
@@ -57,16 +54,24 @@ func TestAuthDelivery_HandleLogin_Success(t *testing.T) {
 	}
 	delivery := NewAuthDelivery(mockUC)
 
-	body := `{"email":"  TEST@EXAMPLE.COM  ","password":"password123"}`
-	req := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(body))
+	reqData := &LoginRequest{
+		Email:    "  TEST@EXAMPLE.COM  ",
+		Password: "password123",
+	}
+
+	reqData.IsValid()
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", nil)
 	rec := httptest.NewRecorder()
 
-	delivery.HandleLogin(rec, req)
+	appErr := delivery.HandleLogin(rec, req, reqData)
 
+	if appErr != nil {
+		t.Fatalf("expected no error, got %v", appErr)
+	}
 	if rec.Code != http.StatusOK {
 		t.Errorf("expected status 200, got %d. Body: %s", rec.Code, rec.Body.String())
 	}
-
 	if mockUC.loginEmail != "test@example.com" {
 		t.Errorf("expected normalized email 'test@example.com', got %q", mockUC.loginEmail)
 	}
@@ -85,44 +90,42 @@ func TestAuthDelivery_HandleLogin_Success(t *testing.T) {
 	}
 }
 
-func TestAuthDelivery_HandleLogin_ValidationErrors(t *testing.T) {
-	delivery := NewAuthDelivery(&mockAuthUsecase{})
-
-	tests := []struct {
-		name string
-		body string
-	}{
-		{"invalid json", `{invalid}`},
-		{"empty password", `{"email":"test@example.com","password":""}`},
-		{"short password", `{"email":"test@example.com","password":"123"}`},
-		{"invalid email format", `{"email":"bad-email","password":"password123"}`},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(tt.body))
-			rec := httptest.NewRecorder()
-
-			delivery.HandleLogin(rec, req)
-
-			if rec.Code != http.StatusBadRequest {
-				t.Errorf("%s: expected status 400, got %d", tt.name, rec.Code)
-			}
-		})
-	}
-}
-
 func TestAuthDelivery_HandleLogin_InvalidCredentials(t *testing.T) {
 	mockUC := &mockAuthUsecase{loginErr: apperrors.ErrInvalidCredentials}
 	delivery := NewAuthDelivery(mockUC)
 
-	req := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(`{"email":"test@example.com","password":"wrongpassword"}`))
+	reqData := &LoginRequest{
+		Email:    "test@example.com",
+		Password: "wrongpassword",
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", nil)
 	rec := httptest.NewRecorder()
 
-	delivery.HandleLogin(rec, req)
+	appErr := delivery.HandleLogin(rec, req, reqData)
 
-	if rec.Code != http.StatusUnauthorized {
+	if appErr == nil || appErr.Status != http.StatusUnauthorized {
 		t.Errorf("expected status 401, got %d", rec.Code)
+	}
+}
+
+func TestAuthDelivery_HandleLogin_Validation(t *testing.T) {
+	tests := []struct {
+		name string
+		req  *LoginRequest
+	}{
+		{"empty password", &LoginRequest{Email: "test@example.com", Password: ""}},
+		{"short password", &LoginRequest{Email: "test@example.com", Password: "123"}},
+		{"invalid email format", &LoginRequest{Email: "bad-email", Password: "password123"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			details := tt.req.IsValid()
+			if len(details) == 0 {
+				t.Errorf("expected validation errors, got none")
+			}
+		})
 	}
 }
 
@@ -142,9 +145,7 @@ func TestAuthDelivery_HandleMe_Success(t *testing.T) {
 	delivery := NewAuthDelivery(mockUC)
 
 	req := httptest.NewRequest(http.MethodGet, "/auth/me", nil)
-
 	req = req.WithContext(middleware.NewAuthContext(req.Context(), userID))
-
 	rec := httptest.NewRecorder()
 
 	delivery.HandleMe(rec, req)
@@ -163,7 +164,6 @@ func TestAuthDelivery_HandleMe_Success(t *testing.T) {
 func TestAuthDelivery_HandleMe_MissingAuth(t *testing.T) {
 	delivery := NewAuthDelivery(&mockAuthUsecase{})
 	req := httptest.NewRequest(http.MethodGet, "/auth/me", nil)
-
 	rec := httptest.NewRecorder()
 
 	delivery.HandleMe(rec, req)

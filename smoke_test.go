@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/config"
+	"github.com/go-park-mail-ru/2026_2_se7en/config"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/router"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/storage"
 )

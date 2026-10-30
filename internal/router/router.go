@@ -3,22 +3,22 @@ package router
 import (
 	"net/http"
 
-	"app/internal/middleware"
-	"app/internal/storage"
-	"app/internal/utils"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/storage"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/utils"
 
-	deliveryauth "app/internal/delivery/auth"
-	deliverychat "app/internal/delivery/chat"
-	deliveryregister "app/internal/delivery/register"
+	deliveryauth "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/auth"
+	deliverychat "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/chat"
+	deliveryregister "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/register"
 
-	usecaseauth "app/internal/usecase/auth"
-	usecasechat "app/internal/usecase/chat"
-	usecaseregister "app/internal/usecase/register"
+	usecaseauth "github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/auth"
+	usecasechat "github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/chat"
+	usecaseregister "github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/register"
 
-	repochat "app/internal/repository/chat"
-	repoprofile "app/internal/repository/profile"
-	reposession "app/internal/repository/session"
-	repouser "app/internal/repository/user"
+	repochat "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/chat"
+	repoprofile "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/profile"
+	reposession "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/session"
+	repouser "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/user"
 )
 
 func New(db *storage.DB) http.Handler {

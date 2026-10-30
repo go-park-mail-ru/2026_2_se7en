@@ -6,12 +6,12 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"app/internal/apperrors"
-	"app/internal/models"
-	"app/internal/repository/profile"
-	"app/internal/repository/session"
-	"app/internal/repository/user"
-	"app/internal/utils"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/repository/profile"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/repository/session"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/repository/user"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/utils"
 )
 
 type RegisterUsecaseImpl struct {

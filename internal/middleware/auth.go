@@ -8,9 +8,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"app/internal/apperrors"
-	"app/internal/repository/session"
-	"app/internal/utils"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/repository/session"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/utils"
 )
 
 type contextKey string

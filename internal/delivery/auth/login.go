@@ -6,9 +6,9 @@ import (
 	"net/mail"
 	"strings"
 
-	"app/internal/apperrors"
-	ucauth "app/internal/usecase/auth"
-	"app/internal/utils"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
+	ucauth "github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/auth"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/utils"
 )
 
 type AuthDeliveryImpl struct {

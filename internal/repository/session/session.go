@@ -1,8 +1,8 @@
 package session
 
 import (
-	"app/internal/apperrors"
-	"app/internal/models"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"context"
 	"errors"
 	"time"

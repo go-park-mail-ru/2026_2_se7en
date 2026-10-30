@@ -5,8 +5,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"app/internal/apperrors"
-	"app/internal/utils"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/utils"
 )
 
 func (d *AuthDeliveryImpl) HandleLogout(w http.ResponseWriter, r *http.Request) {

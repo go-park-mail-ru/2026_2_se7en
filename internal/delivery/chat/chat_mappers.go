@@ -1,6 +1,6 @@
 package chat
 
-import "app/internal/models"
+import "github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 
 func ChatItemsToResponse(items []*models.ChatListItem) ListChatsResponse {
 	if items == nil {

@@ -3,7 +3,7 @@ package storage
 import (
 	"context"
 
-	"app/internal/apperrors"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )

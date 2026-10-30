@@ -1,7 +1,7 @@
 package register
 
 import (
-	"app/internal/models"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 )
 
 func RegisterRequestToModel(req *RegisterRequest) *models.User {

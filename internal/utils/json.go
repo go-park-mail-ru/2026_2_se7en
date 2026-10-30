@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"app/internal/apperrors"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"encoding/json"
 	"net/http"
 )

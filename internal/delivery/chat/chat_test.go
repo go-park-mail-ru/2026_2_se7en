@@ -10,9 +10,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"app/internal/apperrors"
-	"app/internal/middleware"
-	"app/internal/models"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 )
 
 type mockChatUsecase struct {

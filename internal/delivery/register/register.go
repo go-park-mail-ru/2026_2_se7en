@@ -7,9 +7,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"app/internal/apperrors"
-	ucregister "app/internal/usecase/register"
-	"app/internal/utils"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
+	ucregister "github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/register"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/utils"
 )
 
 type RegisterDeliveryImpl struct {

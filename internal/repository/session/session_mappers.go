@@ -1,6 +1,6 @@
 package session
 
-import "app/internal/models"
+import "github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 
 func SessionDBToModel(db *SessionDB) *models.Session {
 	if db == nil {

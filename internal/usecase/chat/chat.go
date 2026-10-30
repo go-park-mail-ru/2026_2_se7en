@@ -3,8 +3,8 @@ package chat
 import (
 	"context"
 
-	"app/internal/models"
-	"app/internal/repository/chat"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/repository/chat"
 
 	"github.com/google/uuid"
 )

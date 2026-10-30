@@ -9,9 +9,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"app/internal/config"
-	"app/internal/router"
-	"app/internal/storage"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/config"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/router"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/storage"
 
 	"github.com/joho/godotenv"
 )

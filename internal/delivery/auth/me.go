@@ -3,9 +3,9 @@ package auth
 import (
 	"net/http"
 
-	"app/internal/apperrors"
-	"app/internal/middleware"
-	"app/internal/utils"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/utils"
 )
 
 func (d *AuthDeliveryImpl) HandleMe(w http.ResponseWriter, r *http.Request) {

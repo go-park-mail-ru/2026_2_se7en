@@ -9,8 +9,8 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
-	"app/internal/apperrors"
-	"app/internal/models"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 )
 
 type mockRepo struct {

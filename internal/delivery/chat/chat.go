@@ -5,10 +5,10 @@ import (
 	"net/url"
 	"strconv"
 
-	"app/internal/apperrors"
-	"app/internal/middleware"
-	usecasechat "app/internal/usecase/chat"
-	"app/internal/utils"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
+	usecasechat "github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/chat"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/utils"
 )
 
 type ChatDeliveryImpl struct {

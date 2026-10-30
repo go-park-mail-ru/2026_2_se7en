@@ -1,5 +1,20 @@
 package main
 
+// @title           Messenger API
+// @version         1.0
+// @description     API для мессенджера "Связь"
+// @BasePath /api/v1
+
+// @securityDefinitions.apikey SessionCookie
+// @in              cookie
+// @name            session_id
+// @description     Session ID
+
+// @externalDocs.description Документация проекта
+// @externalDocs.url https://github.com/go-park-mail-ru/2026_2_se7en
+
+//go:generate swag init -g main.go --v3.1 -o ../../docs
+
 import (
 	"context"
 	"errors"
@@ -8,6 +23,8 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	_ "github.com/go-park-mail-ru/2026_2_se7en/docs"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/config"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/router"

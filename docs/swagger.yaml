@@ -1,0 +1,18 @@
+components:
+  securitySchemes:
+    SessionCookie:
+      description: Session ID
+      in: cookie
+      name: session_id
+      type: apiKey
+externalDocs:
+  description: Документация проекта
+  url: https://github.com/go-park-mail-ru/2026_2_se7en
+info:
+  description: API для мессенджера "Связь"
+  title: Messenger API
+  version: "1.0"
+openapi: 3.1.0
+paths: {}
+servers:
+- url: /api/v1

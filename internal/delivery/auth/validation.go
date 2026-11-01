@@ -1,27 +1,23 @@
 package auth
 
 import (
-	"net/mail"
 	"strings"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
 )
 
 func (r *LoginRequest) IsValid() []apperrors.ErrorDetail {
 	var details []apperrors.ErrorDetail
-	email := strings.ToLower(strings.TrimSpace(r.Email))
-	r.Email = email
 
-	if r.Email == "" {
-		details = append(details, apperrors.ErrorDetail{Field: "email", Reason: "required"})
-	} else if _, err := mail.ParseAddress(r.Email); err != nil {
-		details = append(details, apperrors.ErrorDetail{Field: "email", Reason: "invalid_format"})
+	r.Email = strings.ToLower(strings.TrimSpace(r.Email))
+
+	if err := tools.ValidateEmail(r.Email); err != nil {
+		details = append(details, *err)
 	}
 
-	if r.Password == "" {
-		details = append(details, apperrors.ErrorDetail{Field: "password", Reason: "required"})
-	} else if len(r.Password) < 8 || len(r.Password) > 16 {
-		details = append(details, apperrors.ErrorDetail{Field: "password", Reason: "invalid_length"})
+	if err := tools.ValidatePassword(r.Password); err != nil {
+		details = append(details, *err)
 	}
 
 	return details

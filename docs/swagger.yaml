@@ -26,6 +26,9 @@ components:
           type: string
         password:
           type: string
+      required:
+      - email
+      - password
       type: object
     auth.ProfileResponse:
       properties:
@@ -135,6 +138,11 @@ components:
           type: string
         phone_number:
           type: string
+      required:
+      - email
+      - first_name
+      - nickname
+      - password
       type: object
     register.RegisterResponse:
       properties:
@@ -171,11 +179,9 @@ paths:
         content:
           application/json:
             schema:
-              oneOf:
-              - type: object
-              - $ref: '#/components/schemas/auth.LoginRequest'
-                description: Данные для входа
-                summary: request
+              $ref: '#/components/schemas/auth.LoginRequest'
+              description: Данные для входа
+              summary: request
         description: Данные для входа
         required: true
       responses:
@@ -293,11 +299,9 @@ paths:
         content:
           application/json:
             schema:
-              oneOf:
-              - type: object
-              - $ref: '#/components/schemas/register.RegisterRequest'
-                description: Данные для регистрации
-                summary: request
+              $ref: '#/components/schemas/register.RegisterRequest'
+              description: Данные для регистрации
+              summary: request
         description: Данные для регистрации
         required: true
       responses:

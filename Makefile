@@ -1,6 +1,6 @@
 COVERAGE_FILE ?= coverage.out
 
-.PHONY: coverage swag
+.PHONY: coverage generate_swagger
 
 coverage:
 	go test -coverpkg=./... -coverprofile=$(COVERAGE_FILE) . ./handlers

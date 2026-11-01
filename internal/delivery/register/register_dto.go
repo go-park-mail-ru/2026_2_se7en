@@ -3,11 +3,11 @@ package register
 import "github.com/google/uuid"
 
 type RegisterRequest struct {
-	Email       string  `json:"email" format:"email"`
-	Password    string  `json:"password"`
+	Email       string  `json:"email" format:"email" binding:"required"`
+	Password    string  `json:"password" binding:"required"`
 	PhoneNumber *string `json:"phone_number,omitempty"`
-	Nickname    string  `json:"nickname"`
-	FirstName   string  `json:"first_name"`
+	Nickname    string  `json:"nickname" binding:"required"`
+	FirstName   string  `json:"first_name" binding:"required"`
 	LastName    *string `json:"last_name,omitempty"`
 }
 

@@ -3,8 +3,8 @@ package auth
 import "github.com/google/uuid"
 
 type LoginRequest struct {
-	Email    string `json:"email" format:"email"`
-	Password string `json:"password"`
+	Email    string `json:"email" format:"email" binding:"required"`
+	Password string `json:"password" binding:"required"`
 }
 
 type UserResponse struct {

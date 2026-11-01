@@ -47,6 +47,10 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "required": [
+                    "email",
+                    "password"
+                ],
                 "type": "object"
             },
             "auth.ProfileResponse": {
@@ -207,6 +211,12 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "required": [
+                    "email",
+                    "first_name",
+                    "nickname",
+                    "password"
+                ],
                 "type": "object"
             },
             "register.RegisterResponse": {
@@ -255,16 +265,9 @@ const docTemplate = `{
                     "content": {
                         "application/json": {
                             "schema": {
-                                "oneOf": [
-                                    {
-                                        "type": "object"
-                                    },
-                                    {
-                                        "$ref": "#/components/schemas/auth.LoginRequest",
-                                        "summary": "request",
-                                        "description": "Данные для входа"
-                                    }
-                                ]
+                                "$ref": "#/components/schemas/auth.LoginRequest",
+                                "summary": "request",
+                                "description": "Данные для входа"
                             }
                         }
                     },
@@ -461,16 +464,9 @@ const docTemplate = `{
                     "content": {
                         "application/json": {
                             "schema": {
-                                "oneOf": [
-                                    {
-                                        "type": "object"
-                                    },
-                                    {
-                                        "$ref": "#/components/schemas/register.RegisterRequest",
-                                        "summary": "request",
-                                        "description": "Данные для регистрации"
-                                    }
-                                ]
+                                "$ref": "#/components/schemas/register.RegisterRequest",
+                                "summary": "request",
+                                "description": "Данные для регистрации"
                             }
                         }
                     },

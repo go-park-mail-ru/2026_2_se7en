@@ -52,11 +52,11 @@ func (d *AuthDeliveryImpl) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	result, err := d.authUsecase.Login(r.Context(), req.Email, req.Password)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrInvalidCredentials) || errors.Is(err, apperrors.ErrUserNotFound) {
-			apperrors.WriteError(w, apperrors.NewUnauthorized("Неверный email или пароль"))
+			apperrors.WriteError(w, apperrors.NewUnauthorized("Incorrect email or password."))
 			return
 		}
 
-		apperrors.WriteError(w, apperrors.NewInternalError("Что-то пошло не так", err))
+		apperrors.WriteError(w, apperrors.NewInternalError("Something went wrong...", err))
 		return
 	}
 
@@ -81,18 +81,18 @@ func (d *AuthDeliveryImpl) HandleLogin(w http.ResponseWriter, r *http.Request) {
 func (d *AuthDeliveryImpl) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie(middleware.SessionCookieName)
 	if err != nil {
-		apperrors.WriteError(w, apperrors.NewUnauthorized("Сессия недействительна"))
+		apperrors.WriteError(w, apperrors.NewUnauthorized("Invalid session."))
 		return
 	}
 
 	sessionID, err := uuid.Parse(cookie.Value)
 	if err != nil {
-		apperrors.WriteError(w, apperrors.NewUnauthorized("Сессия недействительна"))
+		apperrors.WriteError(w, apperrors.NewUnauthorized("Invalid session."))
 		return
 	}
 
 	if err := d.authUsecase.Logout(r.Context(), sessionID); err != nil {
-		apperrors.WriteError(w, apperrors.NewInternalError("Что-то пошло не так", err))
+		apperrors.WriteError(w, apperrors.NewInternalError("Something went wrong...", err))
 		return
 	}
 
@@ -115,17 +115,17 @@ func (d *AuthDeliveryImpl) HandleLogout(w http.ResponseWriter, r *http.Request) 
 func (d *AuthDeliveryImpl) HandleMe(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
-		apperrors.WriteError(w, apperrors.NewUnauthorized("Сессия недействительна"))
+		apperrors.WriteError(w, apperrors.NewUnauthorized("Invalid session."))
 		return
 	}
 
 	result, err := d.authUsecase.GetMe(r.Context(), userID)
 	if err != nil {
 		if err == apperrors.ErrUserNotFound {
-			apperrors.WriteError(w, apperrors.NewUnauthorized("Пользователь не найден"))
+			apperrors.WriteError(w, apperrors.NewUnauthorized("User not found."))
 			return
 		}
-		apperrors.WriteError(w, apperrors.NewInternalError("Что-то пошло не так", err))
+		apperrors.WriteError(w, apperrors.NewInternalError("Something went wrong...", err))
 		return
 	}
 

@@ -24,7 +24,7 @@ func (d *JSONDecoder[T]) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		apperrors.WriteError(w, apperrors.NewBadRequest("Request body is empty", nil))
 		return
 	}
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid JSON format", nil))

@@ -75,12 +75,12 @@ func parseQueryInt(query url.Values, key string) (int, error) {
 }
 
 func mapChatError(err error) *apperrors.AppError {
-	switch {
-	case err == apperrors.ErrInvalidChatLimit:
+	switch err {
+	case apperrors.ErrInvalidChatLimit:
 		return apperrors.NewBadRequest("Invalid limit", []apperrors.ErrorDetail{{Field: "limit", Reason: "Limit must be >= 1"}})
-	case err == apperrors.ErrInvalidChatOffset:
+	case apperrors.ErrInvalidChatOffset:
 		return apperrors.NewBadRequest("Invalid offset", []apperrors.ErrorDetail{{Field: "offset", Reason: "Offset must be >= 0"}})
-	case err == apperrors.ErrInvalidChatType:
+	case apperrors.ErrInvalidChatType:
 		return apperrors.NewBadRequest("Invalid type", []apperrors.ErrorDetail{{Field: "type", Reason: "Invalid chat type"}})
 	default:
 		return apperrors.NewInternalError("Error while getting chats", err)

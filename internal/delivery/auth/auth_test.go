@@ -154,7 +154,9 @@ func TestAuthDelivery_HandleMe_Success(t *testing.T) {
 	}
 
 	var resp UserResponse
-	json.Unmarshal(rec.Body.Bytes(), &resp)
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
 	if resp.Profile.FirstName != "TestUser" {
 		t.Errorf("expected FirstName 'TestUser', got %s", resp.Profile.FirstName)
 	}

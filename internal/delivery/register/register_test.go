@@ -15,16 +15,6 @@ import (
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 )
 
-type mockRegisterUsecase struct {
-	result *models.UserWithSession
-	err    error
-}
-
-func (m *mockRegisterUsecase) HandleRegister(ctx context.Context, user interface{}, password string) (*models.UserWithSession, error) {
-
-	return m.result, m.err
-}
-
 type mockUsecase struct {
 	result *models.UserWithSession
 	err    error

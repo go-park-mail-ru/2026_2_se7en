@@ -3,8 +3,6 @@ package auth
 import (
 	"errors"
 	"net/http"
-	"net/mail"
-	"strings"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
@@ -35,35 +33,20 @@ func NewAuthDelivery(authUsecase AuthUsecase) *AuthDeliveryImpl {
 // @Failure 409 {object} apperrors.ErrorResponse
 // @Failure 500 {object} apperrors.ErrorResponse
 // @Router       /auth/login [post]
-func (d *AuthDeliveryImpl) HandleLogin(w http.ResponseWriter, r *http.Request) {
-	var req LoginRequest
-	if err := tools.DecodeJSON(r, &req); err != nil {
-		apperrors.WriteError(w, err)
-		return
-	}
-
-	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
-
-	if details := validateLogin(req); len(details) > 0 {
-		apperrors.WriteError(w, apperrors.NewBadRequest("Validation failed", details))
-		return
-	}
-
+func (d *AuthDeliveryImpl) HandleLogin(w http.ResponseWriter, r *http.Request, req *LoginRequest) *apperrors.AppError {
 	result, err := d.authUsecase.Login(r.Context(), req.Email, req.Password)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrInvalidCredentials) || errors.Is(err, apperrors.ErrUserNotFound) {
-			apperrors.WriteError(w, apperrors.NewUnauthorized("Incorrect email or password."))
-			return
+			return apperrors.NewUnauthorized("Incorrect email or password")
 		}
-
-		apperrors.WriteError(w, apperrors.NewInternalError("Something went wrong...", err))
-		return
+		return apperrors.NewInternalError("Something went wrong", err)
 	}
 
 	middleware.SetSessionCookie(w, result.SessionID.String())
 
 	response := ModelToUserResponse(result.User)
 	tools.WriteJSON(w, http.StatusOK, response)
+	return nil
 }
 
 // HandleLogout godoc
@@ -81,18 +64,18 @@ func (d *AuthDeliveryImpl) HandleLogin(w http.ResponseWriter, r *http.Request) {
 func (d *AuthDeliveryImpl) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie(middleware.SessionCookieName)
 	if err != nil {
-		apperrors.WriteError(w, apperrors.NewUnauthorized("Invalid session."))
+		apperrors.WriteError(w, apperrors.NewUnauthorized("Invalid session"))
 		return
 	}
 
 	sessionID, err := uuid.Parse(cookie.Value)
 	if err != nil {
-		apperrors.WriteError(w, apperrors.NewUnauthorized("Invalid session."))
+		apperrors.WriteError(w, apperrors.NewUnauthorized("Invalid session"))
 		return
 	}
 
 	if err := d.authUsecase.Logout(r.Context(), sessionID); err != nil {
-		apperrors.WriteError(w, apperrors.NewInternalError("Something went wrong...", err))
+		apperrors.WriteError(w, apperrors.NewInternalError("Something went wrong", err))
 		return
 	}
 
@@ -115,38 +98,20 @@ func (d *AuthDeliveryImpl) HandleLogout(w http.ResponseWriter, r *http.Request) 
 func (d *AuthDeliveryImpl) HandleMe(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
-		apperrors.WriteError(w, apperrors.NewUnauthorized("Invalid session."))
+		apperrors.WriteError(w, apperrors.NewUnauthorized("Invalid session"))
 		return
 	}
 
 	result, err := d.authUsecase.GetMe(r.Context(), userID)
 	if err != nil {
 		if err == apperrors.ErrUserNotFound {
-			apperrors.WriteError(w, apperrors.NewUnauthorized("User not found."))
+			apperrors.WriteError(w, apperrors.NewUnauthorized("User not found"))
 			return
 		}
-		apperrors.WriteError(w, apperrors.NewInternalError("Something went wrong...", err))
+		apperrors.WriteError(w, apperrors.NewInternalError("Something went wrong", err))
 		return
 	}
 
 	response := ModelToUserResponse(result.User)
 	tools.WriteJSON(w, http.StatusOK, response)
-}
-
-func validateLogin(req LoginRequest) []apperrors.ErrorDetail {
-	var details []apperrors.ErrorDetail
-	if req.Email == "" {
-		details = append(details, apperrors.ErrorDetail{Field: "email", Reason: "required"})
-	} else if _, err := mail.ParseAddress(req.Email); err != nil {
-		details = append(details, apperrors.ErrorDetail{Field: "email", Reason: "invalid_format"})
-	}
-
-	if req.Password == "" {
-		details = append(details, apperrors.ErrorDetail{Field: "password", Reason: "required"})
-	} else if len(req.Password) < 8 {
-		details = append(details, apperrors.ErrorDetail{Field: "password", Reason: "too_short"})
-	} else if len(req.Password) > 16 {
-		details = append(details, apperrors.ErrorDetail{Field: "password", Reason: "too_long"})
-	}
-	return details
 }

@@ -11,11 +11,12 @@ import (
 	"github.com/go-park-mail-ru/2026_2_se7en/config"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/router"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/storage"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
 )
 
 func TestHealthRoute(t *testing.T) {
 	testDB := &storage.DB{}
-	handler := router.New(testDB)
+	handler := router.New(testDB, logger.InitLogger("test"))
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/health", nil))
 	if rec.Code != http.StatusOK {

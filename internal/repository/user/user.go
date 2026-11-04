@@ -3,8 +3,10 @@ package user
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -20,15 +22,24 @@ func NewUserRepository(pool *pgxpool.Pool) *UserRepositoryImpl {
 }
 
 func (r *UserRepositoryImpl) FindByEmail(ctx context.Context, email string) (*models.User, error) {
+	log := logger.FromContext(ctx).With("layer", "repository", "module", "user")
+	log.Debug("executing database query", "query", "FindByEmail")
+	start := time.Now()
+
 	const query = `select id, email, password_hash, phone_number, created_at, updated_at, deleted_at from app_user where email = $1 and deleted_at is null`
 	var db UserDB
 	err := r.pool.QueryRow(ctx, query, email).Scan(&db.ID, &db.Email, &db.PasswordHash, &db.PhoneNumber, &db.CreatedAt, &db.UpdatedAt, &db.DeletedAt)
+	
 	if errors.Is(err, pgx.ErrNoRows) {
+		log.Debug("database query success: not found", "duration_ms", time.Since(start).Milliseconds())
 		return nil, nil
 	}
 	if err != nil {
+		log.Error("database query failed", "err", err, "duration_ms", time.Since(start).Milliseconds())
 		return nil, err
 	}
+	
+	log.Debug("database query success", "duration_ms", time.Since(start).Milliseconds())
 	return UserDBToModel(&db), nil
 }
 
@@ -53,12 +64,20 @@ func (r *UserRepositoryImpl) CheckEmailExist(ctx context.Context, email string) 
 }
 
 func (r *UserRepositoryImpl) CreateUser(ctx context.Context, email, passwordHash string, phone *string) (*models.User, error) {
+	log := logger.FromContext(ctx).With("layer", "repository", "module", "user")
+	log.Debug("executing database query", "query", "CreateUser")
+	start := time.Now()
+
 	const query = `insert into app_user (email, password_hash, phone_number) values ($1, $2, $3) returning id, email, password_hash, phone_number, created_at, updated_at, deleted_at`
 	var db UserDB
 	err := r.pool.QueryRow(ctx, query, email, passwordHash, phone).Scan(&db.ID, &db.Email, &db.PasswordHash, &db.PhoneNumber, &db.CreatedAt, &db.UpdatedAt, &db.DeletedAt)
+	
 	if err != nil {
+		log.Error("database query failed", "err", err, "duration_ms", time.Since(start).Milliseconds())
 		return nil, err
 	}
+	
+	log.Debug("database query success", "duration_ms", time.Since(start).Milliseconds())
 	return UserDBToModel(&db), nil
 }
 

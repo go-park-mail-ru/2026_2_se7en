@@ -11,6 +11,7 @@ import (
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
 )
 
 var fakeHash []byte
@@ -34,8 +35,14 @@ func NewAuthUsecase(userRepo UserRepository, profileRepo ProfileRepository, sess
 }
 
 func (uc *AuthUsecaseImpl) Login(ctx context.Context, email, password string) (*models.UserWithSession, error) {
+	log := logger.FromContext(ctx).With("layer", "usecase", "module", "auth")
+	maskedEmail := logger.MaskEmail(email)
+	
+	log.Info("attempting login", "email_mask", maskedEmail)
+
 	user, err := uc.userRepo.FindByEmail(ctx, email)
 	if err != nil && !errors.Is(err, apperrors.ErrUserNotFound) {
+		log.Error("failed to find user", "err", err)
 		return nil, err
 	}
 
@@ -47,15 +54,18 @@ func (uc *AuthUsecaseImpl) Login(ctx context.Context, email, password string) (*
 	}
 
 	if bcrypt.CompareHashAndPassword(hash, []byte(password)) != nil {
+		log.Warn("login failed: invalid password", "email_mask", maskedEmail)
 		return nil, apperrors.ErrInvalidCredentials
 	}
 
 	if user == nil {
+		log.Warn("login failed: user not found", "email_mask", maskedEmail)
 		return nil, apperrors.ErrInvalidCredentials
 	}
 
 	profile, err := uc.profileRepo.FindByUserID(ctx, user.ID)
 	if err != nil {
+		log.Error("failed to find profile", "err", err, "user_id", user.ID.String())
 		return nil, err
 	}
 
@@ -63,9 +73,12 @@ func (uc *AuthUsecaseImpl) Login(ctx context.Context, email, password string) (*
 
 	session, err := uc.sessionRepo.CreateSession(ctx, user.ID, time.Now().Add(middleware.SessionTTL))
 	if err != nil {
+		log.Error("failed to create session", "err", err, "user_id", user.ID.String())
 		return nil, err
 	}
 
+	log.Info("login successful", "user_id", user.ID.String())
+	
 	return &models.UserWithSession{
 		User:      user,
 		SessionID: session.ID,

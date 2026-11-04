@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
 )
 
 type contextKey string
@@ -63,6 +64,9 @@ func (m *AuthMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	SetSessionCookie(w, cookie.Value)
 
 	authCtx := NewAuthContext(r.Context(), userID)
+	
+	l := logger.FromContext(authCtx).With("user_id", userID.String())
+	authCtx = logger.WithContext(authCtx, l)
 
 	m.next.ServeHTTP(w, r.WithContext(authCtx))
 }

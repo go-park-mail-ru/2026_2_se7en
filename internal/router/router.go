@@ -1,6 +1,7 @@
 package router
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
@@ -22,7 +23,7 @@ import (
 	repouser "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/user"
 )
 
-func New(db *storage.DB) http.Handler {
+func New(db *storage.DB, baseLog *slog.Logger) http.Handler {
 	userRepo := repouser.NewUserRepository(db.Pool())
 	profileRepo := repoprofile.NewProfileRepository(db.Pool())
 	sessionRepo := reposession.NewSessionRepository(db.Pool())
@@ -52,7 +53,11 @@ func New(db *storage.DB) http.Handler {
 	mainRouter := http.NewServeMux()
 	mainRouter.Handle("/api/v1/", http.StripPrefix("/api/v1", api))
 
-	return mainRouter
+	handler := middleware.LoggerMiddleware(baseLog)(
+		middleware.AccessLogMiddleware(mainRouter),
+	)
+
+	return handler
 }
 
 func healthCheck(w http.ResponseWriter, r *http.Request) {

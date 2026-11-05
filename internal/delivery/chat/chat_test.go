@@ -26,33 +26,6 @@ func (m *mockChatUsecase) ListUserChats(ctx context.Context, userID uuid.UUID, l
 	return m.items, m.err
 }
 
-func (m *mockChatUsecase) FindForUser(context.Context, uuid.UUID, uuid.UUID) (*models.ChatDetail, error) {
-	return nil, nil
-}
-func (m *mockChatUsecase) GetOrCreateDialog(context.Context, uuid.UUID, uuid.UUID) (*models.ChatDetail, error) {
-	return nil, nil
-}
-func (m *mockChatUsecase) HideDialog(context.Context, uuid.UUID, uuid.UUID) error { return nil }
-func (m *mockChatUsecase) CreateGroup(context.Context, uuid.UUID, string, *string, []uuid.UUID) (*models.ChatDetail, error) {
-	return nil, nil
-}
-func (m *mockChatUsecase) UpdateGroup(context.Context, uuid.UUID, uuid.UUID, *string, *string, bool) (*models.ChatDetail, error) {
-	return nil, nil
-}
-func (m *mockChatUsecase) DeleteGroup(context.Context, uuid.UUID, uuid.UUID) error { return nil }
-func (m *mockChatUsecase) ListMembers(context.Context, uuid.UUID, uuid.UUID) ([]models.ChatMember, error) {
-	return nil, nil
-}
-func (m *mockChatUsecase) AddMember(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) error {
-	return nil
-}
-func (m *mockChatUsecase) RemoveMember(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) error {
-	return nil
-}
-func (m *mockChatUsecase) ListMessages(context.Context, uuid.UUID, uuid.UUID, int, *uuid.UUID) ([]models.Message, error) {
-	return nil, nil
-}
-
 var _ ChatUsecase = (*mockChatUsecase)(nil)
 
 func performAuthenticatedChatRequest(target string, uc *mockChatUsecase, userID uuid.UUID) *httptest.ResponseRecorder {

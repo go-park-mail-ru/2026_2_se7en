@@ -4,10 +4,8 @@ go 1.27.0
 
 require (
 	github.com/google/uuid v1.6.0
-	github.com/jackc/pgx v3.6.2+incompatible
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/joho/godotenv v1.5.1
-	github.com/swaggo/http-swagger v1.3.4
 	github.com/swaggo/swag/v2 v2.0.0-rc5
 	golang.org/x/crypto v0.58.0
 )
@@ -23,12 +21,8 @@ require (
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/rogpeppe/go-internal v1.16.0 // indirect
 	github.com/sv-tools/openapi v0.4.0 // indirect
-	github.com/swaggo/files v1.0.1 // indirect
-	github.com/swaggo/swag v1.8.1 // indirect
-	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/tools v0.51.0 // indirect

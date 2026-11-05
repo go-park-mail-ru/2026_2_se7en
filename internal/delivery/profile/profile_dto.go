@@ -1,0 +1,22 @@
+package profile
+
+import "github.com/google/uuid"
+
+type ProfileResponse struct {
+	ID        uuid.UUID  `json:"id" format:"uuid"`
+	Email     string     `json:"email" format:"email"`
+	Nickname  string     `json:"nickname"`
+	FirstName string     `json:"first_name"`
+	LastName  *string    `json:"last_name,omitempty"`
+	Bio       *string    `json:"bio,omitempty"`
+	IconID    *uuid.UUID `json:"icon_id,omitempty" format:"uuid"`
+	IconURL   *string    `json:"icon_url,omitempty"`
+}
+
+type UpdateProfileRequest struct {
+	Email     *string `json:"email,omitempty" format:"email"`
+	Nickname  *string `json:"nickname,omitempty"`
+	FirstName *string `json:"first_name,omitempty"`
+	LastName  *string `json:"last_name,omitempty"`
+	Bio       *string `json:"bio,omitempty"`
+}

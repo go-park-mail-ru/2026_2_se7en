@@ -427,30 +427,30 @@ func (r *ChatRepositoryImpl) ListMembers(ctx context.Context, userID, chatID uui
 	return items, rows.Err()
 }
 
-func (r *ChatRepositoryImpl) AddMember(ctx context.Context, userID, chatID, newUserID uuid.UUID) error {
+func (r *ChatRepositoryImpl) AddMember(ctx context.Context, userID, chatID, newUserID uuid.UUID) (*models.ChatMember, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer tx.Rollback(ctx)
 	typ, roleType, err := activeRole(ctx, tx, userID, chatID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if typ != "group" {
-		return apperrors.NewBadRequest("Validation failed", nil)
+		return nil, apperrors.NewBadRequest("Validation failed", nil)
 	}
 	if roleType != "creator" && roleType != "admin" {
-		return apperrors.NewForbidden("No permissions")
+		return nil, apperrors.NewForbidden("No permissions")
 	}
 	var exists bool
 	const userExists = `select exists(select 1 from app_user where id = $1 and deleted_at is null)`
 	err = tx.QueryRow(ctx, userExists, newUserID).Scan(&exists)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if !exists {
-		return apperrors.NewNotFound("Resource not found")
+		return nil, apperrors.NewNotFound("Resource not found")
 	}
 	const memberExists = `
 		select exists (
@@ -460,14 +460,14 @@ func (r *ChatRepositoryImpl) AddMember(ctx context.Context, userID, chatID, newU
 	`
 	err = tx.QueryRow(ctx, memberExists, newUserID, chatID).Scan(&exists)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if exists {
-		return apperrors.NewConflict("Resource already exists", nil)
+		return nil, apperrors.NewConflict("Resource already exists", nil)
 	}
 	memberRole, err := role(ctx, tx, "member")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	const insertMember = `
 		insert into user_in_chat (user_id, chat_id, role_id)
@@ -477,16 +477,34 @@ func (r *ChatRepositoryImpl) AddMember(ctx context.Context, userID, chatID, newU
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return apperrors.NewConflict("Resource already exists", nil)
+			return nil, apperrors.NewConflict("Resource already exists", nil)
 		}
-		return err
+		return nil, err
 	}
 	const updateCount = `update chat set members_count = members_count + 1, updated_at = now() where id = $1`
 	_, err = tx.Exec(ctx, updateCount, chatID)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return tx.Commit(ctx)
+	const findAddedMember = `
+		select m.user_id, role.type, p.id, p.icon_id, p.user_id,
+			p.nickname, p.first_name, p.last_name, p.bio, p.created_at, p.updated_at
+		from user_in_chat m
+		join chat_role role on role.id = m.role_id
+		join profile p on p.user_id = m.user_id
+		where m.chat_id = $1 and m.user_id = $2 and m.deleted_at is null
+	`
+	var db ChatMemberDB
+	p := &db.Profile
+	err = tx.QueryRow(ctx, findAddedMember, chatID, newUserID).Scan(&db.UserID, &db.Role, &p.ID, &p.IconID, &p.UserID, &p.Nickname, &p.FirstName, &p.LastName, &p.Bio, &p.CreatedAt, &p.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	member := ChatMemberDBToModel(&db)
+	return &member, nil
 }
 
 func (r *ChatRepositoryImpl) RemoveMember(ctx context.Context, userID, chatID, targetID uuid.UUID) error {

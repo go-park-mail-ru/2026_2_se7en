@@ -51,10 +51,34 @@ func (r *ContactRepositoryImpl) ListContacts(ctx context.Context, userID uuid.UU
 	return items, rows.Err()
 }
 
-func (r *ContactRepositoryImpl) AddContact(ctx context.Context, userID, contactID uuid.UUID) error {
-	const query = `insert into user_contact (user_id, contact_user_id) values ($1, $2)`
-	_, err := r.pool.Exec(ctx, query, userID, contactID)
-	return err
+func (r *ContactRepositoryImpl) AddContact(ctx context.Context, userID, contactID uuid.UUID) (*models.Contact, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	const insertContact = `insert into user_contact (user_id, contact_user_id) values ($1, $2)`
+	if _, err := tx.Exec(ctx, insertContact, userID, contactID); err != nil {
+		return nil, err
+	}
+	const findContact = `
+		select c.contact_user_id, c.pseudonym, p.id, p.icon_id, p.user_id,
+			p.nickname, p.first_name, p.last_name, p.bio, p.created_at, p.updated_at
+		from user_contact c
+		join profile p on p.user_id = c.contact_user_id
+		where c.user_id = $1 and c.contact_user_id = $2
+	`
+	var db ContactDB
+	p := &db.Profile
+	err = tx.QueryRow(ctx, findContact, userID, contactID).Scan(&db.UserID, &db.Pseudonym, &p.ID, &p.IconID, &p.UserID, &p.Nickname, &p.FirstName, &p.LastName, &p.Bio, &p.CreatedAt, &p.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	contact := ContactDBToModel(&db)
+	return &contact, nil
 }
 
 func (r *ContactRepositoryImpl) DeleteContact(ctx context.Context, userID, contactID uuid.UUID) (bool, error) {

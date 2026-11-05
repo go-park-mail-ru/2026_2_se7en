@@ -1,7 +1,7 @@
 package contact
 
 import (
-	"app/repository/profile"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/repository/profile"
 
 	"github.com/google/uuid"
 )

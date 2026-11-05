@@ -3,21 +3,21 @@ package contact
 import (
 	"context"
 
-	"app/models"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type contactRepository struct {
+type ContactRepositoryImpl struct {
 	pool *pgxpool.Pool
 }
 
-func NewContactRepository(pool *pgxpool.Pool) Repository {
-	return &contactRepository{pool: pool}
+func NewContactRepository(pool *pgxpool.Pool) *ContactRepositoryImpl {
+	return &ContactRepositoryImpl{pool: pool}
 }
 
-func (r *contactRepository) ListContacts(ctx context.Context, userID uuid.UUID, limit, offset int, q string) ([]models.Contact, error) {
+func (r *ContactRepositoryImpl) ListContacts(ctx context.Context, userID uuid.UUID, limit, offset int, q string) ([]models.Contact, error) {
 	const query = `
 		select c.contact_user_id, c.pseudonym, p.id, p.icon_id, p.user_id,
 			p.nickname, p.first_name, p.last_name, p.bio, p.created_at, p.updated_at
@@ -51,13 +51,13 @@ func (r *contactRepository) ListContacts(ctx context.Context, userID uuid.UUID, 
 	return items, rows.Err()
 }
 
-func (r *contactRepository) AddContact(ctx context.Context, userID, contactID uuid.UUID) error {
+func (r *ContactRepositoryImpl) AddContact(ctx context.Context, userID, contactID uuid.UUID) error {
 	const query = `insert into user_contact (user_id, contact_user_id) values ($1, $2)`
 	_, err := r.pool.Exec(ctx, query, userID, contactID)
 	return err
 }
 
-func (r *contactRepository) DeleteContact(ctx context.Context, userID, contactID uuid.UUID) (bool, error) {
+func (r *ContactRepositoryImpl) DeleteContact(ctx context.Context, userID, contactID uuid.UUID) (bool, error) {
 	const query = `delete from user_contact where user_id = $1 and contact_user_id = $2`
 	tag, err := r.pool.Exec(ctx, query, userID, contactID)
 	return tag.RowsAffected() > 0, err

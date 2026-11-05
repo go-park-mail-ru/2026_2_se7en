@@ -8,17 +8,15 @@ import (
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
-	"github.com/go-park-mail-ru/2026_2_se7en/repository/profile"
-	"github.com/go-park-mail-ru/2026_2_se7en/repository/user"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type RegisterUsecaseImpl struct {
-	userRepo    user.Repository
-	profileRepo profile.Repository
+	userRepo    UserRepository
+	profileRepo ProfileRepository
 }
 
-func NewRegisterUsecase(userRepo user.Repository, profileRepo profile.Repository) *RegisterUsecaseImpl {
+func NewRegisterUsecase(userRepo UserRepository, profileRepo ProfileRepository) *RegisterUsecaseImpl {
 	return &RegisterUsecaseImpl{
 		userRepo:    userRepo,
 		profileRepo: profileRepo,

@@ -11,6 +11,7 @@ import (
 
 type UserRepository interface {
 	CheckEmailExist(ctx context.Context, email string) (bool, error)
+	CreateUserProfileAndSession(ctx context.Context, user *models.User, passwordHash string, expiresAt time.Time) (*models.UserWithSession, error)
 	CreateUser(ctx context.Context, email, passwordHash string, phone *string) (*models.User, error)
 	DeleteUser(ctx context.Context, userID uuid.UUID) error
 }

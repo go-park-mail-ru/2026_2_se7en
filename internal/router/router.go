@@ -6,7 +6,6 @@ import (
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/storage"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
-	httpSwagger "github.com/swaggo/http-swagger"
 
 	deliveryauth "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/auth"
 	deliverychat "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/chat"
@@ -38,8 +37,6 @@ func New(db *storage.DB) http.Handler {
 
 	api := http.NewServeMux()
 
-	api.HandleFunc("GET /health", healthCheck)
-
 	api.Handle("POST /auth/register", tools.NewJSONDecoder(registerDelivery.HandleRegister))
 	api.Handle("POST /auth/login", tools.NewJSONDecoder(authDelivery.HandleLogin))
 
@@ -47,14 +44,8 @@ func New(db *storage.DB) http.Handler {
 	api.Handle("POST /auth/logout", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(authDelivery.HandleLogout)))
 	api.Handle("GET /chats", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(chatDelivery.HandleListUserChats)))
 
-	api.Handle("GET /swagger/*any", httpSwagger.WrapHandler)
-
 	mainRouter := http.NewServeMux()
 	mainRouter.Handle("/api/v1/", http.StripPrefix("/api/v1", api))
 
 	return mainRouter
-}
-
-func healthCheck(w http.ResponseWriter, r *http.Request) {
-	tools.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }

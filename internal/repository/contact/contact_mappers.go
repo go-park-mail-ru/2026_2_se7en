@@ -1,8 +1,8 @@
 package contact
 
 import (
-	"app/models"
-	"app/repository/profile"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/repository/profile"
 )
 
 func ContactDBToModel(db *ContactDB) models.Contact {

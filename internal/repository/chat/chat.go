@@ -29,6 +29,7 @@ const sqlListUserChats = `
 		m.id, m.content, m.type, m.created_at
 	from chat c
 	join user_in_chat u on u.chat_id = c.id
+	join app_user actor on actor.id = u.user_id and actor.deleted_at is null
 	left join lateral (
 		select m.id, m.content, m.type, m.created_at
 		from message m
@@ -49,6 +50,7 @@ const sqlFindForUser = `
 		c.created_at, c.updated_at, c.deleted_at, role.type
 	from chat c
 	join user_in_chat m on m.chat_id = c.id and m.user_id = $1 and m.deleted_at is null
+	join app_user actor on actor.id = m.user_id and actor.deleted_at is null
 	join chat_role role on role.id = m.role_id
 	where c.id = $2 and c.deleted_at is null
 `
@@ -126,6 +128,7 @@ func activeRole(ctx context.Context, tx pgx.Tx, userID, chatID uuid.UUID) (strin
 		select c.type, role.type
 		from chat c
 		join user_in_chat m on m.chat_id = c.id
+		join app_user actor on actor.id = m.user_id and actor.deleted_at is null
 		join chat_role role on role.id = m.role_id
 		where c.id = $2 and m.user_id = $1
 			and c.deleted_at is null and m.deleted_at is null
@@ -151,13 +154,13 @@ func (r *ChatRepositoryImpl) GetOrCreateDialog(ctx context.Context, userID, peer
 	if err != nil {
 		return nil, err
 	}
-	var exists bool
-	const peerExists = `select exists(select 1 from app_user where id = $1 and deleted_at is null)`
-	err = tx.QueryRow(ctx, peerExists, peerID).Scan(&exists)
+	var activeUsers int
+	const usersExist = `select count(*) from app_user where id in ($1, $2) and deleted_at is null`
+	err = tx.QueryRow(ctx, usersExist, userID, peerID).Scan(&activeUsers)
 	if err != nil {
 		return nil, err
 	}
-	if !exists {
+	if activeUsers != 2 {
 		return nil, apperrors.NewNotFound("Resource not found")
 	}
 	var chatID uuid.UUID
@@ -274,6 +277,14 @@ func (r *ChatRepositoryImpl) CreateGroup(ctx context.Context, userID uuid.UUID, 
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
+	var exists bool
+	const creatorExists = `select exists(select 1 from app_user where id = $1 and deleted_at is null)`
+	if err = tx.QueryRow(ctx, creatorExists, userID).Scan(&exists); err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, apperrors.NewNotFound("Resource not found")
+	}
 	var chatID uuid.UUID
 	const insertGroup = `
 		insert into chat (name, description, type, members_count)

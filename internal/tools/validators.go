@@ -7,18 +7,22 @@ import (
 	"unicode/utf8"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
+	"github.com/google/uuid"
 )
 
 const (
-	MinPasswordLen  = 8
-	MaxPasswordLen  = 16
-	MinNicknameLen  = 3
-	MaxNicknameLen  = 16
-	MaxEmailLen     = 64
-	MinFirstNameLen = 2
-	MaxFirstNameLen = 32
-	MinLastNameLen  = 2
-	MaxLastNameLen  = 32
+	MinPasswordLen        = 8
+	MaxPasswordLen        = 16
+	MinNicknameLen        = 3
+	MaxNicknameLen        = 16
+	MaxEmailLen           = 64
+	MinFirstNameLen       = 2
+	MaxFirstNameLen       = 32
+	MinLastNameLen        = 2
+	MaxLastNameLen        = 32
+	MaxChatNameLen        = 128
+	MaxChatDescriptionLen = 500
+	MaxMessageContentLen  = 4096
 )
 
 var (
@@ -102,6 +106,48 @@ func ValidateLastName(lastName *string) *apperrors.ErrorDetail {
 	lnLen := utf8.RuneCountInString(ln)
 	if lnLen < MinLastNameLen || lnLen > MaxLastNameLen {
 		return &apperrors.ErrorDetail{Field: "last_name", Reason: "invalid_length"}
+	}
+	return nil
+}
+
+func ValidateChatName(name string) *apperrors.ErrorDetail {
+	if strings.TrimSpace(name) == "" {
+		return &apperrors.ErrorDetail{Field: "name", Reason: "Name is required"}
+	}
+	if utf8.RuneCountInString(name) > MaxChatNameLen {
+		return &apperrors.ErrorDetail{Field: "name", Reason: "Name must be at most 128 characters"}
+	}
+	return nil
+}
+
+func ValidateChatDescription(description *string) *apperrors.ErrorDetail {
+	if description != nil && utf8.RuneCountInString(*description) > MaxChatDescriptionLen {
+		return &apperrors.ErrorDetail{Field: "description", Reason: "Description must be at most 500 characters"}
+	}
+	return nil
+}
+
+func ValidateMessageFields(messageType string, content *string, stickerID *uuid.UUID) *apperrors.ErrorDetail {
+	switch messageType {
+	case "text":
+		if content == nil {
+			return &apperrors.ErrorDetail{Field: "content", Reason: "Text message requires content"}
+		}
+		if utf8.RuneCountInString(*content) > MaxMessageContentLen {
+			return &apperrors.ErrorDetail{Field: "content", Reason: "Content must be at most 4096 characters"}
+		}
+		if stickerID != nil {
+			return &apperrors.ErrorDetail{Field: "sticker_id", Reason: "Text message cannot contain a sticker"}
+		}
+	case "sticker":
+		if stickerID == nil {
+			return &apperrors.ErrorDetail{Field: "sticker_id", Reason: "Sticker message requires a sticker"}
+		}
+		if content != nil {
+			return &apperrors.ErrorDetail{Field: "content", Reason: "Sticker message cannot contain text"}
+		}
+	default:
+		return &apperrors.ErrorDetail{Field: "type", Reason: "Message type must be text or sticker"}
 	}
 	return nil
 }

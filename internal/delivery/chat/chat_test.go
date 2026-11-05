@@ -16,14 +16,67 @@ import (
 )
 
 type mockChatUsecase struct {
-	items  []*models.ChatListItem
-	err    error
-	called bool
+	items    []*models.ChatListItem
+	detail   *models.ChatDetail
+	members  []models.ChatMember
+	member   *models.ChatMember
+	messages []models.Message
+	err      error
+	called   bool
 }
 
 func (m *mockChatUsecase) ListUserChats(ctx context.Context, userID uuid.UUID, limit, offset int, chatType string) ([]*models.ChatListItem, error) {
 	m.called = true
 	return m.items, m.err
+}
+
+func (m *mockChatUsecase) FindForUser(context.Context, uuid.UUID, uuid.UUID) (*models.ChatDetail, error) {
+	m.called = true
+	return m.detail, m.err
+}
+func (m *mockChatUsecase) GetOrCreateDialog(context.Context, uuid.UUID, uuid.UUID) (*models.ChatDetail, error) {
+	m.called = true
+	return m.detail, m.err
+}
+func (m *mockChatUsecase) HideDialog(context.Context, uuid.UUID, uuid.UUID) error {
+	m.called = true
+	return m.err
+}
+func (m *mockChatUsecase) CreateGroup(context.Context, uuid.UUID, string, *string, []uuid.UUID) (*models.ChatDetail, error) {
+	m.called = true
+	return m.detail, m.err
+}
+func (m *mockChatUsecase) UpdateGroup(context.Context, uuid.UUID, uuid.UUID, *string, *string, bool) (*models.ChatDetail, error) {
+	m.called = true
+	return m.detail, m.err
+}
+func (m *mockChatUsecase) DeleteGroup(context.Context, uuid.UUID, uuid.UUID) error {
+	m.called = true
+	return m.err
+}
+func (m *mockChatUsecase) ListMembers(context.Context, uuid.UUID, uuid.UUID) ([]models.ChatMember, error) {
+	m.called = true
+	return m.members, m.err
+}
+func (m *mockChatUsecase) AddMember(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*models.ChatMember, error) {
+	m.called = true
+	return m.member, m.err
+}
+func (m *mockChatUsecase) RemoveMember(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) error {
+	m.called = true
+	return m.err
+}
+func (m *mockChatUsecase) ListMessages(context.Context, uuid.UUID, uuid.UUID, int, *uuid.UUID) ([]models.Message, error) {
+	m.called = true
+	return m.messages, m.err
+}
+func (m *mockChatUsecase) CreateMessage(ctx context.Context, userID, chatID uuid.UUID, replyToMessageID, stickerID *uuid.UUID, content *string, messageType string) (*models.Message, error) {
+	m.called = true
+	if len(m.messages) > 0 {
+		return &m.messages[0], m.err
+	} else {
+		return nil, m.err
+	}
 }
 
 var _ ChatUsecase = (*mockChatUsecase)(nil)

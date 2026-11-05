@@ -616,3 +616,50 @@ func (r *ChatRepositoryImpl) ListMessages(ctx context.Context, userID, chatID uu
 	}
 	return items, rows.Err()
 }
+
+func (r *ChatRepositoryImpl) CreateMessage(ctx context.Context, userID, chatID uuid.UUID, replyToMessageID, stickerID *uuid.UUID, content *string, messageType string) (*models.Message, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	var exists bool
+	const existsMemberAndChat = `
+		select exists (
+			select 1
+			from app_user a
+			join user_in_chat uc on a.id = uc.user_id
+			join chat_role r on uc.role_id = r.id
+			join profile p on uc.user_id = p.user_id
+			join chat c on uc.chat_id = c.id
+			where a.id = $1
+				and a.deleted_at is null
+				and c.id = $2
+				and c.deleted_at is null
+				and uc.deleted_at is null
+		)
+	`
+	err = tx.QueryRow(ctx, existsMemberAndChat, userID, chatID).Scan(&exists)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, apperrors.NewNotFound("Resource not found")
+	}
+	var msgDB MessageDB
+	const insertMessage = `
+		insert into message (user_id, chat_id, reply_to_message_id, sticker_id, content, type)
+		values ($1, $2, $3, $4, $5, $6)
+		returning id, user_id, chat_id, reply_to_message_id, sticker_id,
+			content, is_edited, type, created_at, updated_at
+	`
+	err = tx.QueryRow(ctx, insertMessage, userID, chatID, replyToMessageID, stickerID, content, messageType).Scan(&msgDB.ID, &msgDB.UserID, &msgDB.ChatID, &msgDB.ReplyToMessageID, &msgDB.StickerID, &msgDB.Content, &msgDB.IsEdited, &msgDB.Type, &msgDB.CreatedAt, &msgDB.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	msg := MessageDBToModel(&msgDB)
+	return &msg, nil
+}

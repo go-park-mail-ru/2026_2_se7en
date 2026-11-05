@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"app/config"
-	"app/router"
-	"app/storage"
+	"github.com/go-park-mail-ru/2026_2_se7en/config"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/router"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/storage"
 )
 
 func TestHealthRoute(t *testing.T) {

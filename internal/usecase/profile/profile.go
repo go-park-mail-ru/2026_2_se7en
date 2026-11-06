@@ -2,11 +2,9 @@ package profile
 
 import (
 	"context"
-	"mime/multipart"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/repository/profile"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
 	"github.com/google/uuid"
 )
@@ -35,11 +33,12 @@ func NewProfileUsecase(txManager TxManager, userRepo UserRepository, profileRepo
 	}
 }
 
-func (uc *ProfileUsecaseImpl) GetProfile(ctx context.Context, userID uuid.UUID) (*models.User, *profile.ProfileWithFileDB, error) {
+func (uc *ProfileUsecaseImpl) GetProfile(ctx context.Context, userID uuid.UUID) (*models.User, *models.Profile, error) {
 	user, err := uc.userRepo.FindByID(ctx, userID)
 	if err != nil {
 		return nil, nil, err
 	}
+	
 	if user == nil {
 		return nil, nil, apperrors.ErrUserNotFound
 	}
@@ -71,13 +70,6 @@ func (uc *ProfileUsecaseImpl) UpdateProfile(ctx context.Context, userID uuid.UUI
 		}
 
 		if params.Email != nil && *params.Email != user.Email {
-			exists, err := uc.userRepo.CheckEmailExist(ctx, *params.Email)
-			if err != nil {
-				return err
-			}
-			if exists {
-				return apperrors.ErrEmailTaken
-			}
 			if err := uc.userRepo.UpdateEmail(ctx, userID, *params.Email); err != nil {
 				return err
 			}
@@ -113,8 +105,8 @@ func (uc *ProfileUsecaseImpl) UpdateProfile(ctx context.Context, userID uuid.UUI
 	})
 }
 
-func (uc *ProfileUsecaseImpl) UploadAvatar(ctx context.Context, userID uuid.UUID, file multipart.File, header *multipart.FileHeader) (string, error) {
-	url, filename, err := tools.SaveAvatar(file, header)
+func (uc *ProfileUsecaseImpl) UploadAvatar(ctx context.Context, userID uuid.UUID, file *models.FileUpload) (string, error) {
+	url, filename, err := tools.SaveAvatar(file)
 	if err != nil {
 		return "", apperrors.NewBadRequest("Failed to save avatar", nil)
 	}

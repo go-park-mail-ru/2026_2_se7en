@@ -1,10 +1,13 @@
 package profile
 
 import (
+	"errors"
+	"io"
 	"net/http"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
 	usecaseprofile "github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/profile"
 )
@@ -38,7 +41,7 @@ func (d *ProfileDeliveryImpl) HandleGetProfile(w http.ResponseWriter, r *http.Re
 
 	user, prof, err := d.uc.GetProfile(r.Context(), userID)
 	if err != nil {
-		if err == apperrors.ErrUserNotFound {
+		if errors.Is(err, apperrors.ErrUserNotFound) {
 			apperrors.WriteError(w, apperrors.NewNotFound("User not found"))
 			return
 		}
@@ -79,7 +82,7 @@ func (d *ProfileDeliveryImpl) HandleUpdateProfile(w http.ResponseWriter, r *http
 
 	err := d.uc.UpdateProfile(r.Context(), userID, params)
 	if err != nil {
-		if err == apperrors.ErrEmailTaken || err == apperrors.ErrNicknameTaken {
+		if errors.Is(err, apperrors.ErrEmailTaken) || errors.Is(err, apperrors.ErrNicknameTaken) {
 			return apperrors.NewConflict(err.Error(), nil)
 		}
 
@@ -126,10 +129,34 @@ func (d *ProfileDeliveryImpl) HandleUploadAvatar(w http.ResponseWriter, r *http.
 		apperrors.WriteError(w, apperrors.NewBadRequest("File is required", nil))
 		return
 	}
-	
+
 	defer file.Close()
 
-	url, err := d.uc.UploadAvatar(r.Context(), userID, file, header)
+	buffer := make([]byte, 512)
+	if _, err := file.Read(buffer); err != nil {
+		apperrors.WriteError(w, apperrors.NewInternalError("Failed to read file", err))
+		return
+	}
+
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		apperrors.WriteError(w, apperrors.NewInternalError("Failed to seek file", err))
+		return
+	}
+
+	contentType := http.DetectContentType(buffer)
+	if contentType != "image/jpeg" && contentType != "image/png" && contentType != "image/webp" {
+		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid file type", nil))
+		return
+	}
+
+	upload := &models.FileUpload{
+		Reader:      file,
+		Filename:    header.Filename,
+		Size:        header.Size,
+		ContentType: contentType,
+	}
+
+	url, err := d.uc.UploadAvatar(r.Context(), userID, upload)
 	if err != nil {
 		apperrors.WriteError(w, apperrors.NewInternalError("Failed to upload avatar", err))
 		return

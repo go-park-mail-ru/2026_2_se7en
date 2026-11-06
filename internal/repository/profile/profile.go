@@ -79,7 +79,7 @@ func (r *ProfileRepositoryImpl) CreateProfile(ctx context.Context, iconID *uuid.
 	return ProfileDBToModel(&db), nil
 }
 
-func (r *ProfileRepositoryImpl) GetWithFileByUserID(ctx context.Context, userID uuid.UUID) (*ProfileWithFileDB, error) {
+func (r *ProfileRepositoryImpl) GetWithFileByUserID(ctx context.Context, userID uuid.UUID) (*models.Profile, error) {
 	const query = `
 		select p.id, p.icon_id, p.user_id, p.nickname, p.first_name, p.last_name, p.bio, p.created_at, p.updated_at,
 		       f.url, f.filename, f.type, f.created_at, f.updated_at
@@ -99,11 +99,12 @@ func (r *ProfileRepositoryImpl) GetWithFileByUserID(ctx context.Context, userID 
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
+	
 	if err != nil {
 		return nil, err
 	}
 
-	return &db, nil
+	return ProfileWithFileDBToModel(&db), nil
 }
 
 func (r *ProfileRepositoryImpl) Update(ctx context.Context, profileID uuid.UUID, nickname, firstName string, lastName *string, bio *string) error {

@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/repository/profile"
 	"github.com/google/uuid"
 )
 
@@ -19,7 +18,7 @@ type UserRepository interface {
 }
 
 type ProfileRepository interface {
-	GetWithFileByUserID(ctx context.Context, userID uuid.UUID) (*profile.ProfileWithFileDB, error)
+	GetWithFileByUserID(ctx context.Context, userID uuid.UUID) (*models.Profile, error)
 	CheckNicknameExist(ctx context.Context, nickname string) (bool, error)
 	Update(ctx context.Context, profileID uuid.UUID, nickname, firstName string, lastName *string, bio *string) error
 	UpdateIcon(ctx context.Context, profileID uuid.UUID, fileID uuid.UUID) error

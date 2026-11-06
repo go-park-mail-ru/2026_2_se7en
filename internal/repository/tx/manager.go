@@ -2,6 +2,7 @@ package tx
 
 import (
 	"context"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -19,7 +20,14 @@ func (m *ManagerImpl) WithinTransaction(ctx context.Context, fn func(ctx context
 	if err != nil {
 		return err
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	
+	defer func() {
+		rollbackCtx, cancel := context.WithTimeout(context.Background(), 5 * time.Second)
+
+		defer cancel()
+
+		_ = tx.Rollback(rollbackCtx)
+	}()
 
 	ctx = WithTx(ctx, tx)
 	if err := fn(ctx); err != nil {

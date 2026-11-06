@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 
 	"github.com/google/uuid"
@@ -89,11 +90,20 @@ func (r *UserRepositoryImpl) DeleteUser(ctx context.Context, userID uuid.UUID) e
 
 func (r *UserRepositoryImpl) UpdateEmail(ctx context.Context, userID uuid.UUID, email string) error {
 	const query = `update app_user set email = $2, updated_at = now() where id = $1`
+
 	executor := r.getExecutor(ctx)
-
+	
 	_, err := executor.Exec(ctx, query, userID, email)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return apperrors.ErrEmailTaken
+		}
 
-	return err
+		return err
+	}
+
+	return nil
 }
 
 func (r *UserRepositoryImpl) getExecutor(ctx context.Context) interface {

@@ -5,11 +5,10 @@ import (
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
-	repoprofile "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/profile"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
 )
 
-func ToProfileResponse(user *models.User, prof *repoprofile.ProfileWithFileDB) ProfileResponse {
+func ToProfileResponse(user *models.User, prof *models.Profile) ProfileResponse {
 	resp := ProfileResponse{
 		ID:    user.ID,
 		Email: user.Email,
@@ -21,8 +20,8 @@ func ToProfileResponse(user *models.User, prof *repoprofile.ProfileWithFileDB) P
 		resp.LastName = prof.LastName
 		resp.Bio = prof.Bio
 		resp.IconID = prof.IconID
-		if prof.FileURL != nil {
-			resp.IconURL = prof.FileURL
+		if prof.AvatarURL != nil {
+			resp.IconURL = prof.AvatarURL
 		}
 	}
 

@@ -1,6 +1,7 @@
 package models
 
 import (
+	"io"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,4 +14,11 @@ type File struct {
 	Type      string
 	CreatedAt time.Time
 	UpdatedAt time.Time
+}
+
+type FileUpload struct {
+	Reader      io.Reader
+	Filename    string
+	Size        int64
+	ContentType string
 }

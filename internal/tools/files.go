@@ -4,11 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"mime/multipart"
-	"net/http"
 	"os"
 	"path/filepath"
 
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/google/uuid"
 )
 
@@ -17,30 +16,16 @@ const (
 	AvatarDir     = "./uploads/avatars"
 )
 
-func SaveAvatar(file multipart.File, header *multipart.FileHeader) (string, string, error) {
-	if header.Size > MaxAvatarSize {
+func SaveAvatar(file *models.FileUpload) (string, string, error) {
+	if file.Size > MaxAvatarSize {
 		return "", "", errors.New("file too large")
-	}
-
-	buffer := make([]byte, 512)
-	if _, err := file.Read(buffer); err != nil {
-		return "", "", err
-	}
-
-	if _, err := file.Seek(0, io.SeekStart); err != nil {
-		return "", "", err
-	}
-
-	contentType := http.DetectContentType(buffer)
-	if contentType != "image/jpeg" && contentType != "image/png" && contentType != "image/webp" {
-		return "", "", errors.New("invalid file type")
 	}
 
 	if err := os.MkdirAll(AvatarDir, 0755); err != nil {
 		return "", "", err
 	}
 
-	ext := filepath.Ext(header.Filename)
+	ext := filepath.Ext(file.Filename)
 	filename := uuid.NewString() + ext
 	filePath := filepath.Join(AvatarDir, filename)
 
@@ -51,7 +36,7 @@ func SaveAvatar(file multipart.File, header *multipart.FileHeader) (string, stri
 
 	defer dst.Close()
 
-	if _, err := io.Copy(dst, file); err != nil {
+	if _, err := io.Copy(dst, file.Reader); err != nil {
 		return "", "", err
 	}
 

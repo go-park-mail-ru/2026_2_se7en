@@ -29,7 +29,7 @@ func New(db *storage.DB) http.Handler {
 	chatRepo := repochat.NewChatRepository(db.Pool())
 
 	authUsecase := usecaseauth.NewAuthUsecase(userRepo, profileRepo, sessionRepo)
-	registerUsecase := usecaseregister.NewRegisterUsecase(userRepo, profileRepo, sessionRepo)
+	registerUsecase := usecaseregister.NewRegisterUsecase(userRepo, profileRepo)
 	chatUsecase := usecasechat.NewChatUsecase(chatRepo)
 
 	authDelivery := deliveryauth.NewAuthDelivery(authUsecase)
@@ -47,10 +47,10 @@ func New(db *storage.DB) http.Handler {
 	api.Handle("POST /auth/logout", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(authDelivery.HandleLogout)))
 	api.Handle("GET /chats", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(chatDelivery.HandleListUserChats)))
 
-	api.Handle("GET /swagger/*any", httpSwagger.WrapHandler)
-
 	mainRouter := http.NewServeMux()
 	mainRouter.Handle("/api/v1/", http.StripPrefix("/api/v1", api))
+
+	api.Handle("GET /swagger/*any", httpSwagger.WrapHandler)
 
 	return mainRouter
 }

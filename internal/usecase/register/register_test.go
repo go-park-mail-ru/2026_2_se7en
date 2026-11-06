@@ -35,6 +35,22 @@ func (m *mockRepo) CreateUser(ctx context.Context, email, hash string, phone *st
 	}
 	return &models.User{ID: uuid.New(), Email: email, PasswordHash: hash, PhoneNumber: phone}, nil
 }
+func (m *mockRepo) CreateUserProfileAndSession(ctx context.Context, user *models.User, hash string, expiresAt time.Time) (*models.UserWithSession, error) {
+	createdUser, err := m.CreateUser(ctx, user.Email, hash, user.PhoneNumber)
+	if err != nil {
+		return nil, err
+	}
+	createdProfile, err := m.CreateProfile(ctx, user.Profile.IconID, createdUser.ID, user.Profile.Nickname, user.Profile.FirstName, user.Profile.LastName, user.Profile.Bio)
+	if err != nil {
+		return nil, err
+	}
+	createdUser.Profile = createdProfile
+	createdSession, err := m.CreateSession(ctx, createdUser.ID, expiresAt)
+	if err != nil {
+		return nil, err
+	}
+	return &models.UserWithSession{User: createdUser, SessionID: createdSession.ID}, nil
+}
 func (m *mockRepo) DeleteUser(ctx context.Context, userID uuid.UUID) error {
 	m.deleteUserCalled = true
 	return nil
@@ -60,6 +76,21 @@ func (m *mockRepo) CreateProfile(ctx context.Context, iconID *uuid.UUID, userID 
 func (m *mockRepo) FindByUserID(ctx context.Context, userID uuid.UUID) (*models.Profile, error) {
 	return nil, nil
 }
+func (m *mockRepo) FindProfile(ctx context.Context, userID uuid.UUID) (*models.Profile, error) {
+	return nil, nil
+}
+func (m *mockRepo) UpdateProfile(ctx context.Context, userID uuid.UUID, profile models.Profile) (*models.Profile, error) {
+	return nil, nil
+}
+func (m *mockRepo) FindPasswordHash(ctx context.Context, userID uuid.UUID) (string, error) {
+	return "", nil
+}
+func (m *mockRepo) UpdatePassword(ctx context.Context, userID uuid.UUID, oldHash, newHash string) (bool, error) {
+	return false, nil
+}
+func (m *mockRepo) UpdatePhone(ctx context.Context, userID uuid.UUID, phone *string) error {
+	return nil
+}
 
 func (m *mockRepo) CreateSession(ctx context.Context, userID uuid.UUID, expiresAt time.Time) (*models.Session, error) {
 	if m.createSessionErr != nil {
@@ -79,7 +110,7 @@ func (m *mockRepo) ExtendSession(ctx context.Context, sessionID uuid.UUID, expir
 func TestRegisterUsecase_Success(t *testing.T) {
 	repo := &mockRepo{}
 
-	uc := NewRegisterUsecase(repo, repo, repo)
+	uc := NewRegisterUsecase(repo, repo)
 
 	user := &models.User{
 		Email: "test@example.com",
@@ -111,7 +142,7 @@ func TestRegisterUsecase_Success(t *testing.T) {
 
 func TestRegisterUsecase_EmailTaken(t *testing.T) {
 	repo := &mockRepo{emailExists: true}
-	uc := NewRegisterUsecase(repo, repo, repo)
+	uc := NewRegisterUsecase(repo, repo)
 
 	user := &models.User{Email: "test@example.com", Profile: &models.Profile{Nickname: "test"}}
 	_, err := uc.Register(context.Background(), user, "password123")
@@ -123,7 +154,7 @@ func TestRegisterUsecase_EmailTaken(t *testing.T) {
 
 func TestRegisterUsecase_NicknameTaken(t *testing.T) {
 	repo := &mockRepo{nickExists: true}
-	uc := NewRegisterUsecase(repo, repo, repo)
+	uc := NewRegisterUsecase(repo, repo)
 
 	user := &models.User{Email: "test@example.com", Profile: &models.Profile{Nickname: "test"}}
 	_, err := uc.Register(context.Background(), user, "password123")
@@ -133,9 +164,9 @@ func TestRegisterUsecase_NicknameTaken(t *testing.T) {
 	}
 }
 
-func TestRegisterUsecase_ProfileCreationRollback(t *testing.T) {
+func TestRegisterUsecase_ProfileCreationError(t *testing.T) {
 	repo := &mockRepo{createProfileErr: errors.New("db error")}
-	uc := NewRegisterUsecase(repo, repo, repo)
+	uc := NewRegisterUsecase(repo, repo)
 
 	user := &models.User{Email: "test@example.com", Profile: &models.Profile{Nickname: "test"}}
 	_, err := uc.Register(context.Background(), user, "password123")
@@ -143,7 +174,7 @@ func TestRegisterUsecase_ProfileCreationRollback(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error on profile creation")
 	}
-	if !repo.deleteUserCalled {
-		t.Error("expected DeleteUser to be called as a rollback")
+	if repo.deleteUserCalled {
+		t.Error("DeleteUser should not be called outside the registration transaction")
 	}
 }

@@ -26,6 +26,8 @@ func (m *mockChatUsecase) ListUserChats(ctx context.Context, userID uuid.UUID, l
 	return m.items, m.err
 }
 
+var _ ChatUsecase = (*mockChatUsecase)(nil)
+
 func performAuthenticatedChatRequest(target string, uc *mockChatUsecase, userID uuid.UUID) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(http.MethodGet, target, nil)
 	req = req.WithContext(middleware.NewAuthContext(req.Context(), userID))

@@ -38,7 +38,7 @@ func (r *SessionRepositoryImpl) DeleteSession(ctx context.Context, sessionID uui
 }
 
 func (r *SessionRepositoryImpl) GetSessionUser(ctx context.Context, sessionID uuid.UUID) (uuid.UUID, error) {
-	const query = `select user_id from session where id = $1 and expires_at > now()`
+	const query = `select s.user_id from session s join app_user u on u.id = s.user_id and u.deleted_at is null where s.id = $1 and s.expires_at > now()`
 	var userID uuid.UUID
 	err := r.pool.QueryRow(ctx, query, sessionID).Scan(&userID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -51,7 +51,7 @@ func (r *SessionRepositoryImpl) GetSessionUser(ctx context.Context, sessionID uu
 }
 
 func (r *SessionRepositoryImpl) ExtendSession(ctx context.Context, sessionID uuid.UUID, expiresAt time.Time) error {
-	const query = `update session set expires_at = $2, updated_at = now() where id = $1 and expires_at > now()`
+	const query = `update session s set expires_at = $2, updated_at = now() where s.id = $1 and s.expires_at > now() and exists (select 1 from app_user u where u.id = s.user_id and u.deleted_at is null)`
 	tag, err := r.pool.Exec(ctx, query, sessionID, expiresAt)
 	if err != nil {
 		return err

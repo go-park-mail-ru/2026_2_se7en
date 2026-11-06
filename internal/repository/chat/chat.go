@@ -103,7 +103,7 @@ func scanDetail(row pgx.Row) (*models.ChatDetail, error) {
 	c := &db.Chat
 	err := row.Scan(&c.ID, &c.IconID, &c.Name, &c.Description, &c.Type, &c.MembersCount, &c.CreatedAt, &c.UpdatedAt, &c.DeletedAt, &db.Role)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, apperrors.NewNotFound("Resource not found")
+		return nil, apperrors.ErrChatNotFound
 	}
 	if err != nil {
 		return nil, err
@@ -136,7 +136,7 @@ func activeRole(ctx context.Context, tx pgx.Tx, userID, chatID uuid.UUID) (strin
 	`
 	err := tx.QueryRow(ctx, query, userID, chatID).Scan(&chatType, &roleType)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return "", "", apperrors.NewNotFound("Resource not found")
+		return "", "", apperrors.ErrChatNotFound
 	}
 	return chatType, roleType, err
 }
@@ -161,7 +161,7 @@ func (r *ChatRepositoryImpl) GetOrCreateDialog(ctx context.Context, userID, peer
 		return nil, err
 	}
 	if activeUsers != 2 {
-		return nil, apperrors.NewNotFound("Resource not found")
+		return nil, apperrors.ErrUserNotFound
 	}
 	var chatID uuid.UUID
 	const findDialog = `
@@ -242,7 +242,7 @@ func (r *ChatRepositoryImpl) HideDialog(ctx context.Context, userID, chatID uuid
 		return err
 	}
 	if chatType != "dialog" {
-		return apperrors.NewBadRequest("Validation failed", nil)
+		return apperrors.ErrInvalidChatOperation
 	}
 	const hideMember = `
 		update user_in_chat
@@ -254,7 +254,7 @@ func (r *ChatRepositoryImpl) HideDialog(ctx context.Context, userID, chatID uuid
 		return err
 	}
 	if tag.RowsAffected() == 0 {
-		return apperrors.NewNotFound("Resource not found")
+		return apperrors.ErrChatMemberNotFound
 	}
 	const updateCount = `
 		update chat
@@ -283,7 +283,7 @@ func (r *ChatRepositoryImpl) CreateGroup(ctx context.Context, userID uuid.UUID, 
 		return nil, err
 	}
 	if !exists {
-		return nil, apperrors.NewNotFound("Resource not found")
+		return nil, apperrors.ErrUserNotFound
 	}
 	var chatID uuid.UUID
 	const insertGroup = `
@@ -322,7 +322,7 @@ func (r *ChatRepositoryImpl) CreateGroup(ctx context.Context, userID uuid.UUID, 
 		return nil, err
 	}
 	if tag.RowsAffected() != int64(len(members)) {
-		return nil, apperrors.NewNotFound("Resource not found")
+		return nil, apperrors.ErrUserNotFound
 	}
 	d, err := scanDetail(tx.QueryRow(ctx, sqlFindForUser, userID, chatID))
 	if err != nil {
@@ -345,10 +345,10 @@ func (r *ChatRepositoryImpl) UpdateGroup(ctx context.Context, userID, chatID uui
 		return nil, err
 	}
 	if typ != "group" {
-		return nil, apperrors.NewNotFound("Resource not found")
+		return nil, apperrors.ErrChatNotFound
 	}
 	if roleType != "creator" && roleType != "admin" {
-		return nil, apperrors.NewForbidden("No permissions")
+		return nil, apperrors.ErrChatPermissionDenied
 	}
 	const updateGroup = `
 		update chat
@@ -382,10 +382,10 @@ func (r *ChatRepositoryImpl) DeleteGroup(ctx context.Context, userID, chatID uui
 		return err
 	}
 	if typ != "group" {
-		return apperrors.NewNotFound("Resource not found")
+		return apperrors.ErrChatNotFound
 	}
 	if roleType != "creator" {
-		return apperrors.NewForbidden("No permissions")
+		return apperrors.ErrChatPermissionDenied
 	}
 	const deleteGroup = `update chat set deleted_at = now(), updated_at = now() where id = $1`
 	_, err = tx.Exec(ctx, deleteGroup, chatID)
@@ -438,10 +438,10 @@ func (r *ChatRepositoryImpl) AddMember(ctx context.Context, userID, chatID, newU
 		return nil, err
 	}
 	if typ != "group" {
-		return nil, apperrors.NewBadRequest("Validation failed", nil)
+		return nil, apperrors.ErrInvalidChatOperation
 	}
 	if roleType != "creator" && roleType != "admin" {
-		return nil, apperrors.NewForbidden("No permissions")
+		return nil, apperrors.ErrChatPermissionDenied
 	}
 	var exists bool
 	const userExists = `select exists(select 1 from app_user where id = $1 and deleted_at is null)`
@@ -450,7 +450,7 @@ func (r *ChatRepositoryImpl) AddMember(ctx context.Context, userID, chatID, newU
 		return nil, err
 	}
 	if !exists {
-		return nil, apperrors.NewNotFound("Resource not found")
+		return nil, apperrors.ErrUserNotFound
 	}
 	const memberExists = `
 		select exists (
@@ -463,7 +463,7 @@ func (r *ChatRepositoryImpl) AddMember(ctx context.Context, userID, chatID, newU
 		return nil, err
 	}
 	if exists {
-		return nil, apperrors.NewConflict("Resource already exists", nil)
+		return nil, apperrors.ErrChatMemberExists
 	}
 	memberRole, err := role(ctx, tx, "member")
 	if err != nil {
@@ -477,7 +477,7 @@ func (r *ChatRepositoryImpl) AddMember(ctx context.Context, userID, chatID, newU
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return nil, apperrors.NewConflict("Resource already exists", nil)
+			return nil, apperrors.ErrChatMemberExists
 		}
 		return nil, err
 	}
@@ -518,7 +518,7 @@ func (r *ChatRepositoryImpl) RemoveMember(ctx context.Context, userID, chatID, t
 		return err
 	}
 	if typ != "group" {
-		return apperrors.NewBadRequest("Validation failed", nil)
+		return apperrors.ErrInvalidChatOperation
 	}
 	var targetRole string
 	const findMember = `
@@ -528,16 +528,16 @@ func (r *ChatRepositoryImpl) RemoveMember(ctx context.Context, userID, chatID, t
 	`
 	err = tx.QueryRow(ctx, findMember, chatID, targetID).Scan(&targetRole)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return apperrors.NewNotFound("Resource not found")
+		return apperrors.ErrChatMemberNotFound
 	}
 	if err != nil {
 		return err
 	}
 	if targetRole == "creator" {
-		return apperrors.NewForbidden("No permissions")
+		return apperrors.ErrChatPermissionDenied
 	}
 	if targetID != userID && actorRole != "creator" && (actorRole != "admin" || targetRole == "admin") {
-		return apperrors.NewForbidden("No permissions")
+		return apperrors.ErrChatPermissionDenied
 	}
 	const removeMember = `
 		update user_in_chat set deleted_at = now(), updated_at = now()
@@ -572,7 +572,7 @@ func (r *ChatRepositoryImpl) ListMessages(ctx context.Context, userID, chatID uu
 			return nil, err
 		}
 		if !exists {
-			return nil, apperrors.NewBadRequest("Validation failed", nil)
+			return nil, apperrors.ErrMessageNotFound
 		}
 	}
 	const queryWithoutBefore = `
@@ -644,7 +644,7 @@ func (r *ChatRepositoryImpl) CreateMessage(ctx context.Context, userID, chatID u
 		return nil, err
 	}
 	if !exists {
-		return nil, apperrors.NewNotFound("Resource not found")
+		return nil, apperrors.ErrChatNotFound
 	}
 	var msgDB MessageDB
 	const insertMessage = `

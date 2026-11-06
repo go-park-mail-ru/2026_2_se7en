@@ -3,13 +3,11 @@ package chat
 import (
 	"context"
 	"errors"
-	"net/http"
 	"strings"
 	"testing"
 
 	"github.com/google/uuid"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 )
 
@@ -88,91 +86,9 @@ func newTestChatUsecase(repo ChatRepository) *ChatUsecaseImpl {
 	return NewChatUsecase(repo)
 }
 
-func TestChatUsecase_RejectsInvalidInputBeforeRepository(t *testing.T) {
-	userID, chatID, peerID := uuid.New(), uuid.New(), uuid.New()
-	longName := strings.Repeat("я", 129)
-	longDescription := strings.Repeat("я", 501)
-	duplicateMembers := []uuid.UUID{peerID, peerID}
-
-	tests := []struct {
-		name  string
-		field string
-		call  func(*ChatUsecaseImpl) error
-	}{
-		{"dialog: self", "peer_id", func(uc *ChatUsecaseImpl) error {
-			_, err := uc.GetOrCreateDialog(context.Background(), userID, userID)
-			return err
-		}},
-		{"create group: empty name", "name", func(uc *ChatUsecaseImpl) error {
-			_, err := uc.CreateGroup(context.Background(), userID, "  ", nil, nil)
-			return err
-		}},
-		{"create group: long name", "name", func(uc *ChatUsecaseImpl) error {
-			_, err := uc.CreateGroup(context.Background(), userID, longName, nil, nil)
-			return err
-		}},
-		{"create group: long description", "description", func(uc *ChatUsecaseImpl) error {
-			_, err := uc.CreateGroup(context.Background(), userID, "Group", &longDescription, nil)
-			return err
-		}},
-		{"create group: creator in members", "members", func(uc *ChatUsecaseImpl) error {
-			_, err := uc.CreateGroup(context.Background(), userID, "Group", nil, []uuid.UUID{userID})
-			return err
-		}},
-		{"create group: duplicate members", "members", func(uc *ChatUsecaseImpl) error {
-			_, err := uc.CreateGroup(context.Background(), userID, "Group", nil, duplicateMembers)
-			return err
-		}},
-		{"update group: no changes", "name", func(uc *ChatUsecaseImpl) error {
-			_, err := uc.UpdateGroup(context.Background(), userID, chatID, nil, nil, false)
-			return err
-		}},
-		{"update group: empty name", "name", func(uc *ChatUsecaseImpl) error {
-			name := " "
-			_, err := uc.UpdateGroup(context.Background(), userID, chatID, &name, nil, false)
-			return err
-		}},
-		{"update group: long description", "description", func(uc *ChatUsecaseImpl) error {
-			_, err := uc.UpdateGroup(context.Background(), userID, chatID, nil, &longDescription, true)
-			return err
-		}},
-		{"update group: description without flag", "description", func(uc *ChatUsecaseImpl) error {
-			name, description := "Group", "New description"
-			_, err := uc.UpdateGroup(context.Background(), userID, chatID, &name, &description, false)
-			return err
-		}},
-		{"add member: self", "new_user_id", func(uc *ChatUsecaseImpl) error {
-			_, err := uc.AddMember(context.Background(), userID, chatID, userID)
-			return err
-		}},
-		{"list messages: zero limit", "limit", func(uc *ChatUsecaseImpl) error {
-			_, err := uc.ListMessages(context.Background(), userID, chatID, 0, nil)
-			return err
-		}},
-		{"list messages: excessive limit", "limit", func(uc *ChatUsecaseImpl) error {
-			_, err := uc.ListMessages(context.Background(), userID, chatID, 51, nil)
-			return err
-		}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			repo := &mockChatRepo{}
-			err := tt.call(newTestChatUsecase(repo))
-			var appErr *apperrors.AppError
-			if !errors.As(err, &appErr) || appErr.Status != http.StatusBadRequest || len(appErr.Details) != 1 || appErr.Details[0].Field != tt.field {
-				t.Fatalf("error = %v, want bad request for %s", err, tt.field)
-			}
-			if repo.called {
-				t.Fatal("repository called for invalid input")
-			}
-		})
-	}
-}
-
 func TestChatUsecase_ValidGroupAndMessagesReachRepository(t *testing.T) {
 	userID, chatID, peerID := uuid.New(), uuid.New(), uuid.New()
-	name := strings.Repeat("я", 128)
+	name := strings.Repeat("я", 100)
 	description := strings.Repeat("я", 500)
 	repo := &mockChatRepo{}
 	uc := newTestChatUsecase(repo)

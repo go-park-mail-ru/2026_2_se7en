@@ -20,7 +20,7 @@ const (
 	MaxFirstNameLen       = 32
 	MinLastNameLen        = 2
 	MaxLastNameLen        = 32
-	MaxChatNameLen        = 128
+	MaxChatNameLen        = 100
 	MaxChatDescriptionLen = 500
 	MaxMessageContentLen  = 4096
 )
@@ -115,7 +115,7 @@ func ValidateChatName(name string) *apperrors.ErrorDetail {
 		return &apperrors.ErrorDetail{Field: "name", Reason: "Name is required"}
 	}
 	if utf8.RuneCountInString(name) > MaxChatNameLen {
-		return &apperrors.ErrorDetail{Field: "name", Reason: "Name must be at most 128 characters"}
+		return &apperrors.ErrorDetail{Field: "name", Reason: "Name must be at most 100 characters"}
 	}
 	return nil
 }
@@ -130,7 +130,7 @@ func ValidateChatDescription(description *string) *apperrors.ErrorDetail {
 func ValidateMessageFields(messageType string, content *string, stickerID *uuid.UUID) *apperrors.ErrorDetail {
 	switch messageType {
 	case "text":
-		if content == nil {
+		if content == nil || strings.TrimSpace(*content) == "" {
 			return &apperrors.ErrorDetail{Field: "content", Reason: "Text message requires content"}
 		}
 		if utf8.RuneCountInString(*content) > MaxMessageContentLen {

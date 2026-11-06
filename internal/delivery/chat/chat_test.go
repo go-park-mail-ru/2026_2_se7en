@@ -30,7 +30,7 @@ func (m *mockChatUsecase) ListUserChats(ctx context.Context, userID uuid.UUID, l
 	return m.items, m.err
 }
 
-func (m *mockChatUsecase) FindForUser(context.Context, uuid.UUID, uuid.UUID) (*models.ChatDetail, error) {
+func (m *mockChatUsecase) GetChatDetail(context.Context, uuid.UUID, uuid.UUID) (*models.ChatDetail, error) {
 	m.called = true
 	return m.detail, m.err
 }

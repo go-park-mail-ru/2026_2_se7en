@@ -111,7 +111,7 @@ func scanDetail(row pgx.Row) (*models.ChatDetail, error) {
 	return ChatDetailDBToModel(&db), nil
 }
 
-func (r *ChatRepositoryImpl) FindForUser(ctx context.Context, userID, chatID uuid.UUID) (*models.ChatDetail, error) {
+func (r *ChatRepositoryImpl) GetChatDetail(ctx context.Context, userID, chatID uuid.UUID) (*models.ChatDetail, error) {
 	return scanDetail(r.pool.QueryRow(ctx, sqlFindForUser, userID, chatID))
 }
 
@@ -228,7 +228,7 @@ func (r *ChatRepositoryImpl) GetOrCreateDialog(ctx context.Context, userID, peer
 	if err = tx.Commit(ctx); err != nil {
 		return nil, err
 	}
-	return r.FindForUser(ctx, userID, chatID)
+	return r.GetChatDetail(ctx, userID, chatID)
 }
 
 func (r *ChatRepositoryImpl) HideDialog(ctx context.Context, userID, chatID uuid.UUID) error {
@@ -396,7 +396,7 @@ func (r *ChatRepositoryImpl) DeleteGroup(ctx context.Context, userID, chatID uui
 }
 
 func (r *ChatRepositoryImpl) ListMembers(ctx context.Context, userID, chatID uuid.UUID) ([]models.ChatMember, error) {
-	if _, err := r.FindForUser(ctx, userID, chatID); err != nil {
+	if _, err := r.GetChatDetail(ctx, userID, chatID); err != nil {
 		return nil, err
 	}
 	const query = `
@@ -556,7 +556,7 @@ func (r *ChatRepositoryImpl) RemoveMember(ctx context.Context, userID, chatID, t
 }
 
 func (r *ChatRepositoryImpl) ListMessages(ctx context.Context, userID, chatID uuid.UUID, limit int, before *uuid.UUID) ([]models.Message, error) {
-	if _, err := r.FindForUser(ctx, userID, chatID); err != nil {
+	if _, err := r.GetChatDetail(ctx, userID, chatID); err != nil {
 		return nil, err
 	}
 	if before != nil {

@@ -35,7 +35,7 @@ func (m *mockChatRepo) ListUserChats(ctx context.Context, userID uuid.UUID, limi
 	m.chatType = chatType
 	return m.items, m.err
 }
-func (m *mockChatRepo) FindForUser(ctx context.Context, userID, chatID uuid.UUID) (*models.ChatDetail, error) {
+func (m *mockChatRepo) GetChatDetail(ctx context.Context, userID, chatID uuid.UUID) (*models.ChatDetail, error) {
 	m.called = true
 	return m.detail, m.err
 }

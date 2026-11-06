@@ -40,8 +40,8 @@ func (uc *ChatUsecaseImpl) ListUserChats(ctx context.Context, userID uuid.UUID, 
 	return items, nil
 }
 
-func (uc *ChatUsecaseImpl) FindForUser(ctx context.Context, userID, chatID uuid.UUID) (*models.ChatDetail, error) {
-	return uc.chatRepo.FindForUser(ctx, userID, chatID)
+func (uc *ChatUsecaseImpl) GetChatDetail(ctx context.Context, userID, chatID uuid.UUID) (*models.ChatDetail, error) {
+	return uc.chatRepo.GetChatDetail(ctx, userID, chatID)
 }
 
 func (uc *ChatUsecaseImpl) GetOrCreateDialog(ctx context.Context, userID, peerID uuid.UUID) (*models.ChatDetail, error) {

@@ -10,7 +10,7 @@ import (
 
 type ChatRepository interface {
 	ListUserChats(ctx context.Context, userID uuid.UUID, limit, offset int, chatType string) ([]*models.ChatListItem, error)
-	FindForUser(ctx context.Context, userID, chatID uuid.UUID) (*models.ChatDetail, error)
+	GetChatDetail(ctx context.Context, userID, chatID uuid.UUID) (*models.ChatDetail, error)
 	GetOrCreateDialog(ctx context.Context, userID, peerID uuid.UUID) (*models.ChatDetail, error)
 	HideDialog(ctx context.Context, userID, chatID uuid.UUID) error
 	CreateGroup(ctx context.Context, userID uuid.UUID, name string, description *string, members []uuid.UUID) (*models.ChatDetail, error)

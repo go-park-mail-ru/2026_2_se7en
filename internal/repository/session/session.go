@@ -7,17 +7,17 @@ import (
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/storage"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type SessionRepositoryImpl struct {
-	pool *pgxpool.Pool
+	pool storage.DBPool
 }
 
-func NewSessionRepository(pool *pgxpool.Pool) *SessionRepositoryImpl {
+func NewSessionRepository(pool storage.DBPool) *SessionRepositoryImpl {
 	return &SessionRepositoryImpl{pool: pool}
 }
 

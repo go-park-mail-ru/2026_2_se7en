@@ -119,34 +119,47 @@ func (d *ProfileDeliveryImpl) HandleUploadAvatar(w http.ResponseWriter, r *http.
 		return
 	}
 
-	if err := r.ParseMultipartForm(tools.MaxAvatarSize); err != nil {
-		apperrors.WriteError(w, apperrors.NewBadRequest("File too large", nil))
+	upload, closeFunc, appErr := extractAndValidateAvatar(r)
+	if appErr != nil {
+		apperrors.WriteError(w, appErr)
 		return
+	}
+	defer closeFunc()
+
+	url, err := d.uc.UploadAvatar(r.Context(), userID, upload)
+	if err != nil {
+		apperrors.WriteError(w, apperrors.NewInternalError("Failed to upload avatar", err))
+		return
+	}
+
+	tools.WriteJSON(w, http.StatusOK, map[string]string{"icon_url": url})
+}
+
+func extractAndValidateAvatar(r *http.Request) (*models.FileUpload, func(), *apperrors.AppError) {
+	if err := r.ParseMultipartForm(tools.MaxAvatarSize); err != nil {
+		return nil, nil, apperrors.NewBadRequest("File too large", nil)
 	}
 
 	file, header, err := r.FormFile("file")
 	if err != nil {
-		apperrors.WriteError(w, apperrors.NewBadRequest("File is required", nil))
-		return
+		return nil, nil, apperrors.NewBadRequest("File is required", nil)
 	}
-
-	defer file.Close()
 
 	buffer := make([]byte, 512)
 	if _, err := file.Read(buffer); err != nil {
-		apperrors.WriteError(w, apperrors.NewInternalError("Failed to read file", err))
-		return
+		_ = file.Close()
+		return nil, nil, apperrors.NewInternalError("Failed to read file", err)
 	}
 
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
-		apperrors.WriteError(w, apperrors.NewInternalError("Failed to seek file", err))
-		return
+		_ = file.Close()
+		return nil, nil, apperrors.NewInternalError("Failed to seek file", err)
 	}
 
 	contentType := http.DetectContentType(buffer)
 	if contentType != "image/jpeg" && contentType != "image/png" && contentType != "image/webp" {
-		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid file type", nil))
-		return
+		_ = file.Close()
+		return nil, nil, apperrors.NewBadRequest("Invalid file type", nil)
 	}
 
 	upload := &models.FileUpload{
@@ -156,11 +169,5 @@ func (d *ProfileDeliveryImpl) HandleUploadAvatar(w http.ResponseWriter, r *http.
 		ContentType: contentType,
 	}
 
-	url, err := d.uc.UploadAvatar(r.Context(), userID, upload)
-	if err != nil {
-		apperrors.WriteError(w, apperrors.NewInternalError("Failed to upload avatar", err))
-		return
-	}
-
-	tools.WriteJSON(w, http.StatusOK, map[string]string{"icon_url": url})
+	return upload, func() { _ = file.Close() }, nil
 }

@@ -53,7 +53,7 @@ func (d *ContactDeliveryImpl) HandleGetContactsList(w http.ResponseWriter, r *ht
 // @Accept       json
 // @Produce      json
 // @Security     SessionCookie
-// @Param        request body AddContactRequest true "Данные для добавления контакта"
+// @Param        request body CreateContactRequest true "Данные для добавления контакта"
 // @Success      201  "Контакт успешно добавлен"
 // @Failure      400  {object} apperrors.ErrorResponse
 // @Failure      401  {object} apperrors.ErrorResponse
@@ -92,7 +92,7 @@ func (d *ContactDeliveryImpl) HandleCreateContact(w http.ResponseWriter, r *http
 // @Accept       json
 // @Produce      json
 // @Security     SessionCookie
-// @Param        request body RemoveContactRequest true "Данные для удаления контакта"
+// @Param        request body DeleteContactRequest true "Данные для удаления контакта"
 // @Success      204  "Контакт успешно удален"
 // @Failure      400  {object} apperrors.ErrorResponse
 // @Failure      401  {object} apperrors.ErrorResponse

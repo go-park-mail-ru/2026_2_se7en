@@ -10,13 +10,16 @@ import (
 
 	deliveryauth "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/auth"
 	deliverychat "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/chat"
+	deliverycontact "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/contact"
 	deliveryregister "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/register"
 
 	usecaseauth "github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/auth"
 	usecasechat "github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/chat"
+	usecasecontact "github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/contact"
 	usecaseregister "github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/register"
 
 	repochat "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/chat"
+	repocontact "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/contact"
 	repoprofile "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/profile"
 	reposession "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/session"
 	repouser "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/user"
@@ -27,14 +30,17 @@ func New(db *storage.DB) http.Handler {
 	profileRepo := repoprofile.NewProfileRepository(db.Pool())
 	sessionRepo := reposession.NewSessionRepository(db.Pool())
 	chatRepo := repochat.NewChatRepository(db.Pool())
+	contactRepo := repocontact.NewContactRepository(db.Pool())
 
 	authUsecase := usecaseauth.NewAuthUsecase(userRepo, profileRepo, sessionRepo)
 	registerUsecase := usecaseregister.NewRegisterUsecase(userRepo, profileRepo)
 	chatUsecase := usecasechat.NewChatUsecase(chatRepo)
+	contactUsecase := usecasecontact.NewContactUsecase(contactRepo, userRepo)
 
 	authDelivery := deliveryauth.NewAuthDelivery(authUsecase)
 	registerDelivery := deliveryregister.NewRegisterDelivery(registerUsecase)
 	chatDelivery := deliverychat.NewChatDelivery(chatUsecase)
+	contactDelivery := deliverycontact.NewContactDelivery(contactUsecase)
 
 	api := http.NewServeMux()
 
@@ -46,6 +52,10 @@ func New(db *storage.DB) http.Handler {
 	api.Handle("GET /auth/me", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(authDelivery.HandleMe)))
 	api.Handle("POST /auth/logout", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(authDelivery.HandleLogout)))
 	api.Handle("GET /chats", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(chatDelivery.HandleListUserChats)))
+
+	api.Handle("GET /contacts", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(contactDelivery.HandleGetContactsList)))
+	api.Handle("POST /contacts", middleware.NewAuthMiddleware(sessionRepo, tools.NewJSONDecoder(contactDelivery.HandleCreateContact)))
+	api.Handle("DELETE /contacts", middleware.NewAuthMiddleware(sessionRepo, tools.NewJSONDecoder(contactDelivery.HandleDeleteContact)))
 
 	mainRouter := http.NewServeMux()
 	mainRouter.Handle("/api/v1/", http.StripPrefix("/api/v1", api))

@@ -7,8 +7,12 @@ import (
 
 func ContactDBToModel(db *ContactDB) models.Contact {
 	return models.Contact{
-		UserID:    db.UserID,
-		Pseudonym: db.Pseudonym,
-		Profile:   profile.ProfileDBToModel(&db.Profile),
+		UserID:        db.UserID,
+		ContactUserID: db.ContactUserID,
+		Pseudonym:     db.Pseudonym,
+		CreatedAt:     db.CreatedAt,
+		UpdatedAt:     db.UpdatedAt,
+		Profile:       profile.ProfileDBToModel(&db.Profile),
+		IsOnline:      db.IsOnline,
 	}
 }

@@ -19,6 +19,7 @@ const (
 	MaxFirstNameLen = 32
 	MinLastNameLen  = 2
 	MaxLastNameLen  = 32
+	MaxPseudonymLen = 64
 )
 
 var (
@@ -103,5 +104,13 @@ func ValidateLastName(lastName *string) *apperrors.ErrorDetail {
 	if lnLen < MinLastNameLen || lnLen > MaxLastNameLen {
 		return &apperrors.ErrorDetail{Field: "last_name", Reason: "invalid_length"}
 	}
+	return nil
+}
+
+func ValidatePseudonym(pseudonym *string) *apperrors.ErrorDetail {
+	if pseudonym != nil && len(*pseudonym) > MaxPseudonymLen {
+		return &apperrors.ErrorDetail{Field: "pseudonym", Reason: "too_long"}
+	}
+
 	return nil
 }

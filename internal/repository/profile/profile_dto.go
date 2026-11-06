@@ -17,3 +17,12 @@ type ProfileDB struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
+
+type ProfileWithFileDB struct {
+	ProfileDB
+	FileURL      *string
+	FileFilename *string
+	FileType     *string
+	FileCreatedAt *time.Time
+	FileUpdatedAt *time.Time
+}

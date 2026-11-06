@@ -164,6 +164,59 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
+            "profile.ProfileResponse": {
+                "properties": {
+                    "bio": {
+                        "type": "string"
+                    },
+                    "email": {
+                        "format": "email",
+                        "type": "string"
+                    },
+                    "first_name": {
+                        "type": "string"
+                    },
+                    "icon_id": {
+                        "format": "uuid",
+                        "type": "string"
+                    },
+                    "icon_url": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "format": "uuid",
+                        "type": "string"
+                    },
+                    "last_name": {
+                        "type": "string"
+                    },
+                    "nickname": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "profile.UpdateProfileRequest": {
+                "properties": {
+                    "bio": {
+                        "type": "string"
+                    },
+                    "email": {
+                        "format": "email",
+                        "type": "string"
+                    },
+                    "first_name": {
+                        "type": "string"
+                    },
+                    "last_name": {
+                        "type": "string"
+                    },
+                    "nickname": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "register.ProfileResponse": {
                 "properties": {
                     "bio": {
@@ -617,6 +670,229 @@ const docTemplate = `{
                 "summary": "Список чатов пользователя",
                 "tags": [
                     "chats"
+                ]
+            }
+        },
+        "/profile": {
+            "get": {
+                "description": "Получение информации о текущем пользователе и его профиле",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/profile.ProfileResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "summary": "Профиль пользователя",
+                "tags": [
+                    "profile"
+                ]
+            },
+            "patch": {
+                "description": "Обновление данных профиля и email пользователя",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/profile.UpdateProfileRequest",
+                                "summary": "request",
+                                "description": "Данные для обновления"
+                            }
+                        }
+                    },
+                    "description": "Данные для обновления",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/profile.ProfileResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Conflict"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "summary": "Обновление профиля",
+                "tags": [
+                    "profile"
+                ]
+            }
+        },
+        "/profile/avatar": {
+            "put": {
+                "description": "Загрузка файла аватарки (multipart/form-data)",
+                "requestBody": {
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "properties": {
+                                    "file": {
+                                        "description": "Файл аватарки",
+                                        "format": "binary",
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "file"
+                                ],
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "description": "Файл аватарки",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "summary": "Загрузка аватарки",
+                "tags": [
+                    "profile"
                 ]
             }
         }

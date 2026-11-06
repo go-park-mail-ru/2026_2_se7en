@@ -7,17 +7,17 @@ import (
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/repository/tx"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/storage"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type ProfileRepositoryImpl struct {
-	pool *pgxpool.Pool
+	pool storage.DBPool
 }
 
-func NewProfileRepository(pool *pgxpool.Pool) *ProfileRepositoryImpl {
+func NewProfileRepository(pool storage.DBPool) *ProfileRepositoryImpl {
 	return &ProfileRepositoryImpl{pool: pool}
 }
 
@@ -39,9 +39,9 @@ func (r *ProfileRepositoryImpl) FindByUserID(ctx context.Context, userID uuid.UU
 	var db ProfileDB
 
 	executor := r.getExecutor(ctx)
-	
+
 	err := executor.QueryRow(ctx, query, userID).Scan(&db.ID, &db.IconID, &db.UserID, &db.Nickname, &db.FirstName, &db.LastName, &db.Bio, &db.CreatedAt, &db.UpdatedAt)
-	
+
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -100,7 +100,7 @@ func (r *ProfileRepositoryImpl) GetWithFileByUserID(ctx context.Context, userID 
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
-	
+
 	if err != nil {
 		return nil, err
 	}
@@ -194,6 +194,6 @@ func (r *ProfileRepositoryImpl) UpdateIcon(ctx context.Context, profileID uuid.U
 
 	executor := r.getExecutor(ctx)
 	_, err := executor.Exec(ctx, query, profileID, fileID)
-	
+
 	return err
 }

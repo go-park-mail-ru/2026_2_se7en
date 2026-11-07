@@ -28,6 +28,7 @@ type ChatService interface {
 
 type Client struct {
 	userID        uuid.UUID
+	sessionID     uuid.UUID
 	conn          *websocket.Conn
 	send          chan models.Event
 	ctx           context.Context
@@ -38,11 +39,12 @@ type Client struct {
 	chatService   ChatService
 }
 
-func NewClient(userID uuid.UUID, conn *websocket.Conn, hub *Hub, cs ChatService) *Client {
+func NewClient(userID, sessionID uuid.UUID, conn *websocket.Conn, hub *Hub, cs ChatService) *Client {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Client{
 		userID:        userID,
+		sessionID:     sessionID,
 		conn:          conn,
 		send:          make(chan models.Event, writeBuffer),
 		ctx:           ctx,

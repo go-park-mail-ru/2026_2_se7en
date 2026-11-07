@@ -46,13 +46,18 @@ func (h *WSHandler) HandleWS(w http.ResponseWriter, r *http.Request) {
 		apperrors.WriteError(w, apperrors.NewUnauthorized("Authorization required"))
 		return
 	}
+	sessionID, ok := middleware.SessionIDFromContext(r.Context())
+	if !ok {
+		apperrors.WriteError(w, apperrors.NewUnauthorized("Authorization required"))
+		return
+	}
 
 	conn, err := h.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
 	}
 
-	client := ws.NewClient(userID, conn, h.hub, h.usecase)
+	client := ws.NewClient(userID, sessionID, conn, h.hub, h.usecase)
 	h.hub.Register(client)
 	client.Serve()
 }

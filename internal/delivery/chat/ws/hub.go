@@ -134,6 +134,21 @@ func (h *Hub) BroadcastToUser(userID uuid.UUID, event models.Event) {
 	}
 }
 
+func (h *Hub) DisconnectSession(sessionID uuid.UUID) {
+	h.mu.RLock()
+	clients := make([]*Client, 0)
+	for c := range h.clients {
+		if c.sessionID == sessionID {
+			clients = append(clients, c)
+		}
+	}
+	h.mu.RUnlock()
+
+	for _, c := range clients {
+		c.Close(websocket.CloseNormalClosure, "session logged out")
+	}
+}
+
 func (h *Hub) Shutdown() {
 	h.mu.Lock()
 	clients := make([]*Client, 0, len(h.clients))

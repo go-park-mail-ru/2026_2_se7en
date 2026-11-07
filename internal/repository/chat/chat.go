@@ -40,11 +40,31 @@ func (r *ChatRepositoryImpl) IsMember(ctx context.Context, userID, chatID uuid.U
 
 const sqlListUserChats = `
 	select
-		c.id, c.icon_id, c.name, c.description, c.type, c.members_count, c.created_at, c.updated_at, c.deleted_at,
+		c.id, c.icon_id,
+		case
+			when c.type = 'dialog' then coalesce(
+				nullif(trim(concat_ws(' ', peer.first_name, peer.last_name)), ''),
+				peer.nickname,
+				c.name
+			)
+			else c.name
+		end as name,
+		c.description, c.type, c.members_count, c.created_at, c.updated_at, c.deleted_at,
 		m.id, m.content, m.type, m.created_at
 	from chat c
 	join user_in_chat u on u.chat_id = c.id
 	join app_user actor on actor.id = u.user_id and actor.deleted_at is null
+	left join lateral (
+		select p.first_name, p.last_name, p.nickname
+		from user_in_chat peer_member
+		join app_user peer_user on peer_user.id = peer_member.user_id and peer_user.deleted_at is null
+		join profile p on p.user_id = peer_member.user_id
+		where c.type = 'dialog'
+			and peer_member.chat_id = c.id
+			and peer_member.user_id <> $1
+		order by peer_member.deleted_at nulls first, peer_member.created_at desc
+		limit 1
+	) peer on true
 	left join lateral (
 		select m.id, m.content, m.type, m.created_at
 		from message m
@@ -669,6 +689,22 @@ func (r *ChatRepositoryImpl) CreateMessage(ctx context.Context, userID, chatID u
 	}
 	if !exists {
 		return nil, apperrors.ErrChatNotFound
+	}
+	if replyToMessageID != nil {
+		const validateReply = `
+			select id
+			from message
+			where id = $1 and chat_id = $2 and deleted_at is null
+			for share
+		`
+		var replyID uuid.UUID
+		err = tx.QueryRow(ctx, validateReply, *replyToMessageID, chatID).Scan(&replyID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, apperrors.ErrMessageNotFound
+		}
+		if err != nil {
+			return nil, err
+		}
 	}
 	var msgDB MessageDB
 	const insertMessage = `

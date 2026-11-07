@@ -36,7 +36,7 @@ func New(db *storage.DB, origins []string) (http.Handler, *ws.Hub) {
 	registerUsecase := usecaseregister.NewRegisterUsecase(userRepo, profileRepo)
 	chatUsecase := usecasechat.NewChatUsecase(chatRepo)
 
-	authDelivery := deliveryauth.NewAuthDelivery(authUsecase)
+	authDelivery := deliveryauth.NewAuthDelivery(authUsecase, hub)
 	registerDelivery := deliveryregister.NewRegisterDelivery(registerUsecase)
 	chatDelivery := deliverychat.NewChatDelivery(chatUsecase, hub)
 

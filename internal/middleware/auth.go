@@ -14,6 +14,7 @@ import (
 type contextKey string
 
 const userIDKey contextKey = "userID"
+const sessionIDKey contextKey = "sessionID"
 
 type AuthMiddleware struct {
 	sessionRepo SessionRepository
@@ -62,7 +63,7 @@ func (m *AuthMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	SetSessionCookie(w, cookie.Value)
 
-	authCtx := NewAuthContext(r.Context(), userID)
+	authCtx := NewAuthContext(NewSessionContext(r.Context(), sessionID), userID)
 
 	m.next.ServeHTTP(w, r.WithContext(authCtx))
 }
@@ -74,4 +75,13 @@ func NewAuthContext(ctx context.Context, userID uuid.UUID) context.Context {
 func UserIDFromContext(ctx context.Context) (uuid.UUID, bool) {
 	userID, ok := ctx.Value(userIDKey).(uuid.UUID)
 	return userID, ok
+}
+
+func NewSessionContext(ctx context.Context, sessionID uuid.UUID) context.Context {
+	return context.WithValue(ctx, sessionIDKey, sessionID)
+}
+
+func SessionIDFromContext(ctx context.Context) (uuid.UUID, bool) {
+	sessionID, ok := ctx.Value(sessionIDKey).(uuid.UUID)
+	return sessionID, ok
 }

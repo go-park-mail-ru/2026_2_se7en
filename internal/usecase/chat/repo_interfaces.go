@@ -16,7 +16,7 @@ type ChatRepository interface {
 	HideDialog(ctx context.Context, userID, chatID uuid.UUID) error
 	CreateGroup(ctx context.Context, userID uuid.UUID, name string, description *string, members []uuid.UUID) (*models.ChatDetail, error)
 	UpdateGroup(ctx context.Context, userID, chatID uuid.UUID, name, description *string, setDescription bool) (*models.ChatDetail, error)
-	DeleteGroup(ctx context.Context, userID, chatID uuid.UUID) error
+	DeleteChat(ctx context.Context, userID, chatID uuid.UUID) error
 	ListMembers(ctx context.Context, userID, chatID uuid.UUID) ([]models.ChatMember, error)
 	AddMember(ctx context.Context, userID, chatID, newUserID uuid.UUID) (*models.ChatMember, error)
 	RemoveMember(ctx context.Context, userID, chatID, targetID uuid.UUID) error

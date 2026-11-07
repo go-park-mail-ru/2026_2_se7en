@@ -29,6 +29,9 @@ type mockChatUsecase struct {
 	readChanged  bool
 	err          error
 	called       bool
+	userID       uuid.UUID
+	chatID       uuid.UUID
+	targetID     uuid.UUID
 }
 
 type mockBroadcaster struct {
@@ -82,6 +85,42 @@ func TestChatDelivery_CreateGroup(t *testing.T) {
 	var response ChatDetailResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil || response.Chat == nil || response.Chat.ID != chatID {
 		t.Fatalf("unexpected response: %+v, err: %v", response, err)
+	}
+}
+
+func TestChatDelivery_DeleteChatBroadcastsAndRemovesChat(t *testing.T) {
+	userID, chatID := uuid.New(), uuid.New()
+	uc := &mockChatUsecase{}
+	broadcaster := &mockBroadcaster{}
+	req := httptest.NewRequest(http.MethodDelete, "/chats/"+chatID.String(), nil)
+	req.SetPathValue("id", chatID.String())
+	req = req.WithContext(middleware.NewAuthContext(req.Context(), userID))
+	rec := httptest.NewRecorder()
+
+	NewChatDelivery(uc, broadcaster).HandleDeleteChat(rec, req)
+	if rec.Code != http.StatusNoContent || !uc.called || uc.userID != userID || uc.chatID != chatID {
+		t.Fatalf("status = %d, usecase called = %t, user = %s, chat = %s", rec.Code, uc.called, uc.userID, uc.chatID)
+	}
+	if !broadcaster.chatCalled || !broadcaster.removeCalled || broadcaster.chatID != chatID || broadcaster.event.Type != models.EventChatDeleted {
+		t.Fatalf("chat deletion was not broadcast and removed: %+v", broadcaster)
+	}
+}
+
+func TestChatDelivery_LeaveGroupRemovesCurrentUser(t *testing.T) {
+	userID, chatID := uuid.New(), uuid.New()
+	uc := &mockChatUsecase{}
+	broadcaster := &mockBroadcaster{}
+	req := httptest.NewRequest(http.MethodDelete, "/chats/"+chatID.String()+"/leave", nil)
+	req.SetPathValue("id", chatID.String())
+	req = req.WithContext(middleware.NewAuthContext(req.Context(), userID))
+	rec := httptest.NewRecorder()
+
+	NewChatDelivery(uc, broadcaster).HandleLeaveGroup(rec, req)
+	if rec.Code != http.StatusNoContent || !uc.called || uc.userID != userID || uc.chatID != chatID || uc.targetID != userID {
+		t.Fatalf("status = %d, usecase called = %t, actor = %s, chat = %s, target = %s", rec.Code, uc.called, uc.userID, uc.chatID, uc.targetID)
+	}
+	if !broadcaster.revokeCalled || !broadcaster.chatCalled || !broadcaster.userCalled || broadcaster.event.Type != models.EventMemberRemoved {
+		t.Fatalf("member removal was not broadcast: %+v", broadcaster)
 	}
 }
 
@@ -281,8 +320,10 @@ func (m *mockChatUsecase) UpdateGroup(context.Context, uuid.UUID, uuid.UUID, *st
 	m.called = true
 	return m.detail, m.err
 }
-func (m *mockChatUsecase) DeleteGroup(context.Context, uuid.UUID, uuid.UUID) error {
+func (m *mockChatUsecase) DeleteChat(_ context.Context, userID, chatID uuid.UUID) error {
 	m.called = true
+	m.userID = userID
+	m.chatID = chatID
 	return m.err
 }
 func (m *mockChatUsecase) ListMembers(context.Context, uuid.UUID, uuid.UUID) ([]models.ChatMember, error) {
@@ -293,8 +334,11 @@ func (m *mockChatUsecase) AddMember(context.Context, uuid.UUID, uuid.UUID, uuid.
 	m.called = true
 	return m.member, m.err
 }
-func (m *mockChatUsecase) RemoveMember(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) error {
+func (m *mockChatUsecase) RemoveMember(_ context.Context, userID, chatID, targetID uuid.UUID) error {
 	m.called = true
+	m.userID = userID
+	m.chatID = chatID
+	m.targetID = targetID
 	return m.err
 }
 func (m *mockChatUsecase) ListMessages(context.Context, uuid.UUID, uuid.UUID, int, *uuid.UUID) ([]models.Message, error) {

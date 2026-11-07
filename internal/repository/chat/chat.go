@@ -415,7 +415,7 @@ func (r *ChatRepositoryImpl) UpdateGroup(ctx context.Context, userID, chatID uui
 	return d, nil
 }
 
-func (r *ChatRepositoryImpl) DeleteGroup(ctx context.Context, userID, chatID uuid.UUID) error {
+func (r *ChatRepositoryImpl) DeleteChat(ctx context.Context, userID, chatID uuid.UUID) error {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -425,14 +425,17 @@ func (r *ChatRepositoryImpl) DeleteGroup(ctx context.Context, userID, chatID uui
 	if err != nil {
 		return err
 	}
-	if typ != "group" {
-		return apperrors.ErrChatNotFound
+	switch typ {
+	case "dialog":
+	case "group":
+		if roleType != "creator" {
+			return apperrors.ErrChatPermissionDenied
+		}
+	default:
+		return apperrors.ErrInvalidChatOperation
 	}
-	if roleType != "creator" {
-		return apperrors.ErrChatPermissionDenied
-	}
-	const deleteGroup = `update chat set deleted_at = now(), updated_at = now() where id = $1`
-	_, err = tx.Exec(ctx, deleteGroup, chatID)
+	const deleteChat = `update chat set deleted_at = now(), updated_at = now() where id = $1 and deleted_at is null`
+	_, err = tx.Exec(ctx, deleteChat, chatID)
 	if err != nil {
 		return err
 	}

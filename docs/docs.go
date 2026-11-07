@@ -1018,10 +1018,10 @@ const docTemplate = `{
         },
         "/chats/{id}": {
             "delete": {
-                "description": "Удаляет группу; действие доступно её создателю",
+                "description": "Удаляет диалог для обоих участников или группу для её создателя",
                 "parameters": [
                     {
-                        "description": "ID группы (UUID)",
+                        "description": "ID чата (UUID)",
                         "in": "path",
                         "name": "id",
                         "required": true,
@@ -1033,7 +1033,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "204": {
-                        "description": "Группа удалена"
+                        "description": "Чат удалён"
                     },
                     "400": {
                         "content": {
@@ -1091,7 +1091,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "summary": "Удалить групповой чат",
+                "summary": "Удалить чат",
                 "tags": [
                     "chats"
                 ]
@@ -1338,6 +1338,87 @@ const docTemplate = `{
                     }
                 ],
                 "summary": "Скрыть диалог",
+                "tags": [
+                    "chats"
+                ]
+            }
+        },
+        "/chats/{id}/leave": {
+            "delete": {
+                "description": "Удаляет текущего пользователя из группы",
+                "parameters": [
+                    {
+                        "description": "ID группы (UUID)",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "format": "uuid",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Выход из группы выполнен"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "summary": "Выйти из группы",
                 "tags": [
                     "chats"
                 ]

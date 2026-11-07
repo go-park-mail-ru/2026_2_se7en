@@ -280,20 +280,20 @@ func (d *ChatDeliveryImpl) HandleUpdateGroup(w http.ResponseWriter, r *http.Requ
 	return nil
 }
 
-// HandleDeleteGroup godoc
-// @Summary      Удалить групповой чат
-// @Description  Удаляет группу; действие доступно её создателю
+// HandleDeleteChat godoc
+// @Summary      Удалить чат
+// @Description  Удаляет диалог для обоих участников или группу для её создателя
 // @Tags         chats
 // @Security     SessionCookie
-// @Param        id path string true "ID группы (UUID)" format(uuid)
-// @Success      204 "Группа удалена"
+// @Param        id path string true "ID чата (UUID)" format(uuid)
+// @Success      204 "Чат удалён"
 // @Failure      400 {object} apperrors.ErrorResponse
 // @Failure      401 {object} apperrors.ErrorResponse
 // @Failure      403 {object} apperrors.ErrorResponse
 // @Failure      404 {object} apperrors.ErrorResponse
 // @Failure      500 {object} apperrors.ErrorResponse
 // @Router       /chats/{id} [delete]
-func (d *ChatDeliveryImpl) HandleDeleteGroup(w http.ResponseWriter, r *http.Request) {
+func (d *ChatDeliveryImpl) HandleDeleteChat(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
 		apperrors.WriteError(w, apperrors.NewUnauthorized("Authorization required"))
@@ -304,7 +304,7 @@ func (d *ChatDeliveryImpl) HandleDeleteGroup(w http.ResponseWriter, r *http.Requ
 		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid id", []apperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}}))
 		return
 	}
-	if err := d.chatUsecase.DeleteGroup(r.Context(), userID, chatID); err != nil {
+	if err := d.chatUsecase.DeleteChat(r.Context(), userID, chatID); err != nil {
 		apperrors.WriteError(w, mapChatError(err))
 		return
 	}
@@ -433,19 +433,55 @@ func (d *ChatDeliveryImpl) HandleRemoveMember(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	d.broadcaster.RevokeUserFromChat(targetID, chatID)
+	d.broadcastMemberRemoved(chatID, targetID)
 
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// HandleLeaveGroup godoc
+// @Summary      Выйти из группы
+// @Description  Удаляет текущего пользователя из группы
+// @Tags         chats
+// @Security     SessionCookie
+// @Param        id path string true "ID группы (UUID)" format(uuid)
+// @Success      204 "Выход из группы выполнен"
+// @Failure      400 {object} apperrors.ErrorResponse
+// @Failure      401 {object} apperrors.ErrorResponse
+// @Failure      403 {object} apperrors.ErrorResponse
+// @Failure      404 {object} apperrors.ErrorResponse
+// @Failure      500 {object} apperrors.ErrorResponse
+// @Router       /chats/{id}/leave [delete]
+func (d *ChatDeliveryImpl) HandleLeaveGroup(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		apperrors.WriteError(w, apperrors.NewUnauthorized("Authorization required"))
+		return
+	}
+	chatID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil || chatID == uuid.Nil {
+		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid id", []apperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}}))
+		return
+	}
+	if err := d.chatUsecase.RemoveMember(r.Context(), userID, chatID, userID); err != nil {
+		apperrors.WriteError(w, mapChatError(err))
+		return
+	}
+
+	d.broadcastMemberRemoved(chatID, userID)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (d *ChatDeliveryImpl) broadcastMemberRemoved(chatID, userID uuid.UUID) {
+	d.broadcaster.RevokeUserFromChat(userID, chatID)
 	event := models.Event{
 		Type: models.EventMemberRemoved,
 		Payload: map[string]any{
 			"chat_id": chatID,
-			"user_id": targetID,
+			"user_id": userID,
 		},
 	}
 	d.broadcaster.BroadcastToChat(chatID, event)
-	d.broadcaster.BroadcastToUser(targetID, event)
-
-	w.WriteHeader(http.StatusNoContent)
+	d.broadcaster.BroadcastToUser(userID, event)
 }
 
 // HandleListMessages godoc

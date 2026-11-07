@@ -63,7 +63,7 @@ func (m *mockChatRepo) UpdateGroup(ctx context.Context, userID, chatID uuid.UUID
 	m.called = true
 	return m.detail, m.err
 }
-func (m *mockChatRepo) DeleteGroup(ctx context.Context, userID, chatID uuid.UUID) error {
+func (m *mockChatRepo) DeleteChat(ctx context.Context, userID, chatID uuid.UUID) error {
 	m.called = true
 	return m.err
 }

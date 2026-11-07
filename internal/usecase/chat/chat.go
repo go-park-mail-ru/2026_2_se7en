@@ -53,8 +53,8 @@ func (uc *ChatUsecaseImpl) UpdateGroup(ctx context.Context, userID, chatID uuid.
 	return uc.chatRepo.UpdateGroup(ctx, userID, chatID, name, description, setDescription)
 }
 
-func (uc *ChatUsecaseImpl) DeleteGroup(ctx context.Context, userID, chatID uuid.UUID) error {
-	return uc.chatRepo.DeleteGroup(ctx, userID, chatID)
+func (uc *ChatUsecaseImpl) DeleteChat(ctx context.Context, userID, chatID uuid.UUID) error {
+	return uc.chatRepo.DeleteChat(ctx, userID, chatID)
 }
 
 func (uc *ChatUsecaseImpl) ListMembers(ctx context.Context, userID, chatID uuid.UUID) ([]models.ChatMember, error) {

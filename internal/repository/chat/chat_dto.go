@@ -61,6 +61,7 @@ type MessageDB struct {
 	StickerID        *uuid.UUID
 	Content          *string
 	IsEdited         bool
+	IsRead           bool
 	Type             string
 	CreatedAt        time.Time
 	UpdatedAt        time.Time

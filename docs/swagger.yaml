@@ -60,7 +60,20 @@ components:
         profile:
           $ref: '#/components/schemas/auth.ProfileResponse'
       type: object
-    chat.ChatItemDTO:
+    chat.AddMemberRequest:
+      properties:
+        user_id:
+          format: uuid
+          type: string
+      type: object
+    chat.ChatDetailResponse:
+      properties:
+        chat:
+          $ref: '#/components/schemas/chat.ChatResponse'
+        role:
+          type: string
+      type: object
+    chat.ChatItemResponse:
       properties:
         created_at:
           format: date-time
@@ -74,7 +87,7 @@ components:
           format: uuid
           type: string
         last_message:
-          $ref: '#/components/schemas/chat.MessagePreviewDTO'
+          $ref: '#/components/schemas/chat.MessagePreviewResponse'
         members_count:
           type: integer
         name:
@@ -85,15 +98,124 @@ components:
           format: date-time
           type: string
       type: object
+    chat.ChatMemberResponse:
+      properties:
+        profile:
+          $ref: '#/components/schemas/chat.MemberProfileResponse'
+        role:
+          type: string
+        user_id:
+          format: uuid
+          type: string
+      type: object
+    chat.ChatResponse:
+      properties:
+        created_at:
+          format: date-time
+          type: string
+        deleted_at:
+          format: date-time
+          type: string
+        description:
+          type: string
+        icon_id:
+          format: uuid
+          type: string
+        id:
+          format: uuid
+          type: string
+        members_count:
+          type: integer
+        name:
+          type: string
+        type:
+          type: string
+        updated_at:
+          format: date-time
+          type: string
+      type: object
+    chat.CreateGroupRequest:
+      properties:
+        description:
+          type: string
+        members:
+          items:
+            type: string
+          type: array
+          uniqueItems: false
+        name:
+          type: string
+      type: object
+    chat.CreateMessageRequest:
+      properties:
+        content:
+          type: string
+        reply_to_message_id:
+          format: uuid
+          type: string
+        sticker_id:
+          format: uuid
+          type: string
+        type:
+          type: string
+      type: object
+    chat.GetOrCreateDialogRequest:
+      properties:
+        peer_id:
+          format: uuid
+          type: string
+      type: object
     chat.ListChatsResponse:
       properties:
         items:
           items:
-            $ref: '#/components/schemas/chat.ChatItemDTO'
+            $ref: '#/components/schemas/chat.ChatItemResponse'
           type: array
           uniqueItems: false
       type: object
-    chat.MessagePreviewDTO:
+    chat.ListMembersResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/chat.ChatMemberResponse'
+          type: array
+          uniqueItems: false
+      type: object
+    chat.ListMessagesResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/chat.MessageResponse'
+          type: array
+          uniqueItems: false
+      type: object
+    chat.MemberProfileResponse:
+      properties:
+        bio:
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        first_name:
+          type: string
+        icon_id:
+          format: uuid
+          type: string
+        id:
+          format: uuid
+          type: string
+        last_name:
+          type: string
+        nickname:
+          type: string
+        updated_at:
+          format: date-time
+          type: string
+        user_id:
+          format: uuid
+          type: string
+      type: object
+    chat.MessagePreviewResponse:
       properties:
         content:
           type: string
@@ -105,6 +227,47 @@ components:
           type: string
         type:
           type: string
+      type: object
+    chat.MessageResponse:
+      properties:
+        chat_id:
+          format: uuid
+          type: string
+        content:
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        id:
+          format: uuid
+          type: string
+        is_edited:
+          type: boolean
+        is_read:
+          type: boolean
+        reply_to_message_id:
+          format: uuid
+          type: string
+        sticker_id:
+          format: uuid
+          type: string
+        type:
+          type: string
+        updated_at:
+          format: date-time
+          type: string
+        user_id:
+          format: uuid
+          type: string
+      type: object
+    chat.UpdateGroupRequest:
+      properties:
+        description:
+          type: string
+        name:
+          type: string
+        set_description:
+          type: boolean
       type: object
     register.ProfileResponse:
       properties:
@@ -392,6 +555,586 @@ paths:
       security:
       - SessionCookie: []
       summary: Список чатов пользователя
+      tags:
+      - chats
+  /chats/{id}:
+    delete:
+      description: Удаляет группу; действие доступно её создателю
+      parameters:
+      - description: ID группы (UUID)
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "204":
+          description: Группа удалена
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Internal Server Error
+      security:
+      - SessionCookie: []
+      summary: Удалить групповой чат
+      tags:
+      - chats
+    get:
+      description: Возвращает чат и роль текущего пользователя в нём
+      parameters:
+      - description: ID чата (UUID)
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/chat.ChatDetailResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Internal Server Error
+      security:
+      - SessionCookie: []
+      summary: Детали чата для пользователя
+      tags:
+      - chats
+    patch:
+      description: Обновляет название и/или описание группы; set_description разрешает
+        изменить или очистить описание
+      parameters:
+      - description: ID группы (UUID)
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/chat.UpdateGroupRequest'
+              description: Изменяемые поля
+              summary: request
+        description: Изменяемые поля
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/chat.ChatDetailResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Internal Server Error
+      security:
+      - SessionCookie: []
+      summary: Изменить групповой чат
+      tags:
+      - chats
+  /chats/{id}/hide:
+    post:
+      description: Убирает текущего пользователя из диалога
+      parameters:
+      - description: ID диалога (UUID)
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "204":
+          description: Диалог скрыт
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Internal Server Error
+      security:
+      - SessionCookie: []
+      summary: Скрыть диалог
+      tags:
+      - chats
+  /chats/{id}/members:
+    get:
+      description: Возвращает активных участников чата с ролями и профилями
+      parameters:
+      - description: ID чата (UUID)
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/chat.ListMembersResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Internal Server Error
+      security:
+      - SessionCookie: []
+      summary: Участники чата
+      tags:
+      - chats
+    post:
+      description: Добавляет пользователя в группу и возвращает его данные
+      parameters:
+      - description: ID группы (UUID)
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/chat.AddMemberRequest'
+              description: ID нового участника
+              summary: request
+        description: ID нового участника
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/chat.ChatMemberResponse'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Internal Server Error
+      security:
+      - SessionCookie: []
+      summary: Добавить участника в группу
+      tags:
+      - chats
+  /chats/{id}/members/{user_id}:
+    delete:
+      description: Удаляет участника группы или позволяет пользователю выйти из неё
+      parameters:
+      - description: ID группы (UUID)
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - description: ID участника (UUID)
+        in: path
+        name: user_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "204":
+          description: Участник удалён
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Internal Server Error
+      security:
+      - SessionCookie: []
+      summary: Удалить участника из группы
+      tags:
+      - chats
+  /chats/{id}/messages:
+    get:
+      description: Возвращает сообщения чата с пагинацией по ID предыдущего сообщения
+      parameters:
+      - description: ID чата (UUID)
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - description: Число сообщений (1-50)
+        in: query
+        name: limit
+        schema:
+          default: 20
+          type: integer
+      - description: ID сообщения для пагинации (UUID)
+        in: query
+        name: before
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/chat.ListMessagesResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Internal Server Error
+      security:
+      - SessionCookie: []
+      summary: Сообщения чата
+      tags:
+      - chats
+    post:
+      description: Отправляет текст или стикер в чат и возвращает созданное сообщение
+      parameters:
+      - description: ID чата (UUID)
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/chat.CreateMessageRequest'
+              description: Данные сообщения
+              summary: request
+        description: Данные сообщения
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/chat.MessageResponse'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Internal Server Error
+      security:
+      - SessionCookie: []
+      summary: Создать сообщение
+      tags:
+      - chats
+  /chats/dialogs:
+    post:
+      description: Возвращает существующий диалог с пользователем или создаёт новый
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/chat.GetOrCreateDialogRequest'
+              description: Данные для создания
+              summary: request
+        description: Данные для создания
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/chat.ChatDetailResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Internal Server Error
+      security:
+      - SessionCookie: []
+      summary: Получить или создать диалог
+      tags:
+      - chats
+  /chats/groups:
+    post:
+      description: Создаёт группу и добавляет указанных участников
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/chat.CreateGroupRequest'
+              description: Данные группы
+              summary: request
+        description: Данные группы
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/chat.ChatDetailResponse'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apperrors.ErrorResponse'
+          description: Internal Server Error
+      security:
+      - SessionCookie: []
+      summary: Создать групповой чат
       tags:
       - chats
 servers:

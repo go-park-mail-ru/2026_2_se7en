@@ -103,6 +103,7 @@ type MessageResponse struct {
 	StickerID        *uuid.UUID `json:"sticker_id,omitempty" format:"uuid"`
 	Content          *string    `json:"content,omitempty"`
 	IsEdited         bool       `json:"is_edited"`
+	IsRead           bool       `json:"is_read"`
 	Type             string     `json:"type"`
 	CreatedAt        time.Time  `json:"created_at" format:"date-time"`
 	UpdatedAt        time.Time  `json:"updated_at" format:"date-time"`

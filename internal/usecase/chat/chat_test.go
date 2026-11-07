@@ -12,17 +12,27 @@ import (
 )
 
 type mockChatRepo struct {
-	items    []*models.ChatListItem
-	detail   *models.ChatDetail
-	members  []models.ChatMember
-	member   *models.ChatMember
-	messages []models.Message
-	err      error
-	called   bool
-	userID   uuid.UUID
-	limit    int
-	offset   int
-	chatType string
+	items         []*models.ChatListItem
+	detail        *models.ChatDetail
+	dialogStatus  models.DialogStatus
+	members       []models.ChatMember
+	member        *models.ChatMember
+	messages      []models.Message
+	isMember      bool
+	readChanged   bool
+	err           error
+	called        bool
+	userID        uuid.UUID
+	limit         int
+	offset        int
+	chatType      string
+	readChatID    uuid.UUID
+	readMessageID uuid.UUID
+}
+
+func (m *mockChatRepo) IsMember(ctx context.Context, userID, chatID uuid.UUID) (bool, error) {
+	m.called = true
+	return m.isMember, m.err
 }
 
 func (m *mockChatRepo) ListUserChats(ctx context.Context, userID uuid.UUID, limit, offset int, chatType string) ([]*models.ChatListItem, error) {
@@ -37,9 +47,9 @@ func (m *mockChatRepo) GetChatDetail(ctx context.Context, userID, chatID uuid.UU
 	m.called = true
 	return m.detail, m.err
 }
-func (m *mockChatRepo) GetOrCreateDialog(ctx context.Context, userID, peerID uuid.UUID) (*models.ChatDetail, error) {
+func (m *mockChatRepo) GetOrCreateDialog(ctx context.Context, userID, peerID uuid.UUID) (*models.ChatDetail, models.DialogStatus, error) {
 	m.called = true
-	return m.detail, m.err
+	return m.detail, m.dialogStatus, m.err
 }
 func (m *mockChatRepo) HideDialog(ctx context.Context, userID, chatID uuid.UUID) error {
 	m.called = true
@@ -82,8 +92,28 @@ func (m *mockChatRepo) CreateMessage(ctx context.Context, userID, chatID uuid.UU
 	}
 }
 
+func (m *mockChatRepo) MarkMessageRead(ctx context.Context, userID, chatID, messageID uuid.UUID) (bool, error) {
+	m.called = true
+	m.userID = userID
+	m.readChatID = chatID
+	m.readMessageID = messageID
+	return m.readChanged, m.err
+}
+
 func newTestChatUsecase(repo ChatRepository) *ChatUsecaseImpl {
 	return NewChatUsecase(repo)
+}
+
+func TestChatUsecase_MarkMessageReadReturnsTransition(t *testing.T) {
+	userID, chatID, messageID := uuid.New(), uuid.New(), uuid.New()
+	repo := &mockChatRepo{readChanged: true}
+	changed, err := newTestChatUsecase(repo).MarkMessageRead(context.Background(), userID, chatID, messageID)
+	if err != nil || !changed || !repo.called {
+		t.Fatalf("changed = %t, err = %v, called = %t", changed, err, repo.called)
+	}
+	if repo.userID != userID || repo.readChatID != chatID || repo.readMessageID != messageID {
+		t.Fatalf("repository received wrong IDs: user=%s chat=%s message=%s", repo.userID, repo.readChatID, repo.readMessageID)
+	}
 }
 
 func TestChatUsecase_ValidGroupAndMessagesReachRepository(t *testing.T) {

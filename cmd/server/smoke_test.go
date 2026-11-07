@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -15,7 +16,7 @@ import (
 
 func TestHealthRoute(t *testing.T) {
 	testDB := &storage.DB{}
-	handler := router.New(testDB)
+	handler, _ := router.New(testDB, nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/health", nil))
 	if rec.Code != http.StatusOK {
@@ -30,6 +31,7 @@ func TestConfigLoadUsesDefaults(t *testing.T) {
 	t.Setenv("ADDR", "")
 	t.Setenv("LOG_LEVEL", "")
 	t.Setenv("DATABASE_URL", "postgres://example")
+	t.Setenv("ORIGINS", "")
 	t.Setenv("READ_TIMEOUT", "")
 	t.Setenv("WRITE_TIMEOUT", "")
 	t.Setenv("IDLE_TIMEOUT", "")
@@ -48,7 +50,7 @@ func TestConfigLoadUsesDefaults(t *testing.T) {
 		LogLevel:        "info",
 		DatabaseURL:     "postgres://example",
 	}
-	if cfg != want {
+	if !reflect.DeepEqual(cfg, want) {
 		t.Fatalf("config = %+v, want %+v", cfg, want)
 	}
 }
@@ -73,6 +75,7 @@ func TestConfigLoadRejectsInvalidValues(t *testing.T) {
 		t.Setenv("DATABASE_URL", "postgres://example")
 		t.Setenv("ADDR", ":9090")
 		t.Setenv("LOG_LEVEL", "debug")
+		t.Setenv("ORIGINS", " http://localhost:3001, https://example.com ")
 		t.Setenv("READ_TIMEOUT", "2s")
 		t.Setenv("WRITE_TIMEOUT", "3s")
 		t.Setenv("IDLE_TIMEOUT", "4s")
@@ -89,8 +92,9 @@ func TestConfigLoadRejectsInvalidValues(t *testing.T) {
 			ShutdownTimeout: 5 * time.Second,
 			LogLevel:        "debug",
 			DatabaseURL:     "postgres://example",
+			Origins:         []string{"http://localhost:3001", "https://example.com"},
 		}
-		if cfg != want {
+		if !reflect.DeepEqual(cfg, want) {
 			t.Fatalf("config = %+v, want %+v", cfg, want)
 		}
 	})

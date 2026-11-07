@@ -8,16 +8,25 @@ import (
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
 	"github.com/google/uuid"
 )
 
-type ChatDeliveryImpl struct {
-	chatUsecase ChatUsecase
+type Broadcaster interface {
+	BroadcastToChat(chatID uuid.UUID, event models.Event)
+	BroadcastToUser(userID uuid.UUID, event models.Event)
+	RevokeUserFromChat(userID, chatID uuid.UUID)
+	RemoveChat(chatID uuid.UUID)
 }
 
-func NewChatDelivery(chatUsecase ChatUsecase) *ChatDeliveryImpl {
-	return &ChatDeliveryImpl{chatUsecase: chatUsecase}
+type ChatDeliveryImpl struct {
+	chatUsecase ChatUsecase
+	broadcaster Broadcaster
+}
+
+func NewChatDelivery(chatUsecase ChatUsecase, broadcaster Broadcaster) *ChatDeliveryImpl {
+	return &ChatDeliveryImpl{chatUsecase: chatUsecase, broadcaster: broadcaster}
 }
 
 // HandleListUserChats godoc
@@ -144,9 +153,19 @@ func (d *ChatDeliveryImpl) HandleGetOrCreateDialog(w http.ResponseWriter, r *htt
 	if userID == req.PeerID {
 		return apperrors.NewBadRequest("Validation failed", []apperrors.ErrorDetail{{Field: "peer_id", Reason: "Cannot create a dialog with yourself"}})
 	}
-	result, err := d.chatUsecase.GetOrCreateDialog(r.Context(), userID, req.PeerID)
+	result, status, err := d.chatUsecase.GetOrCreateDialog(r.Context(), userID, req.PeerID)
 	if err != nil {
 		return mapChatError(err)
+	}
+	if status == models.DialogCreated || status == models.DialogRestored {
+		event := models.Event{
+			Type:    models.EventChatCreated,
+			Payload: map[string]any{"chat_id": result.Chat.ID},
+		}
+		d.broadcaster.BroadcastToUser(userID, event)
+		if status == models.DialogCreated {
+			d.broadcaster.BroadcastToUser(req.PeerID, event)
+		}
 	}
 	tools.WriteJSON(w, http.StatusOK, ChatDetailToResponse(result))
 	return nil
@@ -179,6 +198,10 @@ func (d *ChatDeliveryImpl) HandleHideDialog(w http.ResponseWriter, r *http.Reque
 		apperrors.WriteError(w, mapChatError(err))
 		return
 	}
+
+	d.broadcaster.RevokeUserFromChat(userID, chatID)
+	d.broadcaster.BroadcastToUser(userID, models.Event{Type: models.EventUnsubscribed, Payload: map[string]any{"chat_id": chatID}})
+
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -210,6 +233,16 @@ func (d *ChatDeliveryImpl) HandleCreateGroup(w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		return mapChatError(err)
 	}
+
+	event := models.Event{
+		Type:    models.EventChatCreated,
+		Payload: map[string]any{"chat_id": result.Chat.ID},
+	}
+	d.broadcaster.BroadcastToUser(userID, event)
+	for _, memberID := range req.Members {
+		d.broadcaster.BroadcastToUser(memberID, event)
+	}
+
 	tools.WriteJSON(w, http.StatusCreated, ChatDetailToResponse(result))
 	return nil
 }
@@ -275,6 +308,13 @@ func (d *ChatDeliveryImpl) HandleDeleteGroup(w http.ResponseWriter, r *http.Requ
 		apperrors.WriteError(w, mapChatError(err))
 		return
 	}
+
+	d.broadcaster.BroadcastToChat(chatID, models.Event{
+		Type:    models.EventChatDeleted,
+		Payload: map[string]any{"chat_id": chatID},
+	})
+	d.broadcaster.RemoveChat(chatID)
+
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -343,6 +383,17 @@ func (d *ChatDeliveryImpl) HandleAddMember(w http.ResponseWriter, r *http.Reques
 	if usecaseErr != nil {
 		return mapChatError(usecaseErr)
 	}
+
+	event := models.Event{
+		Type: models.EventMemberAdded,
+		Payload: map[string]any{
+			"chat_id": chatID,
+			"member":  ChatMemberToResponse(*result),
+		},
+	}
+	d.broadcaster.BroadcastToChat(chatID, event)
+	d.broadcaster.BroadcastToUser(req.UserID, event)
+
 	tools.WriteJSON(w, http.StatusCreated, ChatMemberToResponse(*result))
 	return nil
 }
@@ -381,6 +432,19 @@ func (d *ChatDeliveryImpl) HandleRemoveMember(w http.ResponseWriter, r *http.Req
 		apperrors.WriteError(w, mapChatError(err))
 		return
 	}
+
+	d.broadcaster.RevokeUserFromChat(targetID, chatID)
+
+	event := models.Event{
+		Type: models.EventMemberRemoved,
+		Payload: map[string]any{
+			"chat_id": chatID,
+			"user_id": targetID,
+		},
+	}
+	d.broadcaster.BroadcastToChat(chatID, event)
+	d.broadcaster.BroadcastToUser(targetID, event)
+
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -469,7 +533,14 @@ func (d *ChatDeliveryImpl) HandleCreateMessage(w http.ResponseWriter, r *http.Re
 	if usecaseErr != nil {
 		return mapChatError(usecaseErr)
 	}
-	tools.WriteJSON(w, http.StatusCreated, MessageToResponse(*result))
+
+	response := MessageToResponse(*result)
+	d.broadcaster.BroadcastToChat(chatID, models.Event{
+		Type:    models.EventMessageCreated,
+		Payload: response,
+	})
+
+	tools.WriteJSON(w, http.StatusCreated, response)
 	return nil
 }
 

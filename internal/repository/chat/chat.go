@@ -23,6 +23,21 @@ func NewChatRepository(pool *pgxpool.Pool) *ChatRepositoryImpl {
 	return &ChatRepositoryImpl{pool: pool}
 }
 
+func (r *ChatRepositoryImpl) IsMember(ctx context.Context, userID, chatID uuid.UUID) (bool, error) {
+	const query = `
+		select exists (
+			select 1
+			from user_in_chat m
+			join chat c on c.id = m.chat_id and c.deleted_at is null
+			join app_user u on u.id = m.user_id and u.deleted_at is null
+			where m.user_id = $1 and m.chat_id = $2 and m.deleted_at is null
+		)
+	`
+	var isMember bool
+	err := r.pool.QueryRow(ctx, query, userID, chatID).Scan(&isMember)
+	return isMember, err
+}
+
 const sqlListUserChats = `
 	select
 		c.id, c.icon_id, c.name, c.description, c.type, c.members_count, c.created_at, c.updated_at, c.deleted_at,
@@ -141,10 +156,10 @@ func activeRole(ctx context.Context, tx pgx.Tx, userID, chatID uuid.UUID) (strin
 	return chatType, roleType, err
 }
 
-func (r *ChatRepositoryImpl) GetOrCreateDialog(ctx context.Context, userID, peerID uuid.UUID) (*models.ChatDetail, error) {
+func (r *ChatRepositoryImpl) GetOrCreateDialog(ctx context.Context, userID, peerID uuid.UUID) (*models.ChatDetail, models.DialogStatus, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
-		return nil, err
+		return nil, models.DialogExisting, err
 	}
 	defer tx.Rollback(ctx)
 	ids := []string{userID.String(), peerID.String()}
@@ -152,16 +167,16 @@ func (r *ChatRepositoryImpl) GetOrCreateDialog(ctx context.Context, userID, peer
 	const lockDialog = `select pg_advisory_xact_lock(hashtextextended($1, 0))`
 	_, err = tx.Exec(ctx, lockDialog, ids[0]+ids[1])
 	if err != nil {
-		return nil, err
+		return nil, models.DialogExisting, err
 	}
 	var activeUsers int
 	const usersExist = `select count(*) from app_user where id in ($1, $2) and deleted_at is null`
 	err = tx.QueryRow(ctx, usersExist, userID, peerID).Scan(&activeUsers)
 	if err != nil {
-		return nil, err
+		return nil, models.DialogExisting, err
 	}
 	if activeUsers != 2 {
-		return nil, apperrors.ErrUserNotFound
+		return nil, models.DialogExisting, apperrors.ErrUserNotFound
 	}
 	var chatID uuid.UUID
 	const findDialog = `
@@ -175,17 +190,18 @@ func (r *ChatRepositoryImpl) GetOrCreateDialog(ctx context.Context, userID, peer
 	`
 	err = tx.QueryRow(ctx, findDialog, userID, peerID).Scan(&chatID)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return nil, err
+		return nil, models.DialogExisting, err
 	}
+	status := models.DialogExisting
 	if errors.Is(err, pgx.ErrNoRows) {
 		const insertDialog = `insert into chat (name, type, members_count) values ('', 'dialog', 2) returning id`
 		err = tx.QueryRow(ctx, insertDialog).Scan(&chatID)
 		if err != nil {
-			return nil, err
+			return nil, models.DialogExisting, err
 		}
 		memberRole, err := role(ctx, tx, "member")
 		if err != nil {
-			return nil, err
+			return nil, models.DialogExisting, err
 		}
 		const insertMembers = `
 			insert into user_in_chat(user_id, chat_id, role_id)
@@ -193,12 +209,13 @@ func (r *ChatRepositoryImpl) GetOrCreateDialog(ctx context.Context, userID, peer
 		`
 		_, err = tx.Exec(ctx, insertMembers, userID, peerID, chatID, memberRole)
 		if err != nil {
-			return nil, err
+			return nil, models.DialogExisting, err
 		}
+		status = models.DialogCreated
 	} else {
 		memberRole, err := role(ctx, tx, "member")
 		if err != nil {
-			return nil, err
+			return nil, models.DialogExisting, err
 		}
 		const restoreMember = `
 			insert into user_in_chat(user_id, chat_id, role_id)
@@ -208,9 +225,12 @@ func (r *ChatRepositoryImpl) GetOrCreateDialog(ctx context.Context, userID, peer
 				where user_id = $1 and chat_id = $2 and deleted_at is null
 			)
 		`
-		_, err = tx.Exec(ctx, restoreMember, userID, chatID, memberRole)
+		commandTag, err := tx.Exec(ctx, restoreMember, userID, chatID, memberRole)
 		if err != nil {
-			return nil, err
+			return nil, models.DialogExisting, err
+		}
+		if commandTag.RowsAffected() > 0 {
+			status = models.DialogRestored
 		}
 		const updateCount = `
 			update chat
@@ -222,13 +242,17 @@ func (r *ChatRepositoryImpl) GetOrCreateDialog(ctx context.Context, userID, peer
 		`
 		_, err = tx.Exec(ctx, updateCount, chatID)
 		if err != nil {
-			return nil, err
+			return nil, models.DialogExisting, err
 		}
 	}
 	if err = tx.Commit(ctx); err != nil {
-		return nil, err
+		return nil, models.DialogExisting, err
 	}
-	return r.GetChatDetail(ctx, userID, chatID)
+	detail, err := r.GetChatDetail(ctx, userID, chatID)
+	if err != nil {
+		return nil, models.DialogExisting, err
+	}
+	return detail, status, nil
 }
 
 func (r *ChatRepositoryImpl) HideDialog(ctx context.Context, userID, chatID uuid.UUID) error {
@@ -577,7 +601,7 @@ func (r *ChatRepositoryImpl) ListMessages(ctx context.Context, userID, chatID uu
 	}
 	const queryWithoutBefore = `
 		select m.id, m.user_id, m.chat_id, m.reply_to_message_id, m.sticker_id,
-			m.content, m.is_edited, m.type, m.created_at, m.updated_at
+			m.content, m.is_edited, m.is_read, m.type, m.created_at, m.updated_at
 		from message m
 		where m.chat_id = $1 and m.deleted_at is null
 		order by m.created_at desc, m.id desc
@@ -585,7 +609,7 @@ func (r *ChatRepositoryImpl) ListMessages(ctx context.Context, userID, chatID uu
 	`
 	const queryWithBefore = `
 		select m.id, m.user_id, m.chat_id, m.reply_to_message_id, m.sticker_id,
-			m.content, m.is_edited, m.type, m.created_at, m.updated_at
+			m.content, m.is_edited, m.is_read, m.type, m.created_at, m.updated_at
 		from message m
 		where m.chat_id = $1 and m.deleted_at is null
 			and (m.created_at, m.id) < (
@@ -608,7 +632,7 @@ func (r *ChatRepositoryImpl) ListMessages(ctx context.Context, userID, chatID uu
 	items := make([]models.Message, 0)
 	for rows.Next() {
 		var db MessageDB
-		err = rows.Scan(&db.ID, &db.UserID, &db.ChatID, &db.ReplyToMessageID, &db.StickerID, &db.Content, &db.IsEdited, &db.Type, &db.CreatedAt, &db.UpdatedAt)
+		err = rows.Scan(&db.ID, &db.UserID, &db.ChatID, &db.ReplyToMessageID, &db.StickerID, &db.Content, &db.IsEdited, &db.IsRead, &db.Type, &db.CreatedAt, &db.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -651,9 +675,9 @@ func (r *ChatRepositoryImpl) CreateMessage(ctx context.Context, userID, chatID u
 		insert into message (user_id, chat_id, reply_to_message_id, sticker_id, content, type)
 		values ($1, $2, $3, $4, $5, $6)
 		returning id, user_id, chat_id, reply_to_message_id, sticker_id,
-			content, is_edited, type, created_at, updated_at
+			content, is_edited, is_read, type, created_at, updated_at
 	`
-	err = tx.QueryRow(ctx, insertMessage, userID, chatID, replyToMessageID, stickerID, content, messageType).Scan(&msgDB.ID, &msgDB.UserID, &msgDB.ChatID, &msgDB.ReplyToMessageID, &msgDB.StickerID, &msgDB.Content, &msgDB.IsEdited, &msgDB.Type, &msgDB.CreatedAt, &msgDB.UpdatedAt)
+	err = tx.QueryRow(ctx, insertMessage, userID, chatID, replyToMessageID, stickerID, content, messageType).Scan(&msgDB.ID, &msgDB.UserID, &msgDB.ChatID, &msgDB.ReplyToMessageID, &msgDB.StickerID, &msgDB.Content, &msgDB.IsEdited, &msgDB.IsRead, &msgDB.Type, &msgDB.CreatedAt, &msgDB.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -662,4 +686,56 @@ func (r *ChatRepositoryImpl) CreateMessage(ctx context.Context, userID, chatID u
 	}
 	msg := MessageDBToModel(&msgDB)
 	return &msg, nil
+}
+
+func (r *ChatRepositoryImpl) MarkMessageRead(ctx context.Context, userID, chatID, messageID uuid.UUID) (bool, error) {
+	const markRead = `
+		update message m
+		set is_read = true
+		where m.id = $3
+			and m.chat_id = $2
+			and m.user_id <> $1
+			and m.deleted_at is null
+			and m.is_read = false
+			and exists (
+				select 1
+				from user_in_chat member
+				join chat c on c.id = member.chat_id and c.deleted_at is null
+				join app_user actor on actor.id = member.user_id and actor.deleted_at is null
+				where member.user_id = $1
+					and member.chat_id = $2
+					and member.deleted_at is null
+			)
+		returning m.id
+	`
+	var updatedID uuid.UUID
+	err := r.pool.QueryRow(ctx, markRead, userID, chatID, messageID).Scan(&updatedID)
+	if err == nil {
+		return true, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return false, err
+	}
+
+	if _, err := r.GetChatDetail(ctx, userID, chatID); err != nil {
+		return false, err
+	}
+
+	const findMessage = `
+		select user_id
+		from message
+		where id = $1 and chat_id = $2 and deleted_at is null
+	`
+	var authorID uuid.UUID
+	err = r.pool.QueryRow(ctx, findMessage, messageID, chatID).Scan(&authorID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, apperrors.ErrMessageNotFound
+	}
+	if err != nil {
+		return false, err
+	}
+	if authorID == userID {
+		return false, apperrors.ErrInvalidChatOperation
+	}
+	return false, nil
 }

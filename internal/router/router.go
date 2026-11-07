@@ -9,7 +9,9 @@ import (
 	httpSwagger "github.com/swaggo/http-swagger"
 
 	deliveryauth "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/auth"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/chat"
 	deliverychat "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/chat"
+	ws "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/chat/ws"
 	deliveryregister "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/register"
 
 	usecaseauth "github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/auth"
@@ -22,7 +24,9 @@ import (
 	repouser "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/user"
 )
 
-func New(db *storage.DB) http.Handler {
+func New(db *storage.DB, origins []string) (http.Handler, *ws.Hub) {
+	hub := ws.NewHub()
+
 	userRepo := repouser.NewUserRepository(db.Pool())
 	profileRepo := repoprofile.NewProfileRepository(db.Pool())
 	sessionRepo := reposession.NewSessionRepository(db.Pool())
@@ -34,7 +38,9 @@ func New(db *storage.DB) http.Handler {
 
 	authDelivery := deliveryauth.NewAuthDelivery(authUsecase)
 	registerDelivery := deliveryregister.NewRegisterDelivery(registerUsecase)
-	chatDelivery := deliverychat.NewChatDelivery(chatUsecase)
+	chatDelivery := deliverychat.NewChatDelivery(chatUsecase, hub)
+
+	wsHandler := chat.NewWSHandler(hub, chatUsecase, origins)
 
 	api := http.NewServeMux()
 
@@ -58,12 +64,14 @@ func New(db *storage.DB) http.Handler {
 	api.Handle("GET /chats/{id}/messages", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(chatDelivery.HandleListMessages)))
 	api.Handle("POST /chats/{id}/messages", middleware.NewAuthMiddleware(sessionRepo, tools.NewJSONDecoder(chatDelivery.HandleCreateMessage)))
 
+	api.Handle("GET /ws", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(wsHandler.HandleWS)))
+
 	mainRouter := http.NewServeMux()
 	mainRouter.Handle("/api/v1/", http.StripPrefix("/api/v1", api))
 
 	api.Handle("GET /swagger/*any", httpSwagger.WrapHandler)
 
-	return mainRouter
+	return mainRouter, hub
 }
 
 func healthCheck(w http.ResponseWriter, r *http.Request) {

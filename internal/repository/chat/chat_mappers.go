@@ -77,6 +77,7 @@ func MessageDBToModel(db *MessageDB) models.Message {
 		StickerID:        db.StickerID,
 		Content:          db.Content,
 		IsEdited:         db.IsEdited,
+		IsRead:           db.IsRead,
 		Type:             db.Type,
 		CreatedAt:        db.CreatedAt,
 		UpdatedAt:        db.UpdatedAt,

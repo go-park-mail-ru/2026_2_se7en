@@ -16,6 +16,10 @@ func NewChatUsecase(chatRepo ChatRepository) *ChatUsecaseImpl {
 	return &ChatUsecaseImpl{chatRepo: chatRepo}
 }
 
+func (uc *ChatUsecaseImpl) IsMember(ctx context.Context, userID, chatID uuid.UUID) (bool, error) {
+	return uc.chatRepo.IsMember(ctx, userID, chatID)
+}
+
 func (uc *ChatUsecaseImpl) ListUserChats(ctx context.Context, userID uuid.UUID, limit, offset int, chatType string) ([]*models.ChatListItem, error) {
 	items, err := uc.chatRepo.ListUserChats(ctx, userID, limit, offset, chatType)
 	if err != nil {
@@ -33,7 +37,7 @@ func (uc *ChatUsecaseImpl) GetChatDetail(ctx context.Context, userID, chatID uui
 	return uc.chatRepo.GetChatDetail(ctx, userID, chatID)
 }
 
-func (uc *ChatUsecaseImpl) GetOrCreateDialog(ctx context.Context, userID, peerID uuid.UUID) (*models.ChatDetail, error) {
+func (uc *ChatUsecaseImpl) GetOrCreateDialog(ctx context.Context, userID, peerID uuid.UUID) (*models.ChatDetail, models.DialogStatus, error) {
 	return uc.chatRepo.GetOrCreateDialog(ctx, userID, peerID)
 }
 
@@ -71,4 +75,8 @@ func (uc *ChatUsecaseImpl) ListMessages(ctx context.Context, userID, chatID uuid
 
 func (uc *ChatUsecaseImpl) CreateMessage(ctx context.Context, userID, chatID uuid.UUID, replyToMessageID, stickerID *uuid.UUID, content *string, messageType string) (*models.Message, error) {
 	return uc.chatRepo.CreateMessage(ctx, userID, chatID, replyToMessageID, stickerID, content, messageType)
+}
+
+func (uc *ChatUsecaseImpl) MarkMessageRead(ctx context.Context, userID, chatID, messageID uuid.UUID) (bool, error) {
+	return uc.chatRepo.MarkMessageRead(ctx, userID, chatID, messageID)
 }

@@ -99,6 +99,7 @@ func MessageToResponse(message models.Message) MessageResponse {
 		StickerID:        message.StickerID,
 		Content:          message.Content,
 		IsEdited:         message.IsEdited,
+		IsRead:           message.IsRead,
 		Type:             message.Type,
 		CreatedAt:        message.CreatedAt,
 		UpdatedAt:        message.UpdatedAt,

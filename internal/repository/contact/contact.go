@@ -20,19 +20,30 @@ func NewContactRepository(pool storage.DBPool) *ContactRepositoryImpl {
 	return &ContactRepositoryImpl{pool: pool}
 }
 
-func (r *ContactRepositoryImpl) GetContactsList(ctx context.Context, userID uuid.UUID) ([]models.Contact, error) {
+func (r *ContactRepositoryImpl) GetContactsList(ctx context.Context, userID uuid.UUID, limit, offset int, q string) ([]models.Contact, error) {
 	const query = `
-		SELECT uc.user_id, uc.contact_user_id, uc.pseudonym, uc.created_at, uc.updated_at,
-		       p.id, p.user_id, p.icon_id, p.nickname, p.first_name, p.last_name, p.bio, p.created_at, p.updated_at,
-		       (s.id IS NOT NULL) AS is_online
+		SELECT 
+			uc.user_id, uc.contact_user_id, uc.pseudonym, uc.created_at, uc.updated_at,
+			p.id, p.user_id, p.icon_id, p.nickname, p.first_name, p.last_name, p.bio, p.created_at, p.updated_at,
+			EXISTS(
+				SELECT 1 FROM session s 
+				WHERE s.user_id = uc.contact_user_id 
+				AND s.expires_at > NOW()
+				LIMIT 1
+			) AS is_online
 		FROM user_contact uc
 		JOIN profile p ON uc.contact_user_id = p.user_id
-		LEFT JOIN session s ON uc.contact_user_id = s.user_id AND s.expires_at > NOW()
-		WHERE uc.user_id = $1
+		WHERE uc.user_id = $1 AND (
+			$4 = '' OR p.nickname ILIKE '%' || $4 || '%'
+			OR p.first_name ILIKE '%' || $4 || '%'
+			OR COALESCE(p.last_name, '') ILIKE '%' || $4 || '%'
+			OR COALESCE(uc.pseudonym, '') ILIKE '%' || $4 || '%'
+		)
 		ORDER BY p.first_name ASC
+		LIMIT $2 OFFSET $3
 	`
 
-	rows, err := r.pool.Query(ctx, query, userID)
+	rows, err := r.pool.Query(ctx, query, userID, limit, offset, q)
 	if err != nil {
 		return nil, err
 	}
@@ -96,12 +107,4 @@ func (r *ContactRepositoryImpl) DeleteContact(ctx context.Context, userID, conta
 	}
 
 	return nil
-}
-
-func (r *ContactRepositoryImpl) CheckContactExists(ctx context.Context, userID, contactUserID uuid.UUID) (bool, error) {
-	const query = `SELECT EXISTS(SELECT 1 FROM user_contact WHERE user_id = $1 AND contact_user_id = $2)`
-
-	var exists bool
-	err := r.pool.QueryRow(ctx, query, userID, contactUserID).Scan(&exists)
-	return exists, err
 }

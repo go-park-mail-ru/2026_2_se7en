@@ -71,16 +71,16 @@ func (mr *MockContactUsecaseMockRecorder) DeleteContact(ctx, userID, contactUser
 }
 
 // GetContactsList mocks base method.
-func (m *MockContactUsecase) GetContactsList(ctx context.Context, userID uuid.UUID) ([]models.Contact, error) {
+func (m *MockContactUsecase) GetContactsList(ctx context.Context, userID uuid.UUID, limit, offset int, q string) ([]models.Contact, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetContactsList", ctx, userID)
+	ret := m.ctrl.Call(m, "GetContactsList", ctx, userID, limit, offset, q)
 	ret0, _ := ret[0].([]models.Contact)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetContactsList indicates an expected call of GetContactsList.
-func (mr *MockContactUsecaseMockRecorder) GetContactsList(ctx, userID any) *gomock.Call {
+func (mr *MockContactUsecaseMockRecorder) GetContactsList(ctx, userID, limit, offset, q any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetContactsList", reflect.TypeOf((*MockContactUsecase)(nil).GetContactsList), ctx, userID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetContactsList", reflect.TypeOf((*MockContactUsecase)(nil).GetContactsList), ctx, userID, limit, offset, q)
 }

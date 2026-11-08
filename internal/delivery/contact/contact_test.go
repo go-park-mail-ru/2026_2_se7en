@@ -33,10 +33,10 @@ func TestContactDelivery_HandleGetContactsList_Success(t *testing.T) {
 	}
 
 	mockUC.EXPECT().
-		GetContactsList(gomock.Any(), userID).
+		GetContactsList(gomock.Any(), userID, 10, 5, "friend").
 		Return(expectedContacts, nil)
 
-	req := httptest.NewRequest(http.MethodGet, "/contacts", nil)
+	req := httptest.NewRequest(http.MethodGet, "/contacts?limit=10&offset=5&q=friend", nil)
 	req = req.WithContext(middleware.NewAuthContext(req.Context(), userID))
 	rec := httptest.NewRecorder()
 

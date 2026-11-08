@@ -42,21 +42,6 @@ func (m *MockContactRepository) EXPECT() *MockContactRepositoryMockRecorder {
 	return m.recorder
 }
 
-// CheckContactExists mocks base method.
-func (m *MockContactRepository) CheckContactExists(ctx context.Context, userID, contactUserID uuid.UUID) (bool, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CheckContactExists", ctx, userID, contactUserID)
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// CheckContactExists indicates an expected call of CheckContactExists.
-func (mr *MockContactRepositoryMockRecorder) CheckContactExists(ctx, userID, contactUserID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckContactExists", reflect.TypeOf((*MockContactRepository)(nil).CheckContactExists), ctx, userID, contactUserID)
-}
-
 // CreateContact mocks base method.
 func (m *MockContactRepository) CreateContact(ctx context.Context, userID, contactUserID uuid.UUID, pseudonym *string) error {
 	m.ctrl.T.Helper()
@@ -86,18 +71,18 @@ func (mr *MockContactRepositoryMockRecorder) DeleteContact(ctx, userID, contactU
 }
 
 // GetContactsList mocks base method.
-func (m *MockContactRepository) GetContactsList(ctx context.Context, userID uuid.UUID) ([]models.Contact, error) {
+func (m *MockContactRepository) GetContactsList(ctx context.Context, userID uuid.UUID, limit, offset int, q string) ([]models.Contact, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetContactsList", ctx, userID)
+	ret := m.ctrl.Call(m, "GetContactsList", ctx, userID, limit, offset, q)
 	ret0, _ := ret[0].([]models.Contact)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetContactsList indicates an expected call of GetContactsList.
-func (mr *MockContactRepositoryMockRecorder) GetContactsList(ctx, userID any) *gomock.Call {
+func (mr *MockContactRepositoryMockRecorder) GetContactsList(ctx, userID, limit, offset, q any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetContactsList", reflect.TypeOf((*MockContactRepository)(nil).GetContactsList), ctx, userID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetContactsList", reflect.TypeOf((*MockContactRepository)(nil).GetContactsList), ctx, userID, limit, offset, q)
 }
 
 // MockUserRepository is a mock of UserRepository interface.

@@ -10,10 +10,9 @@ import (
 )
 
 type ContactRepository interface {
-	GetContactsList(ctx context.Context, userID uuid.UUID) ([]models.Contact, error)
+	GetContactsList(ctx context.Context, userID uuid.UUID, limit, offset int, q string) ([]models.Contact, error)
 	CreateContact(ctx context.Context, userID, contactUserID uuid.UUID, pseudonym *string) error
 	DeleteContact(ctx context.Context, userID, contactUserID uuid.UUID) error
-	CheckContactExists(ctx context.Context, userID, contactUserID uuid.UUID) (bool, error)
 }
 
 type UserRepository interface {

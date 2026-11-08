@@ -34,20 +34,11 @@ func (uc *ContactUsecaseImpl) CreateContact(ctx context.Context, userID uuid.UUI
 		return apperrors.ErrCannotAddSelfAsContact
 	}
 
-	exists, err := uc.contactRepo.CheckContactExists(ctx, userID, user.ID)
-	if err != nil {
-		return err
-	}
-
-	if exists {
-		return apperrors.ErrContactAlreadyExists
-	}
-
 	return uc.contactRepo.CreateContact(ctx, userID, user.ID, pseudonym)
 }
 
-func (uc *ContactUsecaseImpl) GetContactsList(ctx context.Context, userID uuid.UUID) ([]models.Contact, error) {
-	return uc.contactRepo.GetContactsList(ctx, userID)
+func (uc *ContactUsecaseImpl) GetContactsList(ctx context.Context, userID uuid.UUID, limit, offset int, q string) ([]models.Contact, error) {
+	return uc.contactRepo.GetContactsList(ctx, userID, limit, offset, q)
 }
 
 func (uc *ContactUsecaseImpl) DeleteContact(ctx context.Context, userID, contactUserID uuid.UUID) error {

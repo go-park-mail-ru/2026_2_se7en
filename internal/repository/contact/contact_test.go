@@ -142,10 +142,10 @@ func TestContactRepository_GetContactsList_Success(t *testing.T) {
 	)
 
 	mockPool.ExpectQuery("SELECT uc.user_id, uc.contact_user_id").
-		WithArgs(userID).
+		WithArgs(userID, 20, 0, "").
 		WillReturnRows(rows)
 
-	contacts, err := repo.GetContactsList(context.Background(), userID)
+	contacts, err := repo.GetContactsList(context.Background(), userID, 20, 0, "")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}

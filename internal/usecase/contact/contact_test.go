@@ -29,10 +29,6 @@ func TestContactUsecase_CreateContact_Success(t *testing.T) {
 		Return(&models.User{ID: targetUserID, Profile: &models.Profile{Nickname: nickname}}, nil)
 
 	mockContactRepo.EXPECT().
-		CheckContactExists(gomock.Any(), userID, targetUserID).
-		Return(false, nil)
-
-	mockContactRepo.EXPECT().
 		CreateContact(gomock.Any(), userID, targetUserID, pseudonym).
 		Return(nil)
 
@@ -78,8 +74,8 @@ func TestContactUsecase_CreateContact_AlreadyExists(t *testing.T) {
 		Return(&models.User{ID: targetUserID, Profile: &models.Profile{Nickname: "existing"}}, nil)
 
 	mockContactRepo.EXPECT().
-		CheckContactExists(gomock.Any(), userID, targetUserID).
-		Return(true, nil)
+		CreateContact(gomock.Any(), userID, targetUserID, gomock.Any()).
+		Return(apperrors.ErrContactAlreadyExists)
 
 	err := uc.CreateContact(context.Background(), userID, "existing", nil)
 	if !errors.Is(err, apperrors.ErrContactAlreadyExists) {
@@ -106,10 +102,10 @@ func TestContactUsecase_GetContactsList_Success(t *testing.T) {
 	}
 
 	mockContactRepo.EXPECT().
-		GetContactsList(gomock.Any(), userID).
+		GetContactsList(gomock.Any(), userID, 20, 0, "").
 		Return(expectedContacts, nil)
 
-	contacts, err := uc.GetContactsList(context.Background(), userID)
+	contacts, err := uc.GetContactsList(context.Background(), userID, 20, 0, "")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}

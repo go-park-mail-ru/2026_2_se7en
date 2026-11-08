@@ -3,6 +3,7 @@ package contact
 import (
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
@@ -36,7 +37,23 @@ func (d *ContactDeliveryImpl) HandleGetContactsList(w http.ResponseWriter, r *ht
 		return
 	}
 
-	contactsList, err := d.contactUsecase.GetContactsList(r.Context(), userID)
+	limit := 20
+	offset := 0
+	q := r.URL.Query().Get("q")
+
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+
+	if o := r.URL.Query().Get("offset"); o != "" {
+		if parsed, err := strconv.Atoi(o); err == nil && parsed >= 0 {
+			offset = parsed
+		}
+	}
+
+	contactsList, err := d.contactUsecase.GetContactsList(r.Context(), userID, limit, offset, q)
 	if err != nil {
 		apperrors.WriteError(w, apperrors.NewInternalError("Something went wrong", err))
 		return
@@ -109,7 +126,7 @@ func (d *ContactDeliveryImpl) HandleDeleteContact(w http.ResponseWriter, r *http
 	if err != nil {
 		switch {
 		case errors.Is(err, apperrors.ErrContactNotFound):
-			return apperrors.NewNotFound("Контакт не найден")
+			return apperrors.NewNotFound("Contact not found")
 		default:
 			return apperrors.NewInternalError("Something went wrong", err)
 		}

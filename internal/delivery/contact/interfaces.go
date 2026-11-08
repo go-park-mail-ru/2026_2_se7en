@@ -10,7 +10,7 @@ import (
 )
 
 type ContactUsecase interface {
-	GetContactsList(ctx context.Context, userID uuid.UUID) ([]models.Contact, error)
+	GetContactsList(ctx context.Context, userID uuid.UUID, limit, offset int, q string) ([]models.Contact, error)
 	CreateContact(ctx context.Context, userID uuid.UUID, nickname string, pseudonym *string) error
 	DeleteContact(ctx context.Context, userID, contactUserID uuid.UUID) error
 }

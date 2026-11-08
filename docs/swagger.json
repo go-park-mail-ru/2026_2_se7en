@@ -157,6 +157,81 @@
                 },
                 "type": "object"
             },
+            "contact.ContactResponse": {
+                "properties": {
+                    "contact_user_id": {
+                        "format": "uuid",
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "first_name": {
+                        "type": "string"
+                    },
+                    "icon_id": {
+                        "format": "uuid",
+                        "type": "string"
+                    },
+                    "is_online": {
+                        "type": "boolean"
+                    },
+                    "last_name": {
+                        "type": "string"
+                    },
+                    "nickname": {
+                        "type": "string"
+                    },
+                    "pseudonym": {
+                        "type": "string"
+                    },
+                    "updated_at": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "user_id": {
+                        "format": "uuid",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "contact_user_id",
+                    "created_at",
+                    "first_name",
+                    "is_online",
+                    "nickname",
+                    "updated_at",
+                    "user_id"
+                ],
+                "type": "object"
+            },
+            "contact.CreateContactRequest": {
+                "properties": {
+                    "nickname": {
+                        "type": "string"
+                    },
+                    "pseudonym": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "nickname"
+                ],
+                "type": "object"
+            },
+            "contact.DeleteContactRequest": {
+                "properties": {
+                    "contact_user_id": {
+                        "format": "uuid",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "contact_user_id"
+                ],
+                "type": "object"
+            },
             "profile.ProfileResponse": {
                 "properties": {
                     "bio": {
@@ -684,6 +759,212 @@
                 "summary": "Список чатов пользователя",
                 "tags": [
                     "chats"
+                ]
+            }
+        },
+        "/contacts": {
+            "delete": {
+                "description": "Удаляет пользователя из списка контактов",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/contact.DeleteContactRequest",
+                                "summary": "request",
+                                "description": "Данные для удаления контакта"
+                            }
+                        }
+                    },
+                    "description": "Данные для удаления контакта",
+                    "required": true
+                },
+                "responses": {
+                    "204": {
+                        "description": "Контакт успешно удален"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "summary": "Удалить контакт",
+                "tags": [
+                    "contacts"
+                ]
+            },
+            "get": {
+                "description": "Возвращает список контактов текущего пользователя с профилями и статусом онлайн",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/contact.ContactResponse"
+                                    },
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "summary": "Список контактов",
+                "tags": [
+                    "contacts"
+                ]
+            },
+            "post": {
+                "description": "Добавляет пользователя в список контактов по его никнейму",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/contact.CreateContactRequest",
+                                "summary": "request",
+                                "description": "Данные для добавления контакта"
+                            }
+                        }
+                    },
+                    "description": "Данные для добавления контакта",
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Контакт успешно добавлен"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Conflict"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "summary": "Добавить контакт",
+                "tags": [
+                    "contacts"
                 ]
             }
         },

@@ -10,18 +10,18 @@ import (
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/repository/profile"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/repository/tx"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/storage"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type UserRepositoryImpl struct {
-	pool *pgxpool.Pool
+	pool storage.DBPool
 }
 
-func NewUserRepository(pool *pgxpool.Pool) *UserRepositoryImpl {
+func NewUserRepository(pool storage.DBPool) *UserRepositoryImpl {
 	return &UserRepositoryImpl{pool: pool}
 }
 
@@ -48,7 +48,7 @@ func (r *UserRepositoryImpl) FindByID(ctx context.Context, userID uuid.UUID) (*m
 	var db UserDB
 	executor := r.getExecutor(ctx)
 	err := executor.QueryRow(ctx, query, userID).Scan(&db.ID, &db.Email, &db.PasswordHash, &db.PhoneNumber, &db.CreatedAt, &db.UpdatedAt, &db.DeletedAt)
-	
+
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -75,7 +75,7 @@ func (r *UserRepositoryImpl) CreateUser(ctx context.Context, email, passwordHash
 
 	var db UserDB
 	err := r.pool.QueryRow(ctx, query, email, passwordHash, phone).Scan(&db.ID, &db.Email, &db.PasswordHash, &db.PhoneNumber, &db.CreatedAt, &db.UpdatedAt, &db.DeletedAt)
-	
+
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +137,7 @@ func (r *UserRepositoryImpl) UpdateEmail(ctx context.Context, userID uuid.UUID, 
 	const query = `update app_user set email = $2, updated_at = now() where id = $1`
 
 	executor := r.getExecutor(ctx)
-	
+
 	_, err := executor.Exec(ctx, query, userID, email)
 	if err != nil {
 		var pgErr *pgconn.PgError
@@ -158,7 +158,7 @@ func (r *UserRepositoryImpl) getExecutor(ctx context.Context) interface {
 	if transaction, ok := tx.FromContext(ctx); ok {
 		return transaction
 	}
-	
+
 	return r.pool
 }
 
@@ -175,14 +175,44 @@ func (r *UserRepositoryImpl) UpdatePhone(ctx context.Context, userID uuid.UUID, 
 
 	const query = `update app_user set phone_number = $2, updated_at = now() where id = $1`
 	_, err := r.getExecutor(ctx).Exec(ctx, query, userID, phoneVal)
-	
+
 	return err
 }
 
 func (r *UserRepositoryImpl) UpdatePassword(ctx context.Context, userID uuid.UUID, passwordHash string) error {
 	const query = `update app_user set password_hash = $2, updated_at = now() where id = $1`
-	
+
 	_, err := r.getExecutor(ctx).Exec(ctx, query, userID, passwordHash)
 
 	return err
+}
+
+func (r *UserRepositoryImpl) FindByNickname(ctx context.Context, nickname string) (*models.User, error) {
+	const query = `
+		SELECT au.id, au.email, au.password_hash, au.phone_number, au.created_at, au.updated_at, au.deleted_at,
+		       p.id, p.icon_id, p.user_id, p.nickname, p.first_name, p.last_name, p.bio, p.created_at, p.updated_at
+		FROM app_user au
+		JOIN profile p ON au.id = p.user_id
+		WHERE p.nickname = $1 AND au.deleted_at IS NULL
+	`
+
+	var userDB UserDB
+	var profileDB profile.ProfileDB
+
+	err := r.pool.QueryRow(ctx, query, nickname).Scan(
+		&userDB.ID, &userDB.Email, &userDB.PasswordHash, &userDB.PhoneNumber, &userDB.CreatedAt, &userDB.UpdatedAt, &userDB.DeletedAt,
+		&profileDB.ID, &profileDB.IconID, &profileDB.UserID, &profileDB.Nickname, &profileDB.FirstName, &profileDB.LastName, &profileDB.Bio, &profileDB.CreatedAt, &profileDB.UpdatedAt,
+	)
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, apperrors.ErrUserNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	user := UserDBToModel(&userDB)
+	user.Profile = profile.ProfileDBToModel(&profileDB)
+
+	return user, nil
 }

@@ -24,6 +24,8 @@ import (
 	repofile "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/file"
 	repotx "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/tx"
 	usecaseprofile "github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/profile"
+
+	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
 
 func New(db *storage.DB) http.Handler {
@@ -35,7 +37,7 @@ func New(db *storage.DB) http.Handler {
 	txManager := repotx.NewManager(db.Pool())
 
 	authUsecase := usecaseauth.NewAuthUsecase(userRepo, profileRepo, sessionRepo)
-	registerUsecase := usecaseregister.NewRegisterUsecase(userRepo, profileRepo, sessionRepo)
+	registerUsecase := usecaseregister.NewRegisterUsecase(userRepo, profileRepo)
 	chatUsecase := usecasechat.NewChatUsecase(chatRepo)
 	profileUsecase := usecaseprofile.NewProfileUsecase(txManager, userRepo, profileRepo, fileRepo)
 
@@ -60,11 +62,11 @@ func New(db *storage.DB) http.Handler {
 	api.Handle("PUT /profile/avatar", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(profileDelivery.HandleUploadAvatar)))
 	api.Handle("PATCH /profile/password", middleware.NewAuthMiddleware(sessionRepo, tools.NewJSONDecoder(profileDelivery.HandleUpdatePassword)))
 
-	api.HandleFunc("GET /swagger", swaggerUI)
-	api.HandleFunc("GET /swagger/", swaggerUI)
 	api.HandleFunc("GET /swagger/doc.json", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "./docs/swagger.json")
 	})
+
+	api.Handle("GET /swagger/*any", httpSwagger.WrapHandler)
 
 	mainRouter := http.NewServeMux()
 	mainRouter.Handle("/api/v1/", http.StripPrefix("/api/v1", api))

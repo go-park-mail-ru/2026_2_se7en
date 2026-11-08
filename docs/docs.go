@@ -192,8 +192,26 @@ const docTemplate = `{
                     },
                     "nickname": {
                         "type": "string"
+                    },
+                    "phone_number": {
+                        "type": "string"
                     }
                 },
+                "type": "object"
+            },
+            "profile.UpdatePasswordRequest": {
+                "properties": {
+                    "new_password": {
+                        "type": "string"
+                    },
+                    "old_password": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "new_password",
+                    "old_password"
+                ],
                 "type": "object"
             },
             "profile.UpdateProfileRequest": {
@@ -212,6 +230,9 @@ const docTemplate = `{
                         "type": "string"
                     },
                     "nickname": {
+                        "type": "string"
+                    },
+                    "phone_number": {
                         "type": "string"
                     }
                 },
@@ -891,6 +912,68 @@ const docTemplate = `{
                     }
                 ],
                 "summary": "Загрузка аватарки",
+                "tags": [
+                    "profile"
+                ]
+            }
+        },
+        "/profile/password": {
+            "patch": {
+                "description": "Меняет пароль пользователя после проверки старого",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/profile.UpdatePasswordRequest",
+                                "summary": "request",
+                                "description": "Старый и новый пароль"
+                            }
+                        }
+                    },
+                    "description": "Старый и новый пароль",
+                    "required": true
+                },
+                "responses": {
+                    "204": {
+                        "description": "Пароль успешно изменён"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "summary": "Смена пароля",
                 "tags": [
                     "profile"
                 ]

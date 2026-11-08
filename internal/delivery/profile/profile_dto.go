@@ -22,3 +22,8 @@ type UpdateProfileRequest struct {
 	Bio         *string `json:"bio,omitempty"`
 	PhoneNumber *string `json:"phone_number,omitempty"`
 }
+
+type UpdatePasswordRequest struct {
+	OldPassword string `json:"old_password" binding:"required"`
+	NewPassword string `json:"new_password" binding:"required"`
+}

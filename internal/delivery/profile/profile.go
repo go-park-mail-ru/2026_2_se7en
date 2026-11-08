@@ -172,3 +172,35 @@ func extractAndValidateAvatar(r *http.Request) (*models.FileUpload, func(), *app
 
 	return upload, func() { _ = file.Close() }, nil
 }
+
+// HandleUpdatePassword godoc
+// @Summary      Смена пароля
+// @Description  Меняет пароль пользователя после проверки старого
+// @Tags         profile
+// @Accept       json
+// @Produce      json
+// @Security     SessionCookie
+// @Param        request body UpdatePasswordRequest true "Старый и новый пароль"
+// @Success      204  "Пароль успешно изменён"
+// @Failure 400 {object} apperrors.ErrorResponse
+// @Failure 401 {object} apperrors.ErrorResponse
+// @Failure 500 {object} apperrors.ErrorResponse
+// @Router       /profile/password [patch]
+func (d *ProfileDeliveryImpl) HandleUpdatePassword(w http.ResponseWriter, r *http.Request, req *UpdatePasswordRequest) *apperrors.AppError {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		return apperrors.NewUnauthorized("Authorization required")
+	}
+
+	if err := d.uc.UpdatePassword(r.Context(), userID, req.OldPassword, req.NewPassword); err != nil {
+		if errors.Is(err, apperrors.ErrInvalidCredentials) {
+			return apperrors.NewBadRequest("Invalid old password", []apperrors.ErrorDetail{
+				{Field: "old_password", Reason: "invalid_old_password"},
+			})
+		}
+		return apperrors.NewInternalError("Something went wrong", err)
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+	return nil
+}

@@ -7,6 +7,7 @@ import (
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type UpdateParams struct {
@@ -146,4 +147,27 @@ func (uc *ProfileUsecaseImpl) UploadAvatar(ctx context.Context, userID uuid.UUID
 	}
 
 	return fileURL, nil
+}
+
+func (uc *ProfileUsecaseImpl) UpdatePassword(ctx context.Context, userID uuid.UUID, oldPassword, newPassword string) error {
+	return uc.txManager.WithinTransaction(ctx, func(ctx context.Context) error {
+		user, err := uc.userRepo.FindByID(ctx, userID)
+		if err != nil {
+			return err
+		}
+		if user == nil {
+			return apperrors.ErrUserNotFound
+		}
+
+		if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(oldPassword)); err != nil {
+			return apperrors.ErrInvalidCredentials
+		}
+
+		hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+		if err != nil {
+			return err
+		}
+
+		return uc.userRepo.UpdatePassword(ctx, userID, string(hash))
+	})
 }

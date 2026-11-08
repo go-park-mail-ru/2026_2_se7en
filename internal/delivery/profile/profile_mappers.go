@@ -67,3 +67,17 @@ func (r *UpdateProfileRequest) IsValid() []apperrors.ErrorDetail {
 
 	return details
 }
+
+func (r *UpdatePasswordRequest) IsValid() []apperrors.ErrorDetail {
+	var details []apperrors.ErrorDetail
+
+	if r.OldPassword == "" {
+		details = append(details, apperrors.ErrorDetail{Field: "old_password", Reason: "required"})
+	}
+
+	if err := tools.ValidatePassword(r.NewPassword); err != nil {
+		details = append(details, *err)
+	}
+
+	return details
+}

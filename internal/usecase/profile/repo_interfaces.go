@@ -16,6 +16,7 @@ type UserRepository interface {
 	CheckEmailExist(ctx context.Context, email string) (bool, error)
 	UpdateEmail(ctx context.Context, userID uuid.UUID, email string) error
 	UpdatePhone(ctx context.Context, userID uuid.UUID, phone *string) error
+	UpdatePassword(ctx context.Context, userID uuid.UUID, passwordHash string) error
 }
 
 type ProfileRepository interface {

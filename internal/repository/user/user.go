@@ -134,3 +134,11 @@ func (r *UserRepositoryImpl) UpdatePhone(ctx context.Context, userID uuid.UUID, 
 	
 	return err
 }
+
+func (r *UserRepositoryImpl) UpdatePassword(ctx context.Context, userID uuid.UUID, passwordHash string) error {
+	const query = `update app_user set password_hash = $2, updated_at = now() where id = $1`
+	
+	_, err := r.getExecutor(ctx).Exec(ctx, query, userID, passwordHash)
+
+	return err
+}

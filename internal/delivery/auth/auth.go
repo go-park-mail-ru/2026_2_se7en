@@ -112,7 +112,7 @@ func (d *AuthDeliveryImpl) HandleMe(w http.ResponseWriter, r *http.Request) {
 
 	result, err := d.authUsecase.GetMe(r.Context(), userID)
 	if err != nil {
-		if err == apperrors.ErrUserNotFound {
+		if errors.Is(err, apperrors.ErrUserNotFound) {
 			apperrors.WriteError(w, apperrors.NewUnauthorized("User not found"))
 			return
 		}

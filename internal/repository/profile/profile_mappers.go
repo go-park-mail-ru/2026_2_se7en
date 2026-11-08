@@ -18,3 +18,27 @@ func ProfileDBToModel(db *ProfileDB) *models.Profile {
 		UpdatedAt: db.UpdatedAt,
 	}
 }
+
+func ProfileWithFileDBToModel(db *ProfileWithFileDB) *models.Profile {
+	if db == nil {
+		return nil
+	}
+	
+	p := &models.Profile{
+		ID:        db.ID,
+		IconID:    db.IconID,
+		UserID:    db.UserID,
+		Nickname:  db.Nickname,
+		FirstName: db.FirstName,
+		LastName:  db.LastName,
+		Bio:       db.Bio,
+		CreatedAt: db.CreatedAt,
+		UpdatedAt: db.UpdatedAt,
+	}
+
+	if db.FileURL != nil {
+		p.AvatarURL = db.FileURL
+	}
+
+	return p
+}

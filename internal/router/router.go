@@ -6,22 +6,31 @@ import (
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/storage"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
-	httpSwagger "github.com/swaggo/http-swagger"
 
 	deliveryauth "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/auth"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/chat"
 	deliverychat "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/chat"
 	ws "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/chat/ws"
+	deliverycontact "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/contact"
 	deliveryregister "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/register"
 
 	usecaseauth "github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/auth"
 	usecasechat "github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/chat"
+	usecasecontact "github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/contact"
 	usecaseregister "github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/register"
 
+	deliveryprofile "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/profile"
 	repochat "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/chat"
+	repocontact "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/contact"
 	repoprofile "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/profile"
 	reposession "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/session"
 	repouser "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/user"
+
+	repofile "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/file"
+	repotx "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/tx"
+	usecaseprofile "github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/profile"
+
+	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
 
 func New(db *storage.DB, origins []string) (http.Handler, *ws.Hub) {
@@ -31,16 +40,23 @@ func New(db *storage.DB, origins []string) (http.Handler, *ws.Hub) {
 	profileRepo := repoprofile.NewProfileRepository(db.Pool())
 	sessionRepo := reposession.NewSessionRepository(db.Pool())
 	chatRepo := repochat.NewChatRepository(db.Pool())
+	fileRepo := repofile.NewFileRepository(db.Pool())
+	txManager := repotx.NewManager(db.Pool())
+	contactRepo := repocontact.NewContactRepository(db.Pool())
 
 	authUsecase := usecaseauth.NewAuthUsecase(userRepo, profileRepo, sessionRepo)
 	registerUsecase := usecaseregister.NewRegisterUsecase(userRepo, profileRepo)
 	chatUsecase := usecasechat.NewChatUsecase(chatRepo)
+	profileUsecase := usecaseprofile.NewProfileUsecase(txManager, userRepo, profileRepo, fileRepo)
+	contactUsecase := usecasecontact.NewContactUsecase(contactRepo, userRepo)
+
+	wsHandler := chat.NewWSHandler(hub, chatUsecase, origins)
 
 	authDelivery := deliveryauth.NewAuthDelivery(authUsecase, hub)
 	registerDelivery := deliveryregister.NewRegisterDelivery(registerUsecase)
 	chatDelivery := deliverychat.NewChatDelivery(chatUsecase, hub)
-
-	wsHandler := chat.NewWSHandler(hub, chatUsecase, origins)
+	profileDelivery := deliveryprofile.NewProfileDelivery(profileUsecase)
+	contactDelivery := deliverycontact.NewContactDelivery(contactUsecase)
 
 	api := http.NewServeMux()
 
@@ -67,10 +83,20 @@ func New(db *storage.DB, origins []string) (http.Handler, *ws.Hub) {
 
 	api.Handle("GET /ws", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(wsHandler.HandleWS)))
 
-	mainRouter := http.NewServeMux()
-	mainRouter.Handle("/api/v1/", http.StripPrefix("/api/v1", api))
+	api.Handle("GET /contacts", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(contactDelivery.HandleGetContactsList)))
+	api.Handle("POST /contacts", middleware.NewAuthMiddleware(sessionRepo, tools.NewJSONDecoder(contactDelivery.HandleCreateContact)))
+	api.Handle("DELETE /contacts", middleware.NewAuthMiddleware(sessionRepo, tools.NewJSONDecoder(contactDelivery.HandleDeleteContact)))
+
+	api.Handle("GET /profile", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(profileDelivery.HandleGetProfile)))
+	api.Handle("PATCH /profile", middleware.NewAuthMiddleware(sessionRepo, tools.NewJSONDecoder(profileDelivery.HandleUpdateProfile)))
+	api.Handle("PUT /profile/avatar", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(profileDelivery.HandleUploadAvatar)))
+	api.Handle("PATCH /profile/password", middleware.NewAuthMiddleware(sessionRepo, tools.NewJSONDecoder(profileDelivery.HandleUpdatePassword)))
 
 	api.Handle("GET /swagger/*any", httpSwagger.WrapHandler)
+
+	mainRouter := http.NewServeMux()
+	mainRouter.Handle("/api/v1/", http.StripPrefix("/api/v1", api))
+	mainRouter.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir("./uploads"))))
 
 	return mainRouter, hub
 }

@@ -126,4 +126,9 @@ var (
 		Message: "Invalid email or password",
 		Status:  http.StatusUnauthorized,
 	}
+	ErrContactAlreadyExists = &AppError{
+		Code:    "CONTACT_ALREADY_EXISTS",
+		Message: "Contact already exists",
+		Status:  http.StatusConflict,
+	}
 )

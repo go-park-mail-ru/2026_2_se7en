@@ -23,6 +23,7 @@ const (
 	MaxChatNameLen        = 100
 	MaxChatDescriptionLen = 500
 	MaxMessageContentLen  = 4096
+	MaxPseudonymLen       = 64
 )
 
 var (
@@ -149,5 +150,13 @@ func ValidateMessageFields(messageType string, content *string, stickerID *uuid.
 	default:
 		return &apperrors.ErrorDetail{Field: "type", Reason: "Message type must be text or sticker"}
 	}
+	return nil
+}
+
+func ValidatePseudonym(pseudonym *string) *apperrors.ErrorDetail {
+	if pseudonym != nil && len(*pseudonym) > MaxPseudonymLen {
+		return &apperrors.ErrorDetail{Field: "pseudonym", Reason: "too_long"}
+	}
+
 	return nil
 }

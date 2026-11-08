@@ -7,6 +7,7 @@ import (
 )
 
 var ErrUserNotFound = errors.New("user not found")
+var ErrInvalidUUID = errors.New("invalid UUID")
 
 type ErrorDetail struct {
 	Field  string `json:"field"`

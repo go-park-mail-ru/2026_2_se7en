@@ -10,13 +10,19 @@ import (
 	"github.com/google/uuid"
 )
 
-type AuthDeliveryImpl struct {
-	authUsecase AuthUsecase
+type SessionDisconnecter interface {
+	DisconnectSession(sessionID uuid.UUID)
 }
 
-func NewAuthDelivery(authUsecase AuthUsecase) *AuthDeliveryImpl {
+type AuthDeliveryImpl struct {
+	authUsecase         AuthUsecase
+	sessionDisconnecter SessionDisconnecter
+}
+
+func NewAuthDelivery(authUsecase AuthUsecase, disconnecter SessionDisconnecter) *AuthDeliveryImpl {
 	return &AuthDeliveryImpl{
-		authUsecase: authUsecase,
+		authUsecase:         authUsecase,
+		sessionDisconnecter: disconnecter,
 	}
 }
 
@@ -78,6 +84,8 @@ func (d *AuthDeliveryImpl) HandleLogout(w http.ResponseWriter, r *http.Request) 
 		apperrors.WriteError(w, apperrors.NewInternalError("Something went wrong", err))
 		return
 	}
+
+	d.sessionDisconnecter.DisconnectSession(sessionID)
 
 	middleware.ClearSessionCookie(w)
 	w.WriteHeader(http.StatusNoContent)

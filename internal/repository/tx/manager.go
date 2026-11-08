@@ -4,14 +4,14 @@ import (
 	"context"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/storage"
 )
 
 type ManagerImpl struct {
-	pool *pgxpool.Pool
+	pool storage.DBPool
 }
 
-func NewManager(pool *pgxpool.Pool) *ManagerImpl {
+func NewManager(pool storage.DBPool) *ManagerImpl {
 	return &ManagerImpl{pool: pool}
 }
 
@@ -20,9 +20,9 @@ func (m *ManagerImpl) WithinTransaction(ctx context.Context, fn func(ctx context
 	if err != nil {
 		return err
 	}
-	
+
 	defer func() {
-		rollbackCtx, cancel := context.WithTimeout(context.Background(), 5 * time.Second)
+		rollbackCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 
 		defer cancel()
 

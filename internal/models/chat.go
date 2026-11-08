@@ -35,6 +35,14 @@ type ChatDetail struct {
 	Role string
 }
 
+type DialogStatus uint8
+
+const (
+	DialogExisting DialogStatus = iota
+	DialogCreated
+	DialogRestored
+)
+
 type ChatMember struct {
 	UserID  uuid.UUID
 	Role    string
@@ -49,6 +57,7 @@ type Message struct {
 	StickerID        *uuid.UUID
 	Content          *string
 	IsEdited         bool
+	IsRead           bool
 	Type             string
 	CreatedAt        time.Time
 	UpdatedAt        time.Time

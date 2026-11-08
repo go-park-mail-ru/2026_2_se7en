@@ -14,6 +14,7 @@ type Profile struct {
 	FirstName string
 	LastName  *string
 	Bio       *string
+	AvatarURL *string
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

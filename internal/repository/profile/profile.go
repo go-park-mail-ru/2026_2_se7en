@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/repository/tx"
 	"github.com/google/uuid"
@@ -112,8 +113,16 @@ func (r *ProfileRepositoryImpl) Update(ctx context.Context, profileID uuid.UUID,
 
 	executor := r.getExecutor(ctx)
 	_, err := executor.Exec(ctx, query, profileID, nickname, firstName, lastName, bio)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return apperrors.ErrNicknameTaken
+		}
 
-	return err
+		return err
+	}
+
+	return nil
 }
 
 func (r *ProfileRepositoryImpl) UpdateIcon(ctx context.Context, profileID uuid.UUID, fileID uuid.UUID) error {

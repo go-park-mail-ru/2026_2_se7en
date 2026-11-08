@@ -13,7 +13,6 @@ type TxManager interface {
 
 type UserRepository interface {
 	FindByID(ctx context.Context, userID uuid.UUID) (*models.User, error)
-	CheckEmailExist(ctx context.Context, email string) (bool, error)
 	UpdateEmail(ctx context.Context, userID uuid.UUID, email string) error
 	UpdatePhone(ctx context.Context, userID uuid.UUID, phone *string) error
 	UpdatePassword(ctx context.Context, userID uuid.UUID, passwordHash string) error
@@ -21,7 +20,6 @@ type UserRepository interface {
 
 type ProfileRepository interface {
 	GetWithFileByUserID(ctx context.Context, userID uuid.UUID) (*models.Profile, error)
-	CheckNicknameExist(ctx context.Context, nickname string) (bool, error)
 	Update(ctx context.Context, profileID uuid.UUID, nickname, firstName string, lastName *string, bio *string) error
 	UpdateIcon(ctx context.Context, profileID uuid.UUID, fileID uuid.UUID) error
 }

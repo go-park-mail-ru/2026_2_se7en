@@ -88,14 +88,7 @@ func (uc *ProfileUsecaseImpl) UpdateProfile(ctx context.Context, userID uuid.UUI
 		lastName := prof.LastName
 		bio := prof.Bio
 
-		if params.Nickname != nil && *params.Nickname != nickname {
-			exists, err := uc.profileRepo.CheckNicknameExist(ctx, *params.Nickname)
-			if err != nil {
-				return err
-			}
-			if exists {
-				return apperrors.ErrNicknameTaken
-			}
+		if params.Nickname != nil {
 			nickname = *params.Nickname
 		}
 

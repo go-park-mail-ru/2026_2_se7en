@@ -32,11 +32,13 @@ func (d *ChatDeliveryImpl) HandleGetListMessages(w http.ResponseWriter, r *http.
 		apperrors.WriteError(w, apperrors.NewUnauthorized("Authorization required"))
 		return
 	}
+
 	chatID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil || chatID == uuid.Nil {
 		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid id", []apperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}}))
 		return
 	}
+
 	q := r.URL.Query()
 	limit := 20
 	if _, present := q["limit"]; present {
@@ -45,26 +47,32 @@ func (d *ChatDeliveryImpl) HandleGetListMessages(w http.ResponseWriter, r *http.
 			apperrors.WriteError(w, apperrors.NewBadRequest("Invalid limit format", nil))
 			return
 		}
+
 		limit = parsed
 	}
+
 	if limit < 1 || limit > 50 {
 		apperrors.WriteError(w, apperrors.NewBadRequest("Validation failed", []apperrors.ErrorDetail{{Field: "limit", Reason: "Limit must be between 1 and 50"}}))
 		return
 	}
+
 	beforeID, err := parseQueryUUID(q, "before")
 	if err != nil {
 		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid before format", nil))
 		return
 	}
+
 	var before *uuid.UUID
 	if _, present := q["before"]; present {
 		before = &beforeID
 	}
+
 	result, err := d.chatUsecase.GetListMessages(r.Context(), userID, chatID, limit, before)
 	if err != nil {
 		apperrors.WriteError(w, mapChatError(err))
 		return
 	}
+
 	tools.WriteJSON(w, http.StatusOK, MessagesToResponse(result))
 }
 
@@ -88,10 +96,12 @@ func (d *ChatDeliveryImpl) HandleCreateMessage(w http.ResponseWriter, r *http.Re
 	if !ok {
 		return apperrors.NewUnauthorized("Authorization required")
 	}
+
 	chatID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil || chatID == uuid.Nil {
 		return apperrors.NewBadRequest("Invalid id", []apperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}})
 	}
+
 	result, usecaseErr := d.chatUsecase.CreateMessage(r.Context(), userID, chatID, req.ReplyToMessageID, req.StickerID, req.Content, req.Type)
 	if usecaseErr != nil {
 		return mapChatError(usecaseErr)
@@ -136,12 +146,15 @@ func (r *CreateMessageRequest) IsValid() []apperrors.ErrorDetail {
 	if r.ReplyToMessageID != nil && *r.ReplyToMessageID == uuid.Nil {
 		return []apperrors.ErrorDetail{{Field: "reply_to_message_id", Reason: "invalid reply_to_message_id"}}
 	}
+
 	if r.StickerID != nil && *r.StickerID == uuid.Nil {
 		return []apperrors.ErrorDetail{{Field: "sticker_id", Reason: "invalid sticker_id"}}
 	}
+
 	if detail := tools.ValidateMessageFields(r.Type, r.Content, r.StickerID); detail != nil {
 		return []apperrors.ErrorDetail{*detail}
 	}
+
 	return nil
 }
 
@@ -166,5 +179,6 @@ func MessagesToResponse(messages []models.Message) ListMessagesResponse {
 	for _, message := range messages {
 		items = append(items, MessageToResponse(message))
 	}
+
 	return ListMessagesResponse{Items: items}
 }

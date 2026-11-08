@@ -30,11 +30,13 @@ func (d *ChatDeliveryImpl) HandleCreateGroup(w http.ResponseWriter, r *http.Requ
 	if !ok {
 		return apperrors.NewUnauthorized("Authorization required")
 	}
+
 	for _, memberID := range req.Members {
 		if memberID == userID {
 			return apperrors.NewBadRequest("Validation failed", []apperrors.ErrorDetail{{Field: "members", Reason: "Creator must not be included in members"}})
 		}
 	}
+
 	result, err := d.chatUsecase.CreateGroup(r.Context(), userID, req.Name, req.Description, req.Members)
 	if err != nil {
 		return mapChatError(err)
@@ -44,6 +46,7 @@ func (d *ChatDeliveryImpl) HandleCreateGroup(w http.ResponseWriter, r *http.Requ
 		Type:    models.EventChatCreated,
 		Payload: map[string]any{"chat_id": result.Chat.ID},
 	}
+
 	d.broadcaster.BroadcastToUser(userID, event)
 	for _, memberID := range req.Members {
 		d.broadcaster.BroadcastToUser(memberID, event)
@@ -74,14 +77,17 @@ func (d *ChatDeliveryImpl) HandleUpdateGroup(w http.ResponseWriter, r *http.Requ
 	if !ok {
 		return apperrors.NewUnauthorized("Authorization required")
 	}
+
 	chatID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil || chatID == uuid.Nil {
 		return apperrors.NewBadRequest("Invalid id", []apperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}})
 	}
+
 	result, usecaseErr := d.chatUsecase.UpdateGroup(r.Context(), userID, chatID, req.Name, req.Description, req.SetDescription)
 	if usecaseErr != nil {
 		return mapChatError(usecaseErr)
 	}
+
 	d.broadcaster.BroadcastToChat(chatID, models.Event{
 		Type:    models.EventChatUpdated,
 		Payload: map[string]any{"chat_id": chatID},
@@ -109,16 +115,19 @@ func (d *ChatDeliveryImpl) HandleGetListMembers(w http.ResponseWriter, r *http.R
 		apperrors.WriteError(w, apperrors.NewUnauthorized("Authorization required"))
 		return
 	}
+
 	chatID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil || chatID == uuid.Nil {
 		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid id", []apperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}}))
 		return
 	}
+
 	result, err := d.chatUsecase.GetListMembers(r.Context(), userID, chatID)
 	if err != nil {
 		apperrors.WriteError(w, mapChatError(err))
 		return
 	}
+
 	tools.WriteJSON(w, http.StatusOK, ChatMembersToResponse(result))
 }
 
@@ -144,13 +153,16 @@ func (d *ChatDeliveryImpl) HandleAddMember(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return apperrors.NewUnauthorized("Authorization required")
 	}
+
 	if req.UserID == userID {
 		return apperrors.NewBadRequest("Validation failed", []apperrors.ErrorDetail{{Field: "user_id", Reason: "Cannot add yourself"}})
 	}
+
 	chatID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil || chatID == uuid.Nil {
 		return apperrors.NewBadRequest("Invalid id", []apperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}})
 	}
+
 	result, usecaseErr := d.chatUsecase.AddMember(r.Context(), userID, chatID, req.UserID)
 	if usecaseErr != nil {
 		return mapChatError(usecaseErr)
@@ -163,6 +175,7 @@ func (d *ChatDeliveryImpl) HandleAddMember(w http.ResponseWriter, r *http.Reques
 			"member":  ChatMemberToResponse(*result),
 		},
 	}
+
 	d.broadcaster.BroadcastToChat(chatID, event)
 	d.broadcaster.BroadcastToUser(req.UserID, event)
 
@@ -190,16 +203,19 @@ func (d *ChatDeliveryImpl) HandleRemoveMember(w http.ResponseWriter, r *http.Req
 		apperrors.WriteError(w, apperrors.NewUnauthorized("Authorization required"))
 		return
 	}
+
 	chatID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil || chatID == uuid.Nil {
 		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid id", []apperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}}))
 		return
 	}
+
 	targetID, err := uuid.Parse(r.PathValue("user_id"))
 	if err != nil || targetID == uuid.Nil {
 		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid user_id", []apperrors.ErrorDetail{{Field: "user_id", Reason: "user_id must be a valid UUID"}}))
 		return
 	}
+
 	if err := d.chatUsecase.RemoveMember(r.Context(), userID, chatID, targetID); err != nil {
 		apperrors.WriteError(w, mapChatError(err))
 		return
@@ -229,11 +245,13 @@ func (d *ChatDeliveryImpl) HandleLeaveGroup(w http.ResponseWriter, r *http.Reque
 		apperrors.WriteError(w, apperrors.NewUnauthorized("Authorization required"))
 		return
 	}
+
 	chatID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil || chatID == uuid.Nil {
 		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid id", []apperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}}))
 		return
 	}
+
 	if err := d.chatUsecase.RemoveMember(r.Context(), userID, chatID, userID); err != nil {
 		apperrors.WriteError(w, mapChatError(err))
 		return
@@ -252,6 +270,7 @@ func (d *ChatDeliveryImpl) broadcastMemberRemoved(chatID, userID uuid.UUID) {
 			"user_id": userID,
 		},
 	}
+
 	d.broadcaster.BroadcastToChat(chatID, event)
 	d.broadcaster.BroadcastToUser(userID, event)
 }
@@ -299,19 +318,24 @@ func (r *CreateGroupRequest) IsValid() []apperrors.ErrorDetail {
 	if detail := tools.ValidateChatName(r.Name); detail != nil {
 		details = append(details, *detail)
 	}
+
 	if detail := tools.ValidateChatDescription(r.Description); detail != nil {
 		details = append(details, *detail)
 	}
+
 	seen := make(map[uuid.UUID]struct{}, len(r.Members))
 	for _, id := range r.Members {
 		if id == uuid.Nil {
 			return append(details, apperrors.ErrorDetail{Field: "members", Reason: "invalid user_id"})
 		}
+
 		if _, exists := seen[id]; exists {
 			return append(details, apperrors.ErrorDetail{Field: "members", Reason: "Members must be unique"})
 		}
+
 		seen[id] = struct{}{}
 	}
+
 	return details
 }
 
@@ -319,20 +343,24 @@ func (r *UpdateGroupRequest) IsValid() []apperrors.ErrorDetail {
 	if r.Name == nil && !r.SetDescription {
 		return []apperrors.ErrorDetail{{Field: "name", Reason: "At least one field must be updated"}}
 	}
+
 	if r.Description != nil && !r.SetDescription {
 		return []apperrors.ErrorDetail{{Field: "description", Reason: "Description update flag is required"}}
 	}
+
 	var details []apperrors.ErrorDetail
 	if r.Name != nil {
 		if detail := tools.ValidateChatName(*r.Name); detail != nil {
 			details = append(details, *detail)
 		}
 	}
+
 	if r.SetDescription {
 		if detail := tools.ValidateChatDescription(r.Description); detail != nil {
 			details = append(details, *detail)
 		}
 	}
+
 	return details
 }
 
@@ -340,6 +368,7 @@ func (r *AddMemberRequest) IsValid() []apperrors.ErrorDetail {
 	if r.UserID == uuid.Nil {
 		return []apperrors.ErrorDetail{{Field: "user_id", Reason: "invalid user_id"}}
 	}
+
 	return nil
 }
 
@@ -359,6 +388,7 @@ func ChatMemberToResponse(member models.ChatMember) ChatMemberResponse {
 			UpdatedAt: p.UpdatedAt,
 		}
 	}
+
 	return response
 }
 
@@ -367,5 +397,6 @@ func ChatMembersToResponse(members []models.ChatMember) ListMembersResponse {
 	for _, member := range members {
 		items = append(items, ChatMemberToResponse(member))
 	}
+
 	return ListMembersResponse{Items: items}
 }

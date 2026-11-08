@@ -59,9 +59,11 @@ func (d *ChatDeliveryImpl) HandleGetListUserChats(w http.ResponseWriter, r *http
 		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid limit format", []apperrors.ErrorDetail{{Field: "limit", Reason: err.Error()}}))
 		return
 	}
+
 	if _, present := q["limit"]; !present {
 		limit = 20
 	}
+
 	if limit < 1 || limit > 50 {
 		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid limit", []apperrors.ErrorDetail{{Field: "limit", Reason: "Limit must be between 1 and 50"}}))
 		return
@@ -72,6 +74,7 @@ func (d *ChatDeliveryImpl) HandleGetListUserChats(w http.ResponseWriter, r *http
 		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid offset format", []apperrors.ErrorDetail{{Field: "offset", Reason: err.Error()}}))
 		return
 	}
+
 	if offset < 0 {
 		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid offset", []apperrors.ErrorDetail{{Field: "offset", Reason: "Offset must be >= 0"}}))
 		return
@@ -83,8 +86,10 @@ func (d *ChatDeliveryImpl) HandleGetListUserChats(w http.ResponseWriter, r *http
 			apperrors.WriteError(w, apperrors.NewBadRequest("Invalid type format", []apperrors.ErrorDetail{{Field: "type", Reason: "Type must be a single non-empty value"}}))
 			return
 		}
+
 		chatType = vals[0]
 	}
+
 	if chatType != "" && chatType != "dialog" && chatType != "group" && chatType != "channel" {
 		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid type", []apperrors.ErrorDetail{{Field: "type", Reason: "Invalid chat type"}}))
 		return
@@ -119,16 +124,19 @@ func (d *ChatDeliveryImpl) HandleGetChatDetail(w http.ResponseWriter, r *http.Re
 		apperrors.WriteError(w, apperrors.NewUnauthorized("Authorization required"))
 		return
 	}
+
 	chatID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil || chatID == uuid.Nil {
 		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid id", []apperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}}))
 		return
 	}
+
 	result, err := d.chatUsecase.GetChatDetail(r.Context(), userID, chatID)
 	if err != nil {
 		apperrors.WriteError(w, mapChatError(err))
 		return
 	}
+
 	tools.WriteJSON(w, http.StatusOK, ChatDetailToResponse(result))
 }
 
@@ -151,11 +159,13 @@ func (d *ChatDeliveryImpl) HandleDeleteChat(w http.ResponseWriter, r *http.Reque
 		apperrors.WriteError(w, apperrors.NewUnauthorized("Authorization required"))
 		return
 	}
+
 	chatID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil || chatID == uuid.Nil {
 		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid id", []apperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}}))
 		return
 	}
+
 	if err := d.chatUsecase.DeleteChat(r.Context(), userID, chatID); err != nil {
 		apperrors.WriteError(w, mapChatError(err))
 		return
@@ -175,6 +185,7 @@ func parseQueryInt(query url.Values, key string) (int, error) {
 	if !present {
 		return 0, nil
 	}
+
 	if len(vals) != 1 {
 		return 0, apperrors.ErrInvalidChatLimit
 	}
@@ -183,6 +194,7 @@ func parseQueryInt(query url.Values, key string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+
 	return val, nil
 }
 
@@ -191,6 +203,7 @@ func parseQueryUUID(query url.Values, key string) (uuid.UUID, error) {
 	if !present {
 		return uuid.Nil, nil
 	}
+
 	if len(vals) != 1 {
 		return uuid.Nil, apperrors.ErrInvalidUUID
 	}
@@ -199,6 +212,7 @@ func parseQueryUUID(query url.Values, key string) (uuid.UUID, error) {
 	if err != nil || val == uuid.Nil {
 		return uuid.Nil, apperrors.ErrInvalidUUID
 	}
+
 	return val, nil
 }
 
@@ -207,6 +221,7 @@ func mapChatError(err error) *apperrors.AppError {
 	if errors.As(err, &appErr) {
 		return appErr
 	}
+
 	switch {
 	case errors.Is(err, apperrors.ErrInvalidChatLimit):
 		return apperrors.NewBadRequest("Invalid limit", []apperrors.ErrorDetail{{Field: "limit", Reason: "Limit must be >= 1"}})
@@ -308,6 +323,7 @@ func ChatToResponse(chat *models.Chat) *ChatResponse {
 	if chat == nil {
 		return nil
 	}
+
 	return &ChatResponse{
 		ID:           chat.ID,
 		IconID:       chat.IconID,
@@ -325,5 +341,6 @@ func ChatDetailToResponse(detail *models.ChatDetail) *ChatDetailResponse {
 	if detail == nil {
 		return nil
 	}
+
 	return &ChatDetailResponse{Chat: ChatToResponse(detail.Chat), Role: detail.Role}
 }

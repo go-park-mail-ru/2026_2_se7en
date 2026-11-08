@@ -16,15 +16,18 @@ func (r *ChatRepositoryImpl) CreateGroup(ctx context.Context, userID uuid.UUID, 
 	if err != nil {
 		return nil, err
 	}
+
 	defer tx.Rollback(ctx)
 	var exists bool
 	const creatorExists = `select exists(select 1 from app_user where id = $1 and deleted_at is null)`
 	if err = tx.QueryRow(ctx, creatorExists, userID).Scan(&exists); err != nil {
 		return nil, err
 	}
+
 	if !exists {
 		return nil, apperrors.ErrUserNotFound
 	}
+
 	var chatID uuid.UUID
 	const insertGroup = `
 		insert into chat (name, description, type, members_count)
@@ -35,14 +38,17 @@ func (r *ChatRepositoryImpl) CreateGroup(ctx context.Context, userID uuid.UUID, 
 	if err != nil {
 		return nil, err
 	}
+
 	creatorRole, err := role(ctx, tx, "creator")
 	if err != nil {
 		return nil, err
 	}
+
 	memberRole, err := role(ctx, tx, "member")
 	if err != nil {
 		return nil, err
 	}
+
 	const insertCreator = `
 		insert into user_in_chat (user_id, chat_id, role_id)
 		values ($1, $2, $3)
@@ -51,6 +57,7 @@ func (r *ChatRepositoryImpl) CreateGroup(ctx context.Context, userID uuid.UUID, 
 	if err != nil {
 		return nil, err
 	}
+
 	const insertMembers = `
 		insert into user_in_chat (user_id, chat_id, role_id)
 		select u.id, $2, $3
@@ -61,16 +68,20 @@ func (r *ChatRepositoryImpl) CreateGroup(ctx context.Context, userID uuid.UUID, 
 	if err != nil {
 		return nil, err
 	}
+
 	if tag.RowsAffected() != int64(len(members)) {
 		return nil, apperrors.ErrUserNotFound
 	}
+
 	d, err := scanDetail(tx.QueryRow(ctx, sqlFindForUser, userID, chatID))
 	if err != nil {
 		return nil, err
 	}
+
 	if err = tx.Commit(ctx); err != nil {
 		return nil, err
 	}
+
 	return d, nil
 }
 
@@ -79,17 +90,21 @@ func (r *ChatRepositoryImpl) UpdateGroup(ctx context.Context, userID, chatID uui
 	if err != nil {
 		return nil, err
 	}
+
 	defer tx.Rollback(ctx)
 	typ, roleType, err := activeRole(ctx, tx, userID, chatID)
 	if err != nil {
 		return nil, err
 	}
+
 	if typ != "group" {
 		return nil, apperrors.ErrChatNotFound
 	}
+
 	if roleType != "creator" && roleType != "admin" {
 		return nil, apperrors.ErrChatPermissionDenied
 	}
+
 	const updateGroup = `
 		update chat
 		set name = coalesce($2, name),
@@ -101,13 +116,16 @@ func (r *ChatRepositoryImpl) UpdateGroup(ctx context.Context, userID, chatID uui
 	if err != nil {
 		return nil, err
 	}
+
 	d, err := scanDetail(tx.QueryRow(ctx, sqlFindForUser, userID, chatID))
 	if err != nil {
 		return nil, err
 	}
+
 	if err = tx.Commit(ctx); err != nil {
 		return nil, err
 	}
+
 	return d, nil
 }
 
@@ -133,6 +151,7 @@ func (r *ChatRepositoryImpl) GetListMembers(ctx context.Context, userID, chatID 
 	if err != nil {
 		return nil, err
 	}
+
 	defer rows.Close()
 	items := make([]models.ChatMember, 0)
 	for rows.Next() {
@@ -142,8 +161,10 @@ func (r *ChatRepositoryImpl) GetListMembers(ctx context.Context, userID, chatID 
 		if err != nil {
 			return nil, err
 		}
+
 		items = append(items, ChatMemberDBToModel(&db))
 	}
+
 	return items, rows.Err()
 }
 
@@ -152,26 +173,32 @@ func (r *ChatRepositoryImpl) AddMember(ctx context.Context, userID, chatID, newU
 	if err != nil {
 		return nil, err
 	}
+
 	defer tx.Rollback(ctx)
 	typ, roleType, err := activeRole(ctx, tx, userID, chatID)
 	if err != nil {
 		return nil, err
 	}
+
 	if typ != "group" {
 		return nil, apperrors.ErrInvalidChatOperation
 	}
+
 	if roleType != "creator" && roleType != "admin" {
 		return nil, apperrors.ErrChatPermissionDenied
 	}
+
 	var exists bool
 	const userExists = `select exists(select 1 from app_user where id = $1 and deleted_at is null)`
 	err = tx.QueryRow(ctx, userExists, newUserID).Scan(&exists)
 	if err != nil {
 		return nil, err
 	}
+
 	if !exists {
 		return nil, apperrors.ErrUserNotFound
 	}
+
 	const memberExists = `
 		select exists (
 			select 1 from user_in_chat
@@ -182,13 +209,16 @@ func (r *ChatRepositoryImpl) AddMember(ctx context.Context, userID, chatID, newU
 	if err != nil {
 		return nil, err
 	}
+
 	if exists {
 		return nil, apperrors.ErrChatMemberExists
 	}
+
 	memberRole, err := role(ctx, tx, "member")
 	if err != nil {
 		return nil, err
 	}
+
 	const insertMember = `
 		insert into user_in_chat (user_id, chat_id, role_id)
 		values ($1, $2, $3)
@@ -199,13 +229,16 @@ func (r *ChatRepositoryImpl) AddMember(ctx context.Context, userID, chatID, newU
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return nil, apperrors.ErrChatMemberExists
 		}
+
 		return nil, err
 	}
+
 	const updateCount = `update chat set members_count = members_count + 1, updated_at = now() where id = $1`
 	_, err = tx.Exec(ctx, updateCount, chatID)
 	if err != nil {
 		return nil, err
 	}
+
 	const findAddedMember = `
 		select m.user_id, role.type, p.id, p.icon_id, p.user_id,
 			p.nickname, p.first_name, p.last_name, p.bio, p.created_at, p.updated_at
@@ -220,9 +253,11 @@ func (r *ChatRepositoryImpl) AddMember(ctx context.Context, userID, chatID, newU
 	if err != nil {
 		return nil, err
 	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
+
 	member := ChatMemberDBToModel(&db)
 	return &member, nil
 }
@@ -232,14 +267,17 @@ func (r *ChatRepositoryImpl) RemoveMember(ctx context.Context, userID, chatID, t
 	if err != nil {
 		return err
 	}
+
 	defer tx.Rollback(ctx)
 	typ, actorRole, err := activeRole(ctx, tx, userID, chatID)
 	if err != nil {
 		return err
 	}
+
 	if typ != "group" {
 		return apperrors.ErrInvalidChatOperation
 	}
+
 	var targetRole string
 	const findMember = `
 		select role.type from user_in_chat m
@@ -250,15 +288,19 @@ func (r *ChatRepositoryImpl) RemoveMember(ctx context.Context, userID, chatID, t
 	if errors.Is(err, pgx.ErrNoRows) {
 		return apperrors.ErrChatMemberNotFound
 	}
+
 	if err != nil {
 		return err
 	}
+
 	if targetRole == "creator" {
 		return apperrors.ErrChatPermissionDenied
 	}
+
 	if targetID != userID && actorRole != "creator" && (actorRole != "admin" || targetRole == "admin") {
 		return apperrors.ErrChatPermissionDenied
 	}
+
 	const removeMember = `
 		update user_in_chat set deleted_at = now(), updated_at = now()
 		where chat_id = $1 and user_id = $2 and deleted_at is null
@@ -267,10 +309,12 @@ func (r *ChatRepositoryImpl) RemoveMember(ctx context.Context, userID, chatID, t
 	if err != nil {
 		return err
 	}
+
 	const updateCount = `update chat set members_count = members_count - 1, updated_at = now() where id = $1`
 	_, err = tx.Exec(ctx, updateCount, chatID)
 	if err != nil {
 		return err
 	}
+
 	return tx.Commit(ctx)
 }

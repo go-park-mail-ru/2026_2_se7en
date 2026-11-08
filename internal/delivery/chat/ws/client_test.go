@@ -34,6 +34,7 @@ func TestMarkMessageReadBroadcastsOnlyOnTransition(t *testing.T) {
 		hub:           hub,
 		chatService:   chatService,
 	}
+
 	hub.Register(client)
 	hub.Subscribe(client, chatID)
 	action := models.Action{Type: models.ActionMessageMarkRead, ChatID: chatID, MessageID: messageID}
@@ -42,11 +43,13 @@ func TestMarkMessageReadBroadcastsOnlyOnTransition(t *testing.T) {
 	if !chatService.called {
 		t.Fatal("read state was not changed")
 	}
+
 	select {
 	case event := <-client.send:
 		if event.Type != models.EventMessageRead {
 			t.Fatalf("event type = %q", event.Type)
 		}
+
 		payload, ok := event.Payload.(map[string]any)
 		if !ok || payload["chat_id"] != chatID || payload["message_id"] != messageID || payload["user_id"] != userID {
 			t.Fatalf("event payload = %+v", event.Payload)

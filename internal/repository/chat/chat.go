@@ -92,6 +92,7 @@ func (r *ChatRepositoryImpl) GetListUserChats(ctx context.Context, userID uuid.U
 	if err != nil {
 		return nil, err
 	}
+
 	defer rows.Close()
 
 	var items []*models.ChatListItem
@@ -137,9 +138,11 @@ func scanDetail(row pgx.Row) (*models.ChatDetail, error) {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, apperrors.ErrChatNotFound
 	}
+
 	if err != nil {
 		return nil, err
 	}
+
 	return ChatDetailDBToModel(&db), nil
 }
 
@@ -170,6 +173,7 @@ func activeRole(ctx context.Context, tx pgx.Tx, userID, chatID uuid.UUID) (strin
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", "", apperrors.ErrChatNotFound
 	}
+
 	return chatType, roleType, err
 }
 
@@ -178,11 +182,13 @@ func (r *ChatRepositoryImpl) DeleteChat(ctx context.Context, userID, chatID uuid
 	if err != nil {
 		return err
 	}
+
 	defer tx.Rollback(ctx)
 	typ, roleType, err := activeRole(ctx, tx, userID, chatID)
 	if err != nil {
 		return err
 	}
+
 	switch typ {
 	case "dialog":
 	case "group":
@@ -192,10 +198,12 @@ func (r *ChatRepositoryImpl) DeleteChat(ctx context.Context, userID, chatID uuid
 	default:
 		return apperrors.ErrInvalidChatOperation
 	}
+
 	const deleteChat = `update chat set deleted_at = now(), updated_at = now() where id = $1 and deleted_at is null`
 	_, err = tx.Exec(ctx, deleteChat, chatID)
 	if err != nil {
 		return err
 	}
+
 	return tx.Commit(ctx)
 }

@@ -12,10 +12,12 @@ func (uc *ChatUsecaseImpl) CreateDialog(ctx context.Context, userID, peerID uuid
 	if err != nil {
 		return nil, models.DialogExisting, err
 	}
+
 	detail, err := uc.repo.GetChat(ctx, userID, chatID)
 	if err != nil {
 		return nil, models.DialogExisting, err
 	}
+
 	return detail, status, nil
 }
 

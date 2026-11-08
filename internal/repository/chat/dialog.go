@@ -16,6 +16,7 @@ func (r *ChatRepositoryImpl) CreateChat(ctx context.Context, userID, peerID uuid
 	if err != nil {
 		return uuid.Nil, models.DialogExisting, err
 	}
+
 	defer tx.Rollback(ctx)
 	ids := []string{userID.String(), peerID.String()}
 	sort.Strings(ids)
@@ -24,15 +25,18 @@ func (r *ChatRepositoryImpl) CreateChat(ctx context.Context, userID, peerID uuid
 	if err != nil {
 		return uuid.Nil, models.DialogExisting, err
 	}
+
 	var activeUsers int
 	const usersExist = `select count(*) from app_user where id in ($1, $2) and deleted_at is null`
 	err = tx.QueryRow(ctx, usersExist, userID, peerID).Scan(&activeUsers)
 	if err != nil {
 		return uuid.Nil, models.DialogExisting, err
 	}
+
 	if activeUsers != 2 {
 		return uuid.Nil, models.DialogExisting, apperrors.ErrUserNotFound
 	}
+
 	var chatID uuid.UUID
 	const findDialog = `
 		select c.id
@@ -47,6 +51,7 @@ func (r *ChatRepositoryImpl) CreateChat(ctx context.Context, userID, peerID uuid
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return uuid.Nil, models.DialogExisting, err
 	}
+
 	status := models.DialogExisting
 	if errors.Is(err, pgx.ErrNoRows) {
 		const insertDialog = `insert into chat (name, type, members_count) values ('', 'dialog', 2) returning id`
@@ -54,10 +59,12 @@ func (r *ChatRepositoryImpl) CreateChat(ctx context.Context, userID, peerID uuid
 		if err != nil {
 			return uuid.Nil, models.DialogExisting, err
 		}
+
 		memberRole, err := role(ctx, tx, "member")
 		if err != nil {
 			return uuid.Nil, models.DialogExisting, err
 		}
+
 		const insertMembers = `
 			insert into user_in_chat(user_id, chat_id, role_id)
 			values ($1, $3, $4), ($2, $3, $4)
@@ -66,12 +73,14 @@ func (r *ChatRepositoryImpl) CreateChat(ctx context.Context, userID, peerID uuid
 		if err != nil {
 			return uuid.Nil, models.DialogExisting, err
 		}
+
 		status = models.DialogCreated
 	} else {
 		memberRole, err := role(ctx, tx, "member")
 		if err != nil {
 			return uuid.Nil, models.DialogExisting, err
 		}
+
 		const restoreMember = `
 			insert into user_in_chat(user_id, chat_id, role_id)
 			select $1, $2, $3
@@ -84,9 +93,11 @@ func (r *ChatRepositoryImpl) CreateChat(ctx context.Context, userID, peerID uuid
 		if err != nil {
 			return uuid.Nil, models.DialogExisting, err
 		}
+
 		if commandTag.RowsAffected() > 0 {
 			status = models.DialogRestored
 		}
+
 		const updateCount = `
 			update chat
 			set members_count = (
@@ -100,9 +111,11 @@ func (r *ChatRepositoryImpl) CreateChat(ctx context.Context, userID, peerID uuid
 			return uuid.Nil, models.DialogExisting, err
 		}
 	}
+
 	if err = tx.Commit(ctx); err != nil {
 		return uuid.Nil, models.DialogExisting, err
 	}
+
 	return chatID, status, nil
 }
 
@@ -111,14 +124,17 @@ func (r *ChatRepositoryImpl) HideDialog(ctx context.Context, userID, chatID uuid
 	if err != nil {
 		return err
 	}
+
 	defer tx.Rollback(ctx)
 	chatType, _, err := activeRole(ctx, tx, userID, chatID)
 	if err != nil {
 		return err
 	}
+
 	if chatType != "dialog" {
 		return apperrors.ErrInvalidChatOperation
 	}
+
 	const hideMember = `
 		update user_in_chat
 		set deleted_at = now(), updated_at = now()
@@ -128,9 +144,11 @@ func (r *ChatRepositoryImpl) HideDialog(ctx context.Context, userID, chatID uuid
 	if err != nil {
 		return err
 	}
+
 	if tag.RowsAffected() == 0 {
 		return apperrors.ErrChatMemberNotFound
 	}
+
 	const updateCount = `
 		update chat
 		set members_count = (
@@ -143,5 +161,6 @@ func (r *ChatRepositoryImpl) HideDialog(ctx context.Context, userID, chatID uuid
 	if err != nil {
 		return err
 	}
+
 	return tx.Commit(ctx)
 }

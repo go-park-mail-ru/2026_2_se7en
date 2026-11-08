@@ -12,15 +12,18 @@ func (uc *ChatUsecaseImpl) GetListMessages(ctx context.Context, userID, chatID u
 	if _, err := uc.repo.GetChat(ctx, userID, chatID); err != nil {
 		return nil, err
 	}
+
 	if before != nil {
 		exists, err := uc.repo.MessageExists(ctx, chatID, *before)
 		if err != nil {
 			return nil, err
 		}
+
 		if !exists {
 			return nil, apperrors.ErrMessageNotFound
 		}
 	}
+
 	return uc.repo.GetListMessages(ctx, userID, chatID, limit, before)
 }
 
@@ -33,15 +36,19 @@ func (uc *ChatUsecaseImpl) MarkMessageRead(ctx context.Context, userID, chatID, 
 	if err != nil || changed {
 		return changed, err
 	}
+
 	if _, err := uc.repo.GetChat(ctx, userID, chatID); err != nil {
 		return false, err
 	}
+
 	authorID, err := uc.repo.GetMessageAuthor(ctx, chatID, messageID)
 	if err != nil {
 		return false, err
 	}
+
 	if authorID == userID {
 		return false, apperrors.ErrInvalidChatOperation
 	}
+
 	return false, nil
 }

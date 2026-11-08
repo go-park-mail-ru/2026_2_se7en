@@ -19,6 +19,7 @@ func (uc *ChatUsecaseImpl) GetListMembers(ctx context.Context, userID, chatID uu
 	if _, err := uc.repo.GetChat(ctx, userID, chatID); err != nil {
 		return nil, err
 	}
+
 	return uc.repo.GetListMembers(ctx, userID, chatID)
 }
 

@@ -90,6 +90,7 @@ func (c *Client) handleAction(action models.Action) {
 			c.sendActionError("invalid_chat_id")
 			return
 		}
+
 		c.hub.Unsubscribe(c, action.ChatID)
 		c.Send(models.Event{Type: models.EventUnsubscribed, Payload: map[string]any{"chat_id": action.ChatID}})
 
@@ -104,6 +105,7 @@ func (c *Client) handleAction(action models.Action) {
 			c.sendActionError("internal_error")
 			return
 		}
+
 		if !isMember {
 			c.sendActionError("not_a_member")
 			return
@@ -126,6 +128,7 @@ func (c *Client) handleAction(action models.Action) {
 			c.sendActionError("invalid_chat_id")
 			return
 		}
+
 		if action.MessageID == uuid.Nil {
 			c.sendActionError("invalid_message_id")
 			return
@@ -143,8 +146,10 @@ func (c *Client) handleAction(action models.Action) {
 			default:
 				c.sendActionError("internal_error")
 			}
+
 			return
 		}
+
 		if changed {
 			c.hub.BroadcastToChat(action.ChatID, models.Event{
 				Type: models.EventMessageRead,
@@ -179,11 +184,13 @@ func (c *Client) readPump() {
 		if err != nil {
 			return
 		}
+
 		var action models.Action
 		if err := json.Unmarshal(data, &action); err != nil {
 			c.sendActionError("invalid_json")
 			continue
 		}
+
 		c.handleAction(action)
 	}
 }
@@ -205,6 +212,7 @@ func (c *Client) writePump() {
 			if err != nil {
 				continue
 			}
+
 			if err := c.conn.WriteMessage(websocket.TextMessage, data); err != nil {
 				return
 			}

@@ -63,9 +63,11 @@ func (r *ChatRepositoryImpl) GetListMessages(ctx context.Context, userID, chatID
 	} else {
 		rows, err = r.pool.Query(ctx, queryWithBefore, chatID, limit, *before, userID)
 	}
+
 	if err != nil {
 		return nil, err
 	}
+
 	defer rows.Close()
 	items := make([]models.Message, 0)
 	for rows.Next() {
@@ -74,8 +76,10 @@ func (r *ChatRepositoryImpl) GetListMessages(ctx context.Context, userID, chatID
 		if err != nil {
 			return nil, err
 		}
+
 		items = append(items, MessageDBToModel(&db))
 	}
+
 	return items, rows.Err()
 }
 
@@ -84,6 +88,7 @@ func (r *ChatRepositoryImpl) CreateMessage(ctx context.Context, userID, chatID u
 	if err != nil {
 		return nil, err
 	}
+
 	defer tx.Rollback(ctx)
 	var activeChatID uuid.UUID
 	const findMemberChat = `
@@ -104,9 +109,11 @@ func (r *ChatRepositoryImpl) CreateMessage(ctx context.Context, userID, chatID u
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, apperrors.ErrChatNotFound
 	}
+
 	if err != nil {
 		return nil, err
 	}
+
 	if replyToMessageID != nil {
 		const validateReply = `
 			select id
@@ -119,10 +126,12 @@ func (r *ChatRepositoryImpl) CreateMessage(ctx context.Context, userID, chatID u
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, apperrors.ErrMessageNotFound
 		}
+
 		if err != nil {
 			return nil, err
 		}
 	}
+
 	var msgDB MessageDB
 	const insertMessage = `
 		insert into message (user_id, chat_id, reply_to_message_id, sticker_id, content, type)
@@ -134,9 +143,11 @@ func (r *ChatRepositoryImpl) CreateMessage(ctx context.Context, userID, chatID u
 	if err != nil {
 		return nil, err
 	}
+
 	if err = tx.Commit(ctx); err != nil {
 		return nil, err
 	}
+
 	msg := MessageDBToModel(&msgDB)
 	return &msg, nil
 }
@@ -166,9 +177,11 @@ func (r *ChatRepositoryImpl) MarkMessageRead(ctx context.Context, userID, chatID
 	if err == nil {
 		return true, nil
 	}
+
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil
 	}
+
 	return false, err
 }
 
@@ -183,8 +196,10 @@ func (r *ChatRepositoryImpl) GetMessageAuthor(ctx context.Context, chatID, messa
 	if errors.Is(err, pgx.ErrNoRows) {
 		return uuid.Nil, apperrors.ErrMessageNotFound
 	}
+
 	if err != nil {
 		return uuid.Nil, err
 	}
+
 	return authorID, nil
 }

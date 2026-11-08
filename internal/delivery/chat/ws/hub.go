@@ -80,6 +80,7 @@ func (h *Hub) Unsubscribe(c *Client, chatID uuid.UUID) {
 			delete(h.chats, chatID)
 		}
 	}
+
 	delete(c.subscriptions, chatID)
 }
 
@@ -114,6 +115,7 @@ func (h *Hub) BroadcastToChat(chatID uuid.UUID, event models.Event) {
 	for c := range h.chats[chatID] {
 		clients = append(clients, c)
 	}
+
 	h.mu.RUnlock()
 
 	for _, c := range clients {
@@ -127,6 +129,7 @@ func (h *Hub) BroadcastToUser(userID uuid.UUID, event models.Event) {
 	for c := range h.users[userID] {
 		clients = append(clients, c)
 	}
+
 	h.mu.RUnlock()
 
 	for _, c := range clients {
@@ -142,6 +145,7 @@ func (h *Hub) DisconnectSession(sessionID uuid.UUID) {
 			clients = append(clients, c)
 		}
 	}
+
 	h.mu.RUnlock()
 
 	for _, c := range clients {
@@ -155,6 +159,7 @@ func (h *Hub) Shutdown() {
 	for c := range h.clients {
 		clients = append(clients, c)
 	}
+
 	h.mu.Unlock()
 
 	for _, c := range clients {

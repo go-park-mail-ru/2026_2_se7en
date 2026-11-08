@@ -34,6 +34,7 @@ func NewWSHandler(hub *ws.Hub, uc ChatUsecase, origins []string) *WSHandler {
 						return true
 					}
 				}
+
 				return false
 			},
 		},
@@ -46,6 +47,7 @@ func (h *WSHandler) HandleWS(w http.ResponseWriter, r *http.Request) {
 		apperrors.WriteError(w, apperrors.NewUnauthorized("Authorization required"))
 		return
 	}
+
 	sessionID, ok := middleware.SessionIDFromContext(r.Context())
 	if !ok {
 		apperrors.WriteError(w, apperrors.NewUnauthorized("Authorization required"))

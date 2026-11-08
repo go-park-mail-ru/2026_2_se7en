@@ -12,6 +12,7 @@ func ToProfileResponse(user *models.User, prof *models.Profile) ProfileResponse 
 	resp := ProfileResponse{
 		ID:    user.ID,
 		Email: user.Email,
+		PhoneNumber: user.PhoneNumber,
 	}
 	
 	if prof != nil {
@@ -52,6 +53,14 @@ func (r *UpdateProfileRequest) IsValid() []apperrors.ErrorDetail {
 
 	if r.LastName != nil {
 		if err := tools.ValidateLastName(r.LastName); err != nil {
+			details = append(details, *err)
+		}
+	}
+
+	if r.PhoneNumber != nil {
+		p := strings.TrimSpace(*r.PhoneNumber)
+		r.PhoneNumber = &p
+		if err := tools.ValidatePhoneNumber(r.PhoneNumber); err != nil {
 			details = append(details, *err)
 		}
 	}

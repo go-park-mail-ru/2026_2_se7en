@@ -10,11 +10,12 @@ import (
 )
 
 type UpdateParams struct {
-	Email     *string
-	Nickname  *string
-	FirstName *string
-	LastName  *string
-	Bio       *string
+	Email       *string
+	Nickname    *string
+	FirstName   *string
+	LastName    *string
+	Bio         *string
+	PhoneNumber *string
 }
 
 type ProfileUsecaseImpl struct {
@@ -71,6 +72,12 @@ func (uc *ProfileUsecaseImpl) UpdateProfile(ctx context.Context, userID uuid.UUI
 
 		if params.Email != nil && *params.Email != user.Email {
 			if err := uc.userRepo.UpdateEmail(ctx, userID, *params.Email); err != nil {
+				return err
+			}
+		}
+
+		if params.PhoneNumber != nil {
+			if err := uc.userRepo.UpdatePhone(ctx, userID, params.PhoneNumber); err != nil {
 				return err
 			}
 		}

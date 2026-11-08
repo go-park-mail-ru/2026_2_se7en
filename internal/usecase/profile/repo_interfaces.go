@@ -15,6 +15,7 @@ type UserRepository interface {
 	FindByID(ctx context.Context, userID uuid.UUID) (*models.User, error)
 	CheckEmailExist(ctx context.Context, email string) (bool, error)
 	UpdateEmail(ctx context.Context, userID uuid.UUID, email string) error
+	UpdatePhone(ctx context.Context, userID uuid.UUID, phone *string) error
 }
 
 type ProfileRepository interface {

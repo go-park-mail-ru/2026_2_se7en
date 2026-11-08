@@ -3,6 +3,7 @@ package user
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
@@ -115,4 +116,21 @@ func (r *UserRepositoryImpl) getExecutor(ctx context.Context) interface {
 	}
 	
 	return r.pool
+}
+
+func (r *UserRepositoryImpl) UpdatePhone(ctx context.Context, userID uuid.UUID, phone *string) error {
+	var phoneVal *string
+	if phone != nil {
+		p := strings.TrimSpace(*phone)
+		if p == "" {
+			phoneVal = nil
+		} else {
+			phoneVal = &p
+		}
+	}
+
+	const query = `update app_user set phone_number = $2, updated_at = now() where id = $1`
+	_, err := r.getExecutor(ctx).Exec(ctx, query, userID, phoneVal)
+	
+	return err
 }

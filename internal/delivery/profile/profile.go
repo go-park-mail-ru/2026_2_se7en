@@ -73,11 +73,12 @@ func (d *ProfileDeliveryImpl) HandleUpdateProfile(w http.ResponseWriter, r *http
 	}
 
 	params := usecaseprofile.UpdateParams{
-		Email:     req.Email,
-		Nickname:  req.Nickname,
-		FirstName: req.FirstName,
-		LastName:  req.LastName,
-		Bio:       req.Bio,
+		Email:       req.Email,
+		Nickname:    req.Nickname,
+		FirstName:   req.FirstName,
+		LastName:    req.LastName,
+		Bio:         req.Bio,
+		PhoneNumber: req.PhoneNumber,
 	}
 
 	err := d.uc.UpdateProfile(r.Context(), userID, params)

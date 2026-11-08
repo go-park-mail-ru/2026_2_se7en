@@ -198,6 +198,15 @@
                 },
                 "type": "object"
             },
+            "chat.CreateDialogRequest": {
+                "properties": {
+                    "peer_id": {
+                        "format": "uuid",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "chat.CreateGroupRequest": {
                 "properties": {
                     "description": {
@@ -230,15 +239,6 @@
                         "type": "string"
                     },
                     "type": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "chat.GetOrCreateDialogRequest": {
-                "properties": {
-                    "peer_id": {
-                        "format": "uuid",
                         "type": "string"
                     }
                 },
@@ -858,7 +858,7 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/chat.GetOrCreateDialogRequest",
+                                "$ref": "#/components/schemas/chat.CreateDialogRequest",
                                 "summary": "request",
                                 "description": "Данные для создания"
                             }

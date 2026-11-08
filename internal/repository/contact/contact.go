@@ -17,7 +17,7 @@ func NewContactRepository(pool *pgxpool.Pool) *ContactRepositoryImpl {
 	return &ContactRepositoryImpl{pool: pool}
 }
 
-func (r *ContactRepositoryImpl) ListContacts(ctx context.Context, userID uuid.UUID, limit, offset int, q string) ([]models.Contact, error) {
+func (r *ContactRepositoryImpl) GetList(ctx context.Context, userID uuid.UUID, limit, offset int, q string) ([]models.Contact, error) {
 	const query = `
 		select c.contact_user_id, c.pseudonym, p.id, p.icon_id, p.user_id,
 			p.nickname, p.first_name, p.last_name, p.bio, p.created_at, p.updated_at

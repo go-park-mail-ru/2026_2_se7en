@@ -4,24 +4,23 @@ import (
 	"context"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
-
 	"github.com/google/uuid"
 )
 
 type ChatUsecaseImpl struct {
-	chatRepo ChatRepository
+	repo ChatRepository
 }
 
-func NewChatUsecase(chatRepo ChatRepository) *ChatUsecaseImpl {
-	return &ChatUsecaseImpl{chatRepo: chatRepo}
+func NewChatUsecase(repo ChatRepository) *ChatUsecaseImpl {
+	return &ChatUsecaseImpl{repo: repo}
 }
 
 func (uc *ChatUsecaseImpl) IsMember(ctx context.Context, userID, chatID uuid.UUID) (bool, error) {
-	return uc.chatRepo.IsMember(ctx, userID, chatID)
+	return uc.repo.IsMember(ctx, userID, chatID)
 }
 
-func (uc *ChatUsecaseImpl) ListUserChats(ctx context.Context, userID uuid.UUID, limit, offset int, chatType string) ([]*models.ChatListItem, error) {
-	items, err := uc.chatRepo.ListUserChats(ctx, userID, limit, offset, chatType)
+func (uc *ChatUsecaseImpl) GetListUserChats(ctx context.Context, userID uuid.UUID, limit, offset int, chatType string) ([]*models.ChatListItem, error) {
+	items, err := uc.repo.GetListUserChats(ctx, userID, limit, offset, chatType)
 	if err != nil {
 		return nil, err
 	}
@@ -34,49 +33,9 @@ func (uc *ChatUsecaseImpl) ListUserChats(ctx context.Context, userID uuid.UUID, 
 }
 
 func (uc *ChatUsecaseImpl) GetChatDetail(ctx context.Context, userID, chatID uuid.UUID) (*models.ChatDetail, error) {
-	return uc.chatRepo.GetChatDetail(ctx, userID, chatID)
-}
-
-func (uc *ChatUsecaseImpl) GetOrCreateDialog(ctx context.Context, userID, peerID uuid.UUID) (*models.ChatDetail, models.DialogStatus, error) {
-	return uc.chatRepo.GetOrCreateDialog(ctx, userID, peerID)
-}
-
-func (uc *ChatUsecaseImpl) HideDialog(ctx context.Context, userID, chatID uuid.UUID) error {
-	return uc.chatRepo.HideDialog(ctx, userID, chatID)
-}
-
-func (uc *ChatUsecaseImpl) CreateGroup(ctx context.Context, userID uuid.UUID, name string, description *string, members []uuid.UUID) (*models.ChatDetail, error) {
-	return uc.chatRepo.CreateGroup(ctx, userID, name, description, members)
-}
-
-func (uc *ChatUsecaseImpl) UpdateGroup(ctx context.Context, userID, chatID uuid.UUID, name, description *string, setDescription bool) (*models.ChatDetail, error) {
-	return uc.chatRepo.UpdateGroup(ctx, userID, chatID, name, description, setDescription)
+	return uc.repo.GetChat(ctx, userID, chatID)
 }
 
 func (uc *ChatUsecaseImpl) DeleteChat(ctx context.Context, userID, chatID uuid.UUID) error {
-	return uc.chatRepo.DeleteChat(ctx, userID, chatID)
-}
-
-func (uc *ChatUsecaseImpl) ListMembers(ctx context.Context, userID, chatID uuid.UUID) ([]models.ChatMember, error) {
-	return uc.chatRepo.ListMembers(ctx, userID, chatID)
-}
-
-func (uc *ChatUsecaseImpl) AddMember(ctx context.Context, userID, chatID, newUserID uuid.UUID) (*models.ChatMember, error) {
-	return uc.chatRepo.AddMember(ctx, userID, chatID, newUserID)
-}
-
-func (uc *ChatUsecaseImpl) RemoveMember(ctx context.Context, userID, chatID, targetID uuid.UUID) error {
-	return uc.chatRepo.RemoveMember(ctx, userID, chatID, targetID)
-}
-
-func (uc *ChatUsecaseImpl) ListMessages(ctx context.Context, userID, chatID uuid.UUID, limit int, before *uuid.UUID) ([]models.Message, error) {
-	return uc.chatRepo.ListMessages(ctx, userID, chatID, limit, before)
-}
-
-func (uc *ChatUsecaseImpl) CreateMessage(ctx context.Context, userID, chatID uuid.UUID, replyToMessageID, stickerID *uuid.UUID, content *string, messageType string) (*models.Message, error) {
-	return uc.chatRepo.CreateMessage(ctx, userID, chatID, replyToMessageID, stickerID, content, messageType)
-}
-
-func (uc *ChatUsecaseImpl) MarkMessageRead(ctx context.Context, userID, chatID, messageID uuid.UUID) (bool, error) {
-	return uc.chatRepo.MarkMessageRead(ctx, userID, chatID, messageID)
+	return uc.repo.DeleteChat(ctx, userID, chatID)
 }

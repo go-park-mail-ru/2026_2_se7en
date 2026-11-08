@@ -205,6 +205,15 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
+            "chat.CreateDialogRequest": {
+                "properties": {
+                    "peer_id": {
+                        "format": "uuid",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "chat.CreateGroupRequest": {
                 "properties": {
                     "description": {
@@ -237,15 +246,6 @@ const docTemplate = `{
                         "type": "string"
                     },
                     "type": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "chat.GetOrCreateDialogRequest": {
-                "properties": {
-                    "peer_id": {
-                        "format": "uuid",
                         "type": "string"
                     }
                 },
@@ -865,7 +865,7 @@ const docTemplate = `{
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/chat.GetOrCreateDialogRequest",
+                                "$ref": "#/components/schemas/chat.CreateDialogRequest",
                                 "summary": "request",
                                 "description": "Данные для создания"
                             }

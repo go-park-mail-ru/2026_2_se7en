@@ -1,0 +1,276 @@
+package chat
+
+import (
+	"context"
+	"errors"
+
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+)
+
+func (r *ChatRepositoryImpl) CreateGroup(ctx context.Context, userID uuid.UUID, name string, description *string, members []uuid.UUID) (*models.ChatDetail, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	var exists bool
+	const creatorExists = `select exists(select 1 from app_user where id = $1 and deleted_at is null)`
+	if err = tx.QueryRow(ctx, creatorExists, userID).Scan(&exists); err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, apperrors.ErrUserNotFound
+	}
+	var chatID uuid.UUID
+	const insertGroup = `
+		insert into chat (name, description, type, members_count)
+		values ($1, $2, 'group', $3)
+		returning id
+	`
+	err = tx.QueryRow(ctx, insertGroup, name, description, len(members)+1).Scan(&chatID)
+	if err != nil {
+		return nil, err
+	}
+	creatorRole, err := role(ctx, tx, "creator")
+	if err != nil {
+		return nil, err
+	}
+	memberRole, err := role(ctx, tx, "member")
+	if err != nil {
+		return nil, err
+	}
+	const insertCreator = `
+		insert into user_in_chat (user_id, chat_id, role_id)
+		values ($1, $2, $3)
+	`
+	_, err = tx.Exec(ctx, insertCreator, userID, chatID, creatorRole)
+	if err != nil {
+		return nil, err
+	}
+	const insertMembers = `
+		insert into user_in_chat (user_id, chat_id, role_id)
+		select u.id, $2, $3
+		from unnest($1::uuid[]) as requested(user_id)
+		join app_user u on u.id = requested.user_id and u.deleted_at is null
+	`
+	tag, err := tx.Exec(ctx, insertMembers, members, chatID, memberRole)
+	if err != nil {
+		return nil, err
+	}
+	if tag.RowsAffected() != int64(len(members)) {
+		return nil, apperrors.ErrUserNotFound
+	}
+	d, err := scanDetail(tx.QueryRow(ctx, sqlFindForUser, userID, chatID))
+	if err != nil {
+		return nil, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return d, nil
+}
+
+func (r *ChatRepositoryImpl) UpdateGroup(ctx context.Context, userID, chatID uuid.UUID, name, description *string, setDescription bool) (*models.ChatDetail, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	typ, roleType, err := activeRole(ctx, tx, userID, chatID)
+	if err != nil {
+		return nil, err
+	}
+	if typ != "group" {
+		return nil, apperrors.ErrChatNotFound
+	}
+	if roleType != "creator" && roleType != "admin" {
+		return nil, apperrors.ErrChatPermissionDenied
+	}
+	const updateGroup = `
+		update chat
+		set name = coalesce($2, name),
+			description = case when $3 then $4 else description end,
+			updated_at = now()
+		where id = $1
+	`
+	_, err = tx.Exec(ctx, updateGroup, chatID, name, setDescription, description)
+	if err != nil {
+		return nil, err
+	}
+	d, err := scanDetail(tx.QueryRow(ctx, sqlFindForUser, userID, chatID))
+	if err != nil {
+		return nil, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return d, nil
+}
+
+func (r *ChatRepositoryImpl) GetListMembers(ctx context.Context, userID, chatID uuid.UUID) ([]models.ChatMember, error) {
+	const query = `
+		select m.user_id, role.type, p.id, p.icon_id, p.user_id,
+			p.nickname, p.first_name, p.last_name, p.bio, p.created_at, p.updated_at
+		from user_in_chat m
+		join chat_role role on role.id = m.role_id
+		join app_user u on u.id = m.user_id and u.deleted_at is null
+		join profile p on p.user_id = m.user_id
+		where m.chat_id = $1 and m.deleted_at is null
+			and exists (
+				select 1 from user_in_chat requester
+				join chat c on c.id = requester.chat_id and c.deleted_at is null
+				join app_user actor on actor.id = requester.user_id and actor.deleted_at is null
+				where requester.chat_id = $1 and requester.user_id = $2
+					and requester.deleted_at is null
+			)
+		order by role.type, p.nickname
+	`
+	rows, err := r.pool.Query(ctx, query, chatID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]models.ChatMember, 0)
+	for rows.Next() {
+		var db ChatMemberDB
+		p := &db.Profile
+		err = rows.Scan(&db.UserID, &db.Role, &p.ID, &p.IconID, &p.UserID, &p.Nickname, &p.FirstName, &p.LastName, &p.Bio, &p.CreatedAt, &p.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, ChatMemberDBToModel(&db))
+	}
+	return items, rows.Err()
+}
+
+func (r *ChatRepositoryImpl) AddMember(ctx context.Context, userID, chatID, newUserID uuid.UUID) (*models.ChatMember, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	typ, roleType, err := activeRole(ctx, tx, userID, chatID)
+	if err != nil {
+		return nil, err
+	}
+	if typ != "group" {
+		return nil, apperrors.ErrInvalidChatOperation
+	}
+	if roleType != "creator" && roleType != "admin" {
+		return nil, apperrors.ErrChatPermissionDenied
+	}
+	var exists bool
+	const userExists = `select exists(select 1 from app_user where id = $1 and deleted_at is null)`
+	err = tx.QueryRow(ctx, userExists, newUserID).Scan(&exists)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, apperrors.ErrUserNotFound
+	}
+	const memberExists = `
+		select exists (
+			select 1 from user_in_chat
+			where user_id = $1 and chat_id = $2 and deleted_at is null
+		)
+	`
+	err = tx.QueryRow(ctx, memberExists, newUserID, chatID).Scan(&exists)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		return nil, apperrors.ErrChatMemberExists
+	}
+	memberRole, err := role(ctx, tx, "member")
+	if err != nil {
+		return nil, err
+	}
+	const insertMember = `
+		insert into user_in_chat (user_id, chat_id, role_id)
+		values ($1, $2, $3)
+	`
+	_, err = tx.Exec(ctx, insertMember, newUserID, chatID, memberRole)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return nil, apperrors.ErrChatMemberExists
+		}
+		return nil, err
+	}
+	const updateCount = `update chat set members_count = members_count + 1, updated_at = now() where id = $1`
+	_, err = tx.Exec(ctx, updateCount, chatID)
+	if err != nil {
+		return nil, err
+	}
+	const findAddedMember = `
+		select m.user_id, role.type, p.id, p.icon_id, p.user_id,
+			p.nickname, p.first_name, p.last_name, p.bio, p.created_at, p.updated_at
+		from user_in_chat m
+		join chat_role role on role.id = m.role_id
+		join profile p on p.user_id = m.user_id
+		where m.chat_id = $1 and m.user_id = $2 and m.deleted_at is null
+	`
+	var db ChatMemberDB
+	p := &db.Profile
+	err = tx.QueryRow(ctx, findAddedMember, chatID, newUserID).Scan(&db.UserID, &db.Role, &p.ID, &p.IconID, &p.UserID, &p.Nickname, &p.FirstName, &p.LastName, &p.Bio, &p.CreatedAt, &p.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	member := ChatMemberDBToModel(&db)
+	return &member, nil
+}
+
+func (r *ChatRepositoryImpl) RemoveMember(ctx context.Context, userID, chatID, targetID uuid.UUID) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	typ, actorRole, err := activeRole(ctx, tx, userID, chatID)
+	if err != nil {
+		return err
+	}
+	if typ != "group" {
+		return apperrors.ErrInvalidChatOperation
+	}
+	var targetRole string
+	const findMember = `
+		select role.type from user_in_chat m
+		join chat_role role on role.id = m.role_id
+		where m.chat_id = $1 and m.user_id = $2 and m.deleted_at is null
+	`
+	err = tx.QueryRow(ctx, findMember, chatID, targetID).Scan(&targetRole)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return apperrors.ErrChatMemberNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if targetRole == "creator" {
+		return apperrors.ErrChatPermissionDenied
+	}
+	if targetID != userID && actorRole != "creator" && (actorRole != "admin" || targetRole == "admin") {
+		return apperrors.ErrChatPermissionDenied
+	}
+	const removeMember = `
+		update user_in_chat set deleted_at = now(), updated_at = now()
+		where chat_id = $1 and user_id = $2 and deleted_at is null
+	`
+	_, err = tx.Exec(ctx, removeMember, chatID, targetID)
+	if err != nil {
+		return err
+	}
+	const updateCount = `update chat set members_count = members_count - 1, updated_at = now() where id = $1`
+	_, err = tx.Exec(ctx, updateCount, chatID)
+	if err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}

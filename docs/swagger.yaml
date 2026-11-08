@@ -134,6 +134,12 @@ components:
           format: date-time
           type: string
       type: object
+    chat.CreateDialogRequest:
+      properties:
+        peer_id:
+          format: uuid
+          type: string
+      type: object
     chat.CreateGroupRequest:
       properties:
         description:
@@ -157,12 +163,6 @@ components:
           format: uuid
           type: string
         type:
-          type: string
-      type: object
-    chat.GetOrCreateDialogRequest:
-      properties:
-        peer_id:
-          format: uuid
           type: string
       type: object
     chat.ListChatsResponse:
@@ -1097,7 +1097,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/chat.GetOrCreateDialogRequest'
+              $ref: '#/components/schemas/chat.CreateDialogRequest'
               description: Данные для создания
               summary: request
         description: Данные для создания

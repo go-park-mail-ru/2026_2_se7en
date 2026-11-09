@@ -14,5 +14,5 @@ type ContactDB struct {
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	Profile       profile.ProfileDB
-	IsOnline      bool
+	IconURL       *string
 }

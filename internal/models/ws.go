@@ -7,6 +7,7 @@ const (
 	EventUnsubscribed   = "unsubscribed"
 	EventChatCreated    = "chat.created"
 	EventChatUpdated    = "chat.updated"
+	EventChatActivity   = "chat.activity"
 	EventChatDeleted    = "chat.deleted"
 	EventMemberAdded    = "member.added"
 	EventMemberRemoved  = "member.deleted"

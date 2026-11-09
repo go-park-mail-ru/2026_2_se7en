@@ -54,7 +54,7 @@ func (r *ChatRepositoryImpl) CreateChat(ctx context.Context, userID, peerID uuid
 
 	status := models.DialogExisting
 	if errors.Is(err, pgx.ErrNoRows) {
-		const insertDialog = `insert into chat (name, type, members_count) values ('', 'dialog', 2) returning id`
+		const insertDialog = `insert into chat (name, type, members_count) values (null, 'dialog', 2) returning id`
 		err = tx.QueryRow(ctx, insertDialog).Scan(&chatID)
 		if err != nil {
 			return uuid.Nil, models.DialogExisting, err

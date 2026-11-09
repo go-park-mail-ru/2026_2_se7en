@@ -2,6 +2,7 @@ package chat
 
 import (
 	"context"
+	"time"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/google/uuid"
@@ -19,16 +20,18 @@ func (uc *ChatUsecaseImpl) IsMember(ctx context.Context, userID, chatID uuid.UUI
 	return uc.repo.IsMember(ctx, userID, chatID)
 }
 
-func (uc *ChatUsecaseImpl) GetListUserChats(ctx context.Context, userID uuid.UUID, limit, offset int, chatType string) ([]*models.ChatListItem, error) {
-	items, err := uc.repo.GetListUserChats(ctx, userID, limit, offset, chatType)
+func (uc *ChatUsecaseImpl) GetActiveMemberIDs(ctx context.Context, chatID uuid.UUID) ([]uuid.UUID, error) {
+	return uc.repo.GetActiveMemberIDs(ctx, chatID)
+}
+
+func (uc *ChatUsecaseImpl) GetListUserChats(ctx context.Context, userID uuid.UUID, limit int, chatType string, cursorTime *time.Time, cursorID uuid.UUID) ([]*models.ChatListItem, error) {
+	items, err := uc.repo.GetListUserChats(ctx, userID, limit, chatType, cursorTime, cursorID)
 	if err != nil {
 		return nil, err
 	}
-
 	if items == nil {
-		items = []*models.ChatListItem{}
+		return []*models.ChatListItem{}, nil
 	}
-
 	return items, nil
 }
 

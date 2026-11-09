@@ -51,7 +51,7 @@ func (d *RegisterDeliveryImpl) HandleRegister(w http.ResponseWriter, r *http.Req
 
 	response := ModelToRegisterResponse(registerRes.User)
 
-	middleware.SetSessionCookie(w, registerRes.SessionID.String())
+	middleware.SetSessionCookie(w, r, registerRes.SessionID.String())
 
 	tools.WriteJSON(w, http.StatusCreated, response)
 	return nil

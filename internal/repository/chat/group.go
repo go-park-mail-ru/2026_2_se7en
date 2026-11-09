@@ -12,6 +12,10 @@ import (
 )
 
 func (r *ChatRepositoryImpl) CreateGroup(ctx context.Context, userID uuid.UUID, name string, description *string, members []uuid.UUID) (*models.ChatDetail, error) {
+	if len(members)+1 > 100 {
+		return nil, apperrors.ErrChatMemberLimit
+	}
+
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -129,14 +133,50 @@ func (r *ChatRepositoryImpl) UpdateGroup(ctx context.Context, userID, chatID uui
 	return d, nil
 }
 
+func (r *ChatRepositoryImpl) UpdateGroupAvatar(ctx context.Context, userID, chatID uuid.UUID, url, filename, contentType string) (*models.ChatDetail, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+
+	typ, roleType, err := activeRole(ctx, tx, userID, chatID)
+	if err != nil {
+		return nil, err
+	}
+	if typ != "group" {
+		return nil, apperrors.ErrInvalidChatOperation
+	}
+	if roleType != "creator" && roleType != "admin" {
+		return nil, apperrors.ErrChatPermissionDenied
+	}
+
+	var fileID uuid.UUID
+	if err := tx.QueryRow(ctx, `insert into file (url, filename, type) values ($1, $2, $3) returning id`, url, filename, contentType).Scan(&fileID); err != nil {
+		return nil, err
+	}
+	if _, err := tx.Exec(ctx, `update chat set icon_id = $2, updated_at = now() where id = $1`, chatID, fileID); err != nil {
+		return nil, err
+	}
+	detail, err := scanDetail(tx.QueryRow(ctx, sqlFindForUser, userID, chatID))
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return detail, nil
+}
+
 func (r *ChatRepositoryImpl) GetListMembers(ctx context.Context, userID, chatID uuid.UUID) ([]models.ChatMember, error) {
 	const query = `
-		select m.user_id, role.type, p.id, p.icon_id, p.user_id,
+		select m.user_id, role.type, p.id, p.icon_id, avatar.url, p.user_id,
 			p.nickname, p.first_name, p.last_name, p.bio, p.created_at, p.updated_at
 		from user_in_chat m
 		join chat_role role on role.id = m.role_id
 		join app_user u on u.id = m.user_id and u.deleted_at is null
 		join profile p on p.user_id = m.user_id
+		left join file avatar on avatar.id = p.icon_id
 		where m.chat_id = $1 and m.deleted_at is null
 			and exists (
 				select 1 from user_in_chat requester
@@ -157,7 +197,7 @@ func (r *ChatRepositoryImpl) GetListMembers(ctx context.Context, userID, chatID 
 	for rows.Next() {
 		var db ChatMemberDB
 		p := &db.Profile
-		err = rows.Scan(&db.UserID, &db.Role, &p.ID, &p.IconID, &p.UserID, &p.Nickname, &p.FirstName, &p.LastName, &p.Bio, &p.CreatedAt, &p.UpdatedAt)
+		err = rows.Scan(&db.UserID, &db.Role, &p.ID, &p.IconID, &p.IconURL, &p.UserID, &p.Nickname, &p.FirstName, &p.LastName, &p.Bio, &p.CreatedAt, &p.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -214,6 +254,15 @@ func (r *ChatRepositoryImpl) AddMember(ctx context.Context, userID, chatID, newU
 		return nil, apperrors.ErrChatMemberExists
 	}
 
+	var memberCount int
+	const countMembers = `select count(*) from user_in_chat where chat_id = $1 and deleted_at is null`
+	if err := tx.QueryRow(ctx, countMembers, chatID).Scan(&memberCount); err != nil {
+		return nil, err
+	}
+	if memberCount >= 100 {
+		return nil, apperrors.ErrChatMemberLimit
+	}
+
 	memberRole, err := role(ctx, tx, "member")
 	if err != nil {
 		return nil, err
@@ -240,16 +289,17 @@ func (r *ChatRepositoryImpl) AddMember(ctx context.Context, userID, chatID, newU
 	}
 
 	const findAddedMember = `
-		select m.user_id, role.type, p.id, p.icon_id, p.user_id,
+		select m.user_id, role.type, p.id, p.icon_id, avatar.url, p.user_id,
 			p.nickname, p.first_name, p.last_name, p.bio, p.created_at, p.updated_at
 		from user_in_chat m
 		join chat_role role on role.id = m.role_id
 		join profile p on p.user_id = m.user_id
+		left join file avatar on avatar.id = p.icon_id
 		where m.chat_id = $1 and m.user_id = $2 and m.deleted_at is null
 	`
 	var db ChatMemberDB
 	p := &db.Profile
-	err = tx.QueryRow(ctx, findAddedMember, chatID, newUserID).Scan(&db.UserID, &db.Role, &p.ID, &p.IconID, &p.UserID, &p.Nickname, &p.FirstName, &p.LastName, &p.Bio, &p.CreatedAt, &p.UpdatedAt)
+	err = tx.QueryRow(ctx, findAddedMember, chatID, newUserID).Scan(&db.UserID, &db.Role, &p.ID, &p.IconID, &p.IconURL, &p.UserID, &p.Nickname, &p.FirstName, &p.LastName, &p.Bio, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}

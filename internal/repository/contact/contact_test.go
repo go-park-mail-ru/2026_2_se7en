@@ -9,7 +9,7 @@ import (
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/pashagolub/pgxmock/v2"
+	"github.com/pashagolub/pgxmock/v5"
 )
 
 func TestContactRepository_CreateContact_Success(t *testing.T) {
@@ -130,15 +130,15 @@ func TestContactRepository_GetContactsList_Success(t *testing.T) {
 
 	lastName := "Doe"
 	bio := "Hello"
+	avatarURL := "https://example.test/avatar.png"
 
 	rows := pgxmock.NewRows([]string{
-		"user_id", "contact_user_id", "pseudonym", "uc_created_at", "uc_updated_at",
-		"p_id", "p_user_id", "p_icon_id", "p_nickname", "p_first_name", "p_last_name", "p_bio", "p_created_at", "p_updated_at",
-		"is_online",
+		"user_id", "contact_user_id", "pseudonym", "created_at", "updated_at",
+		"p_id", "p_user_id", "p_icon_id", "avatar_url", "p_nickname", "p_first_name",
+		"p_last_name", "p_bio", "p_created_at", "p_updated_at",
 	}).AddRow(
 		userID, contactUserID, nil, now, now,
-		profileID, contactUserID, &iconID, "testnick", "John", &lastName, &bio, now, now,
-		true,
+		profileID, contactUserID, &iconID, &avatarURL, "testnick", "John", &lastName, &bio, now, now,
 	)
 
 	mockPool.ExpectQuery("SELECT uc.user_id, uc.contact_user_id").
@@ -154,7 +154,7 @@ func TestContactRepository_GetContactsList_Success(t *testing.T) {
 		t.Fatalf("expected 1 contact, got %d", len(contacts))
 	}
 
-	if contacts[0].Profile.Nickname != "testnick" || !contacts[0].IsOnline {
+	if contacts[0].Profile.Nickname != "testnick" || contacts[0].Profile.AvatarURL == nil || *contacts[0].Profile.AvatarURL != avatarURL {
 		t.Errorf("unexpected contact data: %+v", contacts[0])
 	}
 

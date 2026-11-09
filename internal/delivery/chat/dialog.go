@@ -38,6 +38,7 @@ func (d *ChatDeliveryImpl) HandleCreateDialog(w http.ResponseWriter, r *http.Req
 	if err != nil {
 		return mapChatError(err)
 	}
+	result.IsOnline = d.chatOnline(result.Chat, result.PeerID)
 
 	if status == models.DialogCreated || status == models.DialogRestored {
 		event := models.Event{
@@ -87,19 +88,7 @@ func (d *ChatDeliveryImpl) HandleHideDialog(w http.ResponseWriter, r *http.Reque
 
 	d.broadcaster.RevokeUserFromChat(userID, chatID)
 	d.broadcaster.BroadcastToUser(userID, models.Event{Type: models.EventUnsubscribed, Payload: map[string]any{"chat_id": chatID}})
+	d.broadcaster.BroadcastToUsers([]uuid.UUID{userID}, models.Event{Type: models.EventChatActivity, Payload: map[string]any{"chat_id": chatID}})
 
 	w.WriteHeader(http.StatusNoContent)
-}
-
-type CreateDialogRequest struct {
-	PeerID uuid.UUID `json:"peer_id" format:"uuid"`
-}
-
-func (r *CreateDialogRequest) IsValid() []apperrors.ErrorDetail {
-	var details []apperrors.ErrorDetail
-	if r.PeerID == uuid.Nil {
-		details = append(details, apperrors.ErrorDetail{Field: "peer_id", Reason: "invalid peer_id"})
-	}
-
-	return details
 }

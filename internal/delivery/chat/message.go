@@ -2,7 +2,6 @@ package chat
 
 import (
 	"net/http"
-	"time"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
@@ -112,73 +111,8 @@ func (d *ChatDeliveryImpl) HandleCreateMessage(w http.ResponseWriter, r *http.Re
 		Type:    models.EventMessageCreated,
 		Payload: response,
 	})
+	d.broadcastChatActivity(r.Context(), chatID)
 
 	tools.WriteJSON(w, http.StatusCreated, response)
 	return nil
-}
-
-type CreateMessageRequest struct {
-	ReplyToMessageID *uuid.UUID `json:"reply_to_message_id,omitempty" format:"uuid"`
-	StickerID        *uuid.UUID `json:"sticker_id,omitempty" format:"uuid"`
-	Content          *string    `json:"content,omitempty"`
-	Type             string     `json:"type" `
-}
-
-type MessageResponse struct {
-	ID               uuid.UUID  `json:"id" format:"uuid"`
-	UserID           uuid.UUID  `json:"user_id" format:"uuid"`
-	ChatID           uuid.UUID  `json:"chat_id" format:"uuid"`
-	ReplyToMessageID *uuid.UUID `json:"reply_to_message_id,omitempty" format:"uuid"`
-	StickerID        *uuid.UUID `json:"sticker_id,omitempty" format:"uuid"`
-	Content          *string    `json:"content,omitempty"`
-	IsEdited         bool       `json:"is_edited"`
-	IsRead           bool       `json:"is_read"`
-	Type             string     `json:"type"`
-	CreatedAt        time.Time  `json:"created_at" format:"date-time"`
-	UpdatedAt        time.Time  `json:"updated_at" format:"date-time"`
-}
-
-type ListMessagesResponse struct {
-	Items []MessageResponse `json:"items"`
-}
-
-func (r *CreateMessageRequest) IsValid() []apperrors.ErrorDetail {
-	if r.ReplyToMessageID != nil && *r.ReplyToMessageID == uuid.Nil {
-		return []apperrors.ErrorDetail{{Field: "reply_to_message_id", Reason: "invalid reply_to_message_id"}}
-	}
-
-	if r.StickerID != nil && *r.StickerID == uuid.Nil {
-		return []apperrors.ErrorDetail{{Field: "sticker_id", Reason: "invalid sticker_id"}}
-	}
-
-	if detail := tools.ValidateMessageFields(r.Type, r.Content, r.StickerID); detail != nil {
-		return []apperrors.ErrorDetail{*detail}
-	}
-
-	return nil
-}
-
-func MessageToResponse(message models.Message) MessageResponse {
-	return MessageResponse{
-		ID:               message.ID,
-		UserID:           message.UserID,
-		ChatID:           message.ChatID,
-		ReplyToMessageID: message.ReplyToMessageID,
-		StickerID:        message.StickerID,
-		Content:          message.Content,
-		IsEdited:         message.IsEdited,
-		IsRead:           message.IsRead,
-		Type:             message.Type,
-		CreatedAt:        message.CreatedAt,
-		UpdatedAt:        message.UpdatedAt,
-	}
-}
-
-func MessagesToResponse(messages []models.Message) ListMessagesResponse {
-	items := make([]MessageResponse, 0, len(messages))
-	for _, message := range messages {
-		items = append(items, MessageToResponse(message))
-	}
-
-	return ListMessagesResponse{Items: items}
 }

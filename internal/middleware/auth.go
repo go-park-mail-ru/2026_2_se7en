@@ -61,7 +61,7 @@ func (m *AuthMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	SetSessionCookie(w, cookie.Value)
+	SetSessionCookie(w, r, cookie.Value)
 
 	authCtx := NewAuthContext(NewSessionContext(r.Context(), sessionID), userID)
 

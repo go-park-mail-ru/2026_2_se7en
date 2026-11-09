@@ -2,7 +2,6 @@ package chat
 
 import (
 	"net/http"
-	"time"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
@@ -92,13 +91,57 @@ func (d *ChatDeliveryImpl) HandleUpdateGroup(w http.ResponseWriter, r *http.Requ
 		Type:    models.EventChatUpdated,
 		Payload: map[string]any{"chat_id": chatID},
 	})
+	d.broadcastChatActivity(r.Context(), chatID)
 	tools.WriteJSON(w, http.StatusOK, ChatDetailToResponse(result))
 	return nil
 }
 
+// HandleUploadGroupAvatar godoc
+// @Summary      Загрузить или заменить аватар группы
+// @Description  Только создатель или администратор. Файл JPEG, PNG или WebP до 5 МиБ; icon_url — путь относительно адреса backend.
+// @Tags         chats
+// @Accept       multipart/form-data
+// @Produce      json
+// @Security     SessionCookie
+// @Param        id path string true "ID группы (UUID)" format(uuid)
+// @Param        file formData file true "Аватар"
+// @Success      200 {object} ChatDetailResponse
+// @Failure      400 {object} apperrors.ErrorResponse
+// @Failure      401 {object} apperrors.ErrorResponse
+// @Failure      403 {object} apperrors.ErrorResponse
+// @Failure      404 {object} apperrors.ErrorResponse
+// @Failure      500 {object} apperrors.ErrorResponse
+// @Router       /chats/{id}/avatar [put]
+func (d *ChatDeliveryImpl) HandleUploadGroupAvatar(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		apperrors.WriteError(w, apperrors.NewUnauthorized("Authorization required"))
+		return
+	}
+	chatID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil || chatID == uuid.Nil {
+		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid id", nil))
+		return
+	}
+	upload, closeFile, err := tools.ExtractAvatar(w, r)
+	if err != nil {
+		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid avatar file", nil))
+		return
+	}
+	defer closeFile()
+	detail, err := d.chatUsecase.UploadGroupAvatar(r.Context(), userID, chatID, upload)
+	if err != nil {
+		apperrors.WriteError(w, mapChatError(err))
+		return
+	}
+	d.broadcaster.BroadcastToChat(chatID, models.Event{Type: models.EventChatUpdated, Payload: map[string]any{"chat_id": chatID}})
+	d.broadcastChatActivity(r.Context(), chatID)
+	tools.WriteJSON(w, http.StatusOK, ChatDetailToResponse(detail))
+}
+
 // HandleGetListMembers godoc
 // @Summary      Участники чата
-// @Description  Возвращает активных участников чата с ролями и профилями
+// @Description  Возвращает активных участников чата с ролями, профилями и статусом онлайн
 // @Tags         chats
 // @Produce      json
 // @Security     SessionCookie
@@ -128,7 +171,11 @@ func (d *ChatDeliveryImpl) HandleGetListMembers(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	tools.WriteJSON(w, http.StatusOK, ChatMembersToResponse(result))
+	response := ChatMembersToResponse(result)
+	for i, member := range result {
+		response.Items[i].IsOnline = d.broadcaster.IsOnline(member.UserID)
+	}
+	tools.WriteJSON(w, http.StatusOK, response)
 }
 
 // HandleAddMember godoc
@@ -167,19 +214,22 @@ func (d *ChatDeliveryImpl) HandleAddMember(w http.ResponseWriter, r *http.Reques
 	if usecaseErr != nil {
 		return mapChatError(usecaseErr)
 	}
+	memberResponse := ChatMemberToResponse(*result)
+	memberResponse.IsOnline = d.broadcaster.IsOnline(result.UserID)
 
 	event := models.Event{
 		Type: models.EventMemberAdded,
 		Payload: map[string]any{
 			"chat_id": chatID,
-			"member":  ChatMemberToResponse(*result),
+			"member":  memberResponse,
 		},
 	}
 
 	d.broadcaster.BroadcastToChat(chatID, event)
 	d.broadcaster.BroadcastToUser(req.UserID, event)
+	d.broadcastChatActivity(r.Context(), chatID)
 
-	tools.WriteJSON(w, http.StatusCreated, ChatMemberToResponse(*result))
+	tools.WriteJSON(w, http.StatusCreated, memberResponse)
 	return nil
 }
 
@@ -222,6 +272,8 @@ func (d *ChatDeliveryImpl) HandleRemoveMember(w http.ResponseWriter, r *http.Req
 	}
 
 	d.broadcastMemberRemoved(chatID, targetID)
+	d.broadcastChatActivity(r.Context(), chatID)
+	d.broadcaster.BroadcastToUsers([]uuid.UUID{targetID}, models.Event{Type: models.EventChatActivity, Payload: map[string]any{"chat_id": chatID}})
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -258,6 +310,8 @@ func (d *ChatDeliveryImpl) HandleLeaveGroup(w http.ResponseWriter, r *http.Reque
 	}
 
 	d.broadcastMemberRemoved(chatID, userID)
+	d.broadcastChatActivity(r.Context(), chatID)
+	d.broadcaster.BroadcastToUsers([]uuid.UUID{userID}, models.Event{Type: models.EventChatActivity, Payload: map[string]any{"chat_id": chatID}})
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -273,130 +327,4 @@ func (d *ChatDeliveryImpl) broadcastMemberRemoved(chatID, userID uuid.UUID) {
 
 	d.broadcaster.BroadcastToChat(chatID, event)
 	d.broadcaster.BroadcastToUser(userID, event)
-}
-
-type CreateGroupRequest struct {
-	Name        string      `json:"name"`
-	Description *string     `json:"description,omitempty"`
-	Members     []uuid.UUID `json:"members"`
-}
-
-type UpdateGroupRequest struct {
-	Name           *string `json:"name,omitempty"`
-	Description    *string `json:"description,omitempty"`
-	SetDescription bool    `json:"set_description"`
-}
-
-type AddMemberRequest struct {
-	UserID uuid.UUID `json:"user_id" format:"uuid"`
-}
-
-type MemberProfileResponse struct {
-	ID        uuid.UUID  `json:"id" format:"uuid"`
-	IconID    *uuid.UUID `json:"icon_id,omitempty" format:"uuid"`
-	UserID    uuid.UUID  `json:"user_id" format:"uuid"`
-	Nickname  string     `json:"nickname"`
-	FirstName string     `json:"first_name"`
-	LastName  *string    `json:"last_name,omitempty"`
-	Bio       *string    `json:"bio,omitempty"`
-	CreatedAt time.Time  `json:"created_at" format:"date-time"`
-	UpdatedAt time.Time  `json:"updated_at" format:"date-time"`
-}
-
-type ChatMemberResponse struct {
-	UserID  uuid.UUID              `json:"user_id" format:"uuid"`
-	Role    string                 `json:"role"`
-	Profile *MemberProfileResponse `json:"profile"`
-}
-
-type ListMembersResponse struct {
-	Items []ChatMemberResponse `json:"items"`
-}
-
-func (r *CreateGroupRequest) IsValid() []apperrors.ErrorDetail {
-	var details []apperrors.ErrorDetail
-	if detail := tools.ValidateChatName(r.Name); detail != nil {
-		details = append(details, *detail)
-	}
-
-	if detail := tools.ValidateChatDescription(r.Description); detail != nil {
-		details = append(details, *detail)
-	}
-
-	seen := make(map[uuid.UUID]struct{}, len(r.Members))
-	for _, id := range r.Members {
-		if id == uuid.Nil {
-			return append(details, apperrors.ErrorDetail{Field: "members", Reason: "invalid user_id"})
-		}
-
-		if _, exists := seen[id]; exists {
-			return append(details, apperrors.ErrorDetail{Field: "members", Reason: "Members must be unique"})
-		}
-
-		seen[id] = struct{}{}
-	}
-
-	return details
-}
-
-func (r *UpdateGroupRequest) IsValid() []apperrors.ErrorDetail {
-	if r.Name == nil && !r.SetDescription {
-		return []apperrors.ErrorDetail{{Field: "name", Reason: "At least one field must be updated"}}
-	}
-
-	if r.Description != nil && !r.SetDescription {
-		return []apperrors.ErrorDetail{{Field: "description", Reason: "Description update flag is required"}}
-	}
-
-	var details []apperrors.ErrorDetail
-	if r.Name != nil {
-		if detail := tools.ValidateChatName(*r.Name); detail != nil {
-			details = append(details, *detail)
-		}
-	}
-
-	if r.SetDescription {
-		if detail := tools.ValidateChatDescription(r.Description); detail != nil {
-			details = append(details, *detail)
-		}
-	}
-
-	return details
-}
-
-func (r *AddMemberRequest) IsValid() []apperrors.ErrorDetail {
-	if r.UserID == uuid.Nil {
-		return []apperrors.ErrorDetail{{Field: "user_id", Reason: "invalid user_id"}}
-	}
-
-	return nil
-}
-
-func ChatMemberToResponse(member models.ChatMember) ChatMemberResponse {
-	response := ChatMemberResponse{UserID: member.UserID, Role: member.Role}
-	if member.Profile != nil {
-		p := member.Profile
-		response.Profile = &MemberProfileResponse{
-			ID:        p.ID,
-			IconID:    p.IconID,
-			UserID:    p.UserID,
-			Nickname:  p.Nickname,
-			FirstName: p.FirstName,
-			LastName:  p.LastName,
-			Bio:       p.Bio,
-			CreatedAt: p.CreatedAt,
-			UpdatedAt: p.UpdatedAt,
-		}
-	}
-
-	return response
-}
-
-func ChatMembersToResponse(members []models.ChatMember) ListMembersResponse {
-	items := make([]ChatMemberResponse, 0, len(members))
-	for _, member := range members {
-		items = append(items, ChatMemberToResponse(member))
-	}
-
-	return ListMembersResponse{Items: items}
 }

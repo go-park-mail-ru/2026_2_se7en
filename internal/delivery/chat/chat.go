@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/url"
@@ -15,8 +16,10 @@ import (
 )
 
 type Broadcaster interface {
+	IsOnline(userID uuid.UUID) bool
 	BroadcastToChat(chatID uuid.UUID, event models.Event)
 	BroadcastToUser(userID uuid.UUID, event models.Event)
+	BroadcastToUsers(userIDs []uuid.UUID, event models.Event)
 	RevokeUserFromChat(userID, chatID uuid.UUID)
 	RemoveChat(chatID uuid.UUID)
 }
@@ -32,13 +35,14 @@ func NewChatDelivery(chatUsecase ChatUsecase, broadcaster Broadcaster) *ChatDeli
 
 // HandleGetListUserChats godoc
 // @Summary      Список чатов пользователя
-// @Description  Возвращает список чатов с поддержкой пагинации и фильтрации по типу
+// @Description  Возвращает страницу чатов с фильтрацией по типу
 // @Tags         chats
 // @Produce      json
 // @Security     SessionCookie
 // @Param        limit  query    int     false  "Размер списка (1-50)"  default(20)
-// @Param        offset query    int     false  "Смещение от начала"     default(0)
 // @Param        type   query    string  false  "Фильтр по типу чата"    Enums(dialog, group, channel)
+// @Param        after_time query string false "Время активности последнего чата (RFC3339Nano)"
+// @Param        after_id   query string false "ID последнего чата"
 // @Success      200  {object} ListChatsResponse
 // @Failure 400 {object} apperrors.ErrorResponse
 // @Failure 401 {object} apperrors.ErrorResponse
@@ -69,17 +73,6 @@ func (d *ChatDeliveryImpl) HandleGetListUserChats(w http.ResponseWriter, r *http
 		return
 	}
 
-	offset, err := parseQueryInt(q, "offset")
-	if err != nil {
-		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid offset format", []apperrors.ErrorDetail{{Field: "offset", Reason: err.Error()}}))
-		return
-	}
-
-	if offset < 0 {
-		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid offset", []apperrors.ErrorDetail{{Field: "offset", Reason: "Offset must be >= 0"}}))
-		return
-	}
-
 	chatType := ""
 	if vals, present := q["type"]; present {
 		if len(vals) != 1 || vals[0] == "" {
@@ -95,13 +88,36 @@ func (d *ChatDeliveryImpl) HandleGetListUserChats(w http.ResponseWriter, r *http
 		return
 	}
 
-	items, err := d.chatUsecase.GetListUserChats(r.Context(), userID, limit, offset, chatType)
+	cursorTime, cursorID, err := parseChatPagination(q)
+	if err != nil {
+		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid pagination boundary", nil))
+		return
+	}
+
+	items, err := d.chatUsecase.GetListUserChats(r.Context(), userID, limit+1, chatType, cursorTime, cursorID)
 	if err != nil {
 		apperrors.WriteError(w, mapChatError(err))
 		return
 	}
+	for _, item := range items {
+		if item != nil {
+			item.IsOnline = d.chatOnline(item.Chat, item.PeerID)
+		}
+	}
+
+	hasMore := len(items) > limit
+	if hasMore {
+		items = items[:limit]
+	}
 
 	response := ChatItemsToResponse(items)
+	if hasMore && len(items) > 0 && items[len(items)-1] != nil && items[len(items)-1].Chat != nil {
+		nextTime := items[len(items)-1].ActivityAt.UTC()
+		nextID := items[len(items)-1].Chat.ID
+		response.NextAfterTime = &nextTime
+		response.NextAfterID = &nextID
+	}
+
 	tools.WriteJSON(w, http.StatusOK, response)
 }
 
@@ -136,6 +152,7 @@ func (d *ChatDeliveryImpl) HandleGetChatDetail(w http.ResponseWriter, r *http.Re
 		apperrors.WriteError(w, mapChatError(err))
 		return
 	}
+	result.IsOnline = d.chatOnline(result.Chat, result.PeerID)
 
 	tools.WriteJSON(w, http.StatusOK, ChatDetailToResponse(result))
 }
@@ -166,16 +183,19 @@ func (d *ChatDeliveryImpl) HandleDeleteChat(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	userIDs, err := d.chatUsecase.GetActiveMemberIDs(r.Context(), chatID)
+	if err != nil {
+		apperrors.WriteError(w, mapChatError(err))
+		return
+	}
+
 	if err := d.chatUsecase.DeleteChat(r.Context(), userID, chatID); err != nil {
 		apperrors.WriteError(w, mapChatError(err))
 		return
 	}
 
-	d.broadcaster.BroadcastToChat(chatID, models.Event{
-		Type:    models.EventChatDeleted,
-		Payload: map[string]any{"chat_id": chatID},
-	})
 	d.broadcaster.RemoveChat(chatID)
+	d.broadcaster.BroadcastToUsers(userIDs, models.Event{Type: models.EventChatDeleted, Payload: map[string]any{"chat_id": chatID}})
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -216,6 +236,27 @@ func parseQueryUUID(query url.Values, key string) (uuid.UUID, error) {
 	return val, nil
 }
 
+func parseChatPagination(q url.Values) (*time.Time, uuid.UUID, error) {
+	timeValues, hasTime := q["after_time"]
+	idValues, hasID := q["after_id"]
+	if !hasTime && !hasID {
+		return nil, uuid.Nil, nil
+	}
+	if !hasTime || !hasID || len(timeValues) != 1 || len(idValues) != 1 {
+		return nil, uuid.Nil, errors.New("invalid pagination boundary")
+	}
+
+	parsedTime, err := time.Parse(time.RFC3339Nano, timeValues[0])
+	if err != nil {
+		return nil, uuid.Nil, err
+	}
+	parsedID, err := uuid.Parse(idValues[0])
+	if err != nil || parsedID == uuid.Nil {
+		return nil, uuid.Nil, errors.New("invalid pagination boundary")
+	}
+	return &parsedTime, parsedID, nil
+}
+
 func mapChatError(err error) *apperrors.AppError {
 	var appErr *apperrors.AppError
 	if errors.As(err, &appErr) {
@@ -225,8 +266,6 @@ func mapChatError(err error) *apperrors.AppError {
 	switch {
 	case errors.Is(err, apperrors.ErrInvalidChatLimit):
 		return apperrors.NewBadRequest("Invalid limit", []apperrors.ErrorDetail{{Field: "limit", Reason: "Limit must be >= 1"}})
-	case errors.Is(err, apperrors.ErrInvalidChatOffset):
-		return apperrors.NewBadRequest("Invalid offset", []apperrors.ErrorDetail{{Field: "offset", Reason: "Offset must be >= 0"}})
 	case errors.Is(err, apperrors.ErrInvalidChatType):
 		return apperrors.NewBadRequest("Invalid type", []apperrors.ErrorDetail{{Field: "type", Reason: "Invalid chat type"}})
 	case errors.Is(err, apperrors.ErrChatNotFound), errors.Is(err, apperrors.ErrChatMemberNotFound), errors.Is(err, apperrors.ErrUserNotFound):
@@ -237,110 +276,26 @@ func mapChatError(err error) *apperrors.AppError {
 		return apperrors.NewBadRequest("Validation failed", nil)
 	case errors.Is(err, apperrors.ErrChatMemberExists):
 		return apperrors.NewConflict("Resource already exists", nil)
+	case errors.Is(err, apperrors.ErrChatMemberLimit):
+		return apperrors.NewConflictWithCode("CHAT_FULL", "Group cannot have more than 100 members", nil)
 	default:
 		return apperrors.NewInternalError("Something went wrong", err)
 	}
 }
 
-type MessagePreviewResponse struct {
-	ID        uuid.UUID `json:"id" format:"uuid"`
-	Content   *string   `json:"content,omitempty"`
-	Type      string    `json:"type"`
-	CreatedAt time.Time `json:"created_at" format:"date-time"`
-}
-
-type ChatItemResponse struct {
-	ID           uuid.UUID               `json:"id" format:"uuid"`
-	IconID       *uuid.UUID              `json:"icon_id,omitempty" format:"uuid"`
-	Name         string                  `json:"name"`
-	Description  *string                 `json:"description,omitempty"`
-	Type         string                  `json:"type"`
-	MembersCount int                     `json:"members_count"`
-	CreatedAt    time.Time               `json:"created_at" format:"date-time"`
-	UpdatedAt    time.Time               `json:"updated_at" format:"date-time"`
-	LastMessage  *MessagePreviewResponse `json:"last_message,omitempty"`
-}
-
-type ListChatsResponse struct {
-	Items []ChatItemResponse `json:"items"`
-}
-
-type ChatResponse struct {
-	ID           uuid.UUID  `json:"id" format:"uuid"`
-	IconID       *uuid.UUID `json:"icon_id,omitempty" format:"uuid"`
-	Name         string     `json:"name"`
-	Description  *string    `json:"description,omitempty"`
-	Type         string     `json:"type"`
-	MembersCount int        `json:"members_count"`
-	CreatedAt    time.Time  `json:"created_at" format:"date-time"`
-	UpdatedAt    time.Time  `json:"updated_at" format:"date-time"`
-	DeletedAt    *time.Time `json:"deleted_at,omitempty" format:"date-time"`
-}
-
-type ChatDetailResponse struct {
-	Chat *ChatResponse `json:"chat"`
-	Role string        `json:"role"`
-}
-
-func ChatItemsToResponse(items []*models.ChatListItem) ListChatsResponse {
-	if items == nil {
-		return ListChatsResponse{Items: []ChatItemResponse{}}
+func (d *ChatDeliveryImpl) broadcastChatActivity(ctx context.Context, chatID uuid.UUID) {
+	userIDs, err := d.chatUsecase.GetActiveMemberIDs(ctx, chatID)
+	if err != nil {
+		return
 	}
-
-	ResponseItems := make([]ChatItemResponse, 0, len(items))
-	for _, item := range items {
-		if item == nil || item.Chat == nil {
-			continue
-		}
-
-		Response := ChatItemResponse{
-			ID:           item.Chat.ID,
-			IconID:       item.Chat.IconID,
-			Name:         item.Chat.Name,
-			Description:  item.Chat.Description,
-			Type:         item.Chat.Type,
-			MembersCount: item.Chat.MembersCount,
-			CreatedAt:    item.Chat.CreatedAt,
-			UpdatedAt:    item.Chat.UpdatedAt,
-		}
-
-		if item.LastMessage != nil {
-			Response.LastMessage = &MessagePreviewResponse{
-				ID:        item.LastMessage.ID,
-				Content:   item.LastMessage.Content,
-				Type:      item.LastMessage.Type,
-				CreatedAt: item.LastMessage.CreatedAt,
-			}
-		}
-
-		ResponseItems = append(ResponseItems, Response)
-	}
-
-	return ListChatsResponse{Items: ResponseItems}
+	d.broadcaster.BroadcastToUsers(userIDs, models.Event{Type: models.EventChatActivity, Payload: map[string]any{"chat_id": chatID}})
 }
 
-func ChatToResponse(chat *models.Chat) *ChatResponse {
-	if chat == nil {
+func (d *ChatDeliveryImpl) chatOnline(chat *models.Chat, peerID *uuid.UUID) *bool {
+	if chat == nil || chat.Type != "dialog" || peerID == nil {
 		return nil
 	}
 
-	return &ChatResponse{
-		ID:           chat.ID,
-		IconID:       chat.IconID,
-		Name:         chat.Name,
-		Description:  chat.Description,
-		Type:         chat.Type,
-		MembersCount: chat.MembersCount,
-		CreatedAt:    chat.CreatedAt,
-		UpdatedAt:    chat.UpdatedAt,
-		DeletedAt:    chat.DeletedAt,
-	}
-}
-
-func ChatDetailToResponse(detail *models.ChatDetail) *ChatDetailResponse {
-	if detail == nil {
-		return nil
-	}
-
-	return &ChatDetailResponse{Chat: ChatToResponse(detail.Chat), Role: detail.Role}
+	online := d.broadcaster.IsOnline(*peerID)
+	return &online
 }

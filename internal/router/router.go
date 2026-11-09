@@ -56,7 +56,7 @@ func New(db *storage.DB, origins []string) (http.Handler, *ws.Hub) {
 	registerDelivery := deliveryregister.NewRegisterDelivery(registerUsecase)
 	chatDelivery := deliverychat.NewChatDelivery(chatUsecase, hub)
 	profileDelivery := deliveryprofile.NewProfileDelivery(profileUsecase)
-	contactDelivery := deliverycontact.NewContactDelivery(contactUsecase)
+	contactDelivery := deliverycontact.NewContactDelivery(contactUsecase, hub)
 
 	api := http.NewServeMux()
 
@@ -73,6 +73,7 @@ func New(db *storage.DB, origins []string) (http.Handler, *ws.Hub) {
 	api.Handle("POST /chats/{id}/hide", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(chatDelivery.HandleHideDialog)))
 	api.Handle("POST /chats/groups", middleware.NewAuthMiddleware(sessionRepo, tools.NewJSONDecoder(chatDelivery.HandleCreateGroup)))
 	api.Handle("PATCH /chats/{id}", middleware.NewAuthMiddleware(sessionRepo, tools.NewJSONDecoder(chatDelivery.HandleUpdateGroup)))
+	api.Handle("PUT /chats/{id}/avatar", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(chatDelivery.HandleUploadGroupAvatar)))
 	api.Handle("DELETE /chats/{id}", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(chatDelivery.HandleDeleteChat)))
 	api.Handle("GET /chats/{id}/members", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(chatDelivery.HandleGetListMembers)))
 	api.Handle("POST /chats/{id}/members", middleware.NewAuthMiddleware(sessionRepo, tools.NewJSONDecoder(chatDelivery.HandleAddMember)))

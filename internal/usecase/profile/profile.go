@@ -40,7 +40,7 @@ func (uc *ProfileUsecaseImpl) GetProfile(ctx context.Context, userID uuid.UUID) 
 	if err != nil {
 		return nil, nil, err
 	}
-	
+
 	if user == nil {
 		return nil, nil, apperrors.ErrUserNotFound
 	}
@@ -122,7 +122,7 @@ func (uc *ProfileUsecaseImpl) UploadAvatar(ctx context.Context, userID uuid.UUID
 			return apperrors.NewNotFound("Profile not found")
 		}
 
-		fileModel, err := uc.fileRepo.Create(ctx, url, filename, "image")
+		fileModel, err := uc.fileRepo.Create(ctx, url, filename, file.ContentType)
 		if err != nil {
 			return err
 		}
@@ -136,6 +136,7 @@ func (uc *ProfileUsecaseImpl) UploadAvatar(ctx context.Context, userID uuid.UUID
 	})
 
 	if err != nil {
+		_ = tools.RemoveAvatar(filename)
 		return "", err
 	}
 

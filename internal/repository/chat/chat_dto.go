@@ -7,15 +7,22 @@ import (
 )
 
 type ChatDB struct {
-	ID           uuid.UUID
-	IconID       *uuid.UUID
-	Name         string
-	Description  *string
-	Type         string
-	MembersCount int
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
-	DeletedAt    *time.Time
+	ID            uuid.UUID
+	PeerID        *uuid.UUID
+	IconID        *uuid.UUID
+	IconURL       *string
+	ChatIconURL   *string
+	PeerIconURL   *string
+	PeerFirstName *string
+	PeerLastName  *string
+	PeerNickname  *string
+	Name          string
+	Description   *string
+	Type          string
+	MembersCount  int
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	DeletedAt     *time.Time
 }
 
 type MessagePreviewDB struct {
@@ -28,6 +35,8 @@ type MessagePreviewDB struct {
 type ChatListItemDB struct {
 	Chat        ChatDB
 	LastMessage *MessagePreviewDB
+	UnreadCount int
+	ActivityAt  time.Time
 }
 
 type ChatDetailDB struct {
@@ -44,6 +53,7 @@ type ChatMemberDB struct {
 type MemberProfileDB struct {
 	ID        uuid.UUID
 	IconID    *uuid.UUID
+	IconURL   *string
 	UserID    uuid.UUID
 	Nickname  string
 	FirstName string

@@ -24,15 +24,10 @@ func (r *ContactRepositoryImpl) GetContactsList(ctx context.Context, userID uuid
 	const query = `
 		SELECT 
 			uc.user_id, uc.contact_user_id, uc.pseudonym, uc.created_at, uc.updated_at,
-			p.id, p.user_id, p.icon_id, p.nickname, p.first_name, p.last_name, p.bio, p.created_at, p.updated_at,
-			EXISTS(
-				SELECT 1 FROM session s 
-				WHERE s.user_id = uc.contact_user_id 
-				AND s.expires_at > NOW()
-				LIMIT 1
-			) AS is_online
+			p.id, p.user_id, p.icon_id, avatar.url, p.nickname, p.first_name, p.last_name, p.bio, p.created_at, p.updated_at
 		FROM user_contact uc
 		JOIN profile p ON uc.contact_user_id = p.user_id
+		LEFT JOIN file avatar ON avatar.id = p.icon_id
 		WHERE uc.user_id = $1 AND (
 			$4 = '' OR p.nickname ILIKE '%' || $4 || '%'
 			OR p.first_name ILIKE '%' || $4 || '%'
@@ -54,9 +49,8 @@ func (r *ContactRepositoryImpl) GetContactsList(ctx context.Context, userID uuid
 		var db ContactDB
 		err := rows.Scan(
 			&db.UserID, &db.ContactUserID, &db.Pseudonym, &db.CreatedAt, &db.UpdatedAt,
-			&db.Profile.ID, &db.Profile.UserID, &db.Profile.IconID, &db.Profile.Nickname,
+			&db.Profile.ID, &db.Profile.UserID, &db.Profile.IconID, &db.IconURL, &db.Profile.Nickname,
 			&db.Profile.FirstName, &db.Profile.LastName, &db.Profile.Bio, &db.Profile.CreatedAt, &db.Profile.UpdatedAt,
-			&db.IsOnline,
 		)
 		if err != nil {
 			return nil, err

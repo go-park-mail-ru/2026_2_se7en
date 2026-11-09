@@ -4,8 +4,22 @@ import (
 	"context"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
 	"github.com/google/uuid"
 )
+
+func (uc *ChatUsecaseImpl) UploadGroupAvatar(ctx context.Context, userID, chatID uuid.UUID, upload *models.FileUpload) (*models.ChatDetail, error) {
+	url, filename, err := tools.SaveAvatar(upload)
+	if err != nil {
+		return nil, err
+	}
+	detail, err := uc.repo.UpdateGroupAvatar(ctx, userID, chatID, url, filename, upload.ContentType)
+	if err != nil {
+		_ = tools.RemoveAvatar(filename)
+		return nil, err
+	}
+	return detail, nil
+}
 
 func (uc *ChatUsecaseImpl) CreateGroup(ctx context.Context, userID uuid.UUID, name string, description *string, members []uuid.UUID) (*models.ChatDetail, error) {
 	return uc.repo.CreateGroup(ctx, userID, name, description, members)

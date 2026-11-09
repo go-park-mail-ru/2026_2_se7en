@@ -13,6 +13,7 @@ func ContactToResponse(c models.Contact) ContactResponse {
 		FirstName:     c.Profile.FirstName,
 		LastName:      c.Profile.LastName,
 		IconID:        c.Profile.IconID,
+		IconURL:       c.Profile.AvatarURL,
 		IsOnline:      c.IsOnline,
 		CreatedAt:     c.CreatedAt,
 		UpdatedAt:     c.UpdatedAt,

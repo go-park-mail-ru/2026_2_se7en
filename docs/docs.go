@@ -130,9 +130,15 @@ const docTemplate = `{
                         "format": "uuid",
                         "type": "string"
                     },
+                    "icon_url": {
+                        "type": "string"
+                    },
                     "id": {
                         "format": "uuid",
                         "type": "string"
+                    },
+                    "is_online": {
+                        "type": "boolean"
                     },
                     "last_message": {
                         "$ref": "#/components/schemas/chat.MessagePreviewResponse"
@@ -146,6 +152,9 @@ const docTemplate = `{
                     "type": {
                         "type": "string"
                     },
+                    "unread_count": {
+                        "type": "integer"
+                    },
                     "updated_at": {
                         "format": "date-time",
                         "type": "string"
@@ -155,6 +164,9 @@ const docTemplate = `{
             },
             "chat.ChatMemberResponse": {
                 "properties": {
+                    "is_online": {
+                        "type": "boolean"
+                    },
                     "profile": {
                         "$ref": "#/components/schemas/chat.MemberProfileResponse"
                     },
@@ -185,9 +197,15 @@ const docTemplate = `{
                         "format": "uuid",
                         "type": "string"
                     },
+                    "icon_url": {
+                        "type": "string"
+                    },
                     "id": {
                         "format": "uuid",
                         "type": "string"
+                    },
+                    "is_online": {
+                        "type": "boolean"
                     },
                     "members_count": {
                         "type": "integer"
@@ -259,6 +277,14 @@ const docTemplate = `{
                         },
                         "type": "array",
                         "uniqueItems": false
+                    },
+                    "next_after_id": {
+                        "format": "uuid",
+                        "type": "string"
+                    },
+                    "next_after_time": {
+                        "format": "date-time",
+                        "type": "string"
                     }
                 },
                 "type": "object"
@@ -301,6 +327,9 @@ const docTemplate = `{
                     },
                     "icon_id": {
                         "format": "uuid",
+                        "type": "string"
+                    },
+                    "icon_url": {
                         "type": "string"
                     },
                     "id": {
@@ -417,6 +446,9 @@ const docTemplate = `{
                     },
                     "icon_id": {
                         "format": "uuid",
+                        "type": "string"
+                    },
+                    "icon_url": {
                         "type": "string"
                     },
                     "is_online": {
@@ -910,7 +942,7 @@ const docTemplate = `{
         },
         "/chats": {
             "get": {
-                "description": "Возвращает список чатов с поддержкой пагинации и фильтрации по типу",
+                "description": "Возвращает страницу чатов с фильтрацией по типу",
                 "parameters": [
                     {
                         "description": "Размер списка (1-50)",
@@ -918,15 +950,6 @@ const docTemplate = `{
                         "name": "limit",
                         "schema": {
                             "default": 20,
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "description": "Смещение от начала",
-                        "in": "query",
-                        "name": "offset",
-                        "schema": {
-                            "default": 0,
                             "type": "integer"
                         }
                     },
@@ -940,6 +963,22 @@ const docTemplate = `{
                                 "group",
                                 "channel"
                             ],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Время активности последнего чата (RFC3339Nano)",
+                        "in": "query",
+                        "name": "after_time",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "ID последнего чата",
+                        "in": "query",
+                        "name": "after_id",
+                        "schema": {
                             "type": "string"
                         }
                     }
@@ -1421,6 +1460,115 @@ const docTemplate = `{
                 ]
             }
         },
+        "/chats/{id}/avatar": {
+            "put": {
+                "description": "Только создатель или администратор. Файл JPEG, PNG или WebP до 5 МиБ; icon_url — путь относительно адреса backend.",
+                "parameters": [
+                    {
+                        "description": "ID группы (UUID)",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "format": "uuid",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "properties": {
+                                    "file": {
+                                        "description": "Аватар",
+                                        "format": "binary",
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "file"
+                                ],
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "description": "Аватар",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/chat.ChatDetailResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "summary": "Загрузить или заменить аватар группы",
+                "tags": [
+                    "chats"
+                ]
+            }
+        },
         "/chats/{id}/hide": {
             "post": {
                 "description": "Убирает текущего пользователя из диалога",
@@ -1575,7 +1723,7 @@ const docTemplate = `{
         },
         "/chats/{id}/members": {
             "get": {
-                "description": "Возвращает активных участников чата с ролями и профилями",
+                "description": "Возвращает активных участников чата с ролями, профилями и статусом онлайн",
                 "parameters": [
                     {
                         "description": "ID чата (UUID)",

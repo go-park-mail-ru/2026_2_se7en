@@ -2,6 +2,7 @@ package profile
 
 import (
 	"context"
+	"strings"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
@@ -40,7 +41,7 @@ func (uc *ProfileUsecaseImpl) GetProfile(ctx context.Context, userID uuid.UUID) 
 	if err != nil {
 		return nil, nil, err
 	}
-	
+
 	if user == nil {
 		return nil, nil, apperrors.ErrUserNotFound
 	}
@@ -96,7 +97,12 @@ func (uc *ProfileUsecaseImpl) UpdateProfile(ctx context.Context, userID uuid.UUI
 			firstName = *params.FirstName
 		}
 		if params.LastName != nil {
-			lastName = params.LastName
+			value := strings.TrimSpace(*params.LastName)
+			if value == "" {
+				lastName = nil
+			} else {
+				lastName = &value
+			}
 		}
 		if params.Bio != nil {
 			bio = params.Bio

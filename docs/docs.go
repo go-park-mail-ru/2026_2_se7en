@@ -431,6 +431,18 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
+            "chat.UpdateMemberRoleRequest": {
+                "properties": {
+                    "role": {
+                        "enum": [
+                            "admin",
+                            "member"
+                        ],
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "contact.ContactResponse": {
                 "properties": {
                     "contact_user_id": {
@@ -1994,6 +2006,117 @@ const docTemplate = `{
                     }
                 ],
                 "summary": "Удалить участника из группы",
+                "tags": [
+                    "chats"
+                ]
+            }
+        },
+        "/chats/{id}/members/{user_id}/role": {
+            "patch": {
+                "description": "Только создатель группы может назначить участника администратором или вернуть его к роли участника",
+                "parameters": [
+                    {
+                        "description": "ID группы (UUID)",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "format": "uuid",
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "ID участника (UUID)",
+                        "in": "path",
+                        "name": "user_id",
+                        "required": true,
+                        "schema": {
+                            "format": "uuid",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/chat.UpdateMemberRoleRequest",
+                                "summary": "request",
+                                "description": "Новая роль участника"
+                            }
+                        }
+                    },
+                    "description": "Новая роль участника",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/chat.ChatMemberResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apperrors.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "summary": "Изменить роль участника группы",
                 "tags": [
                     "chats"
                 ]

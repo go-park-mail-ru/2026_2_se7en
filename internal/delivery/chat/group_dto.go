@@ -21,6 +21,10 @@ type AddMemberRequest struct {
 	UserID uuid.UUID `json:"user_id" format:"uuid"`
 }
 
+type UpdateMemberRoleRequest struct {
+	Role string `json:"role" enums:"admin,member"`
+}
+
 type MemberProfileResponse struct {
 	ID        uuid.UUID  `json:"id" format:"uuid"`
 	IconID    *uuid.UUID `json:"icon_id,omitempty" format:"uuid"`

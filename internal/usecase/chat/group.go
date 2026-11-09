@@ -41,6 +41,10 @@ func (uc *ChatUsecaseImpl) AddMember(ctx context.Context, userID, chatID, newUse
 	return uc.repo.AddMember(ctx, userID, chatID, newUserID)
 }
 
+func (uc *ChatUsecaseImpl) UpdateMemberRole(ctx context.Context, userID, chatID, targetID uuid.UUID, role string) (*models.ChatMember, error) {
+	return uc.repo.UpdateMemberRole(ctx, userID, chatID, targetID, role)
+}
+
 func (uc *ChatUsecaseImpl) RemoveMember(ctx context.Context, userID, chatID, targetID uuid.UUID) error {
 	return uc.repo.RemoveMember(ctx, userID, chatID, targetID)
 }

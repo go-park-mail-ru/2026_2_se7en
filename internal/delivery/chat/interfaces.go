@@ -23,6 +23,7 @@ type ChatUsecase interface {
 	UploadGroupAvatar(ctx context.Context, userID, chatID uuid.UUID, upload *models.FileUpload) (*models.ChatDetail, error)
 	GetListMembers(ctx context.Context, userID, chatID uuid.UUID) ([]models.ChatMember, error)
 	AddMember(ctx context.Context, userID, chatID, newUserID uuid.UUID) (*models.ChatMember, error)
+	UpdateMemberRole(ctx context.Context, userID, chatID, targetID uuid.UUID, role string) (*models.ChatMember, error)
 	RemoveMember(ctx context.Context, userID, chatID, targetID uuid.UUID) error
 
 	GetListMessages(ctx context.Context, userID, chatID uuid.UUID, limit int, before *uuid.UUID) ([]models.Message, error)

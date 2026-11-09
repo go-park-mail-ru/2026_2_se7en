@@ -104,6 +104,11 @@ func (m *mockChatRepo) AddMember(ctx context.Context, userID, chatID, newUserID 
 	return m.member, m.err
 }
 
+func (m *mockChatRepo) UpdateMemberRole(ctx context.Context, userID, chatID, targetID uuid.UUID, role string) (*models.ChatMember, error) {
+	m.called = true
+	return m.member, m.err
+}
+
 func (m *mockChatRepo) RemoveMember(ctx context.Context, userID, chatID, targetID uuid.UUID) error {
 	m.called = true
 	return m.err

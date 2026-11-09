@@ -412,6 +412,11 @@ func (m *mockChatUsecase) AddMember(context.Context, uuid.UUID, uuid.UUID, uuid.
 	return m.member, m.err
 }
 
+func (m *mockChatUsecase) UpdateMemberRole(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, string) (*models.ChatMember, error) {
+	m.called = true
+	return m.member, m.err
+}
+
 func (m *mockChatUsecase) RemoveMember(_ context.Context, userID, chatID, targetID uuid.UUID) error {
 	m.called = true
 	m.userID = userID

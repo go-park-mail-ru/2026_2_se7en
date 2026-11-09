@@ -233,6 +233,61 @@ func (d *ChatDeliveryImpl) HandleAddMember(w http.ResponseWriter, r *http.Reques
 	return nil
 }
 
+// HandleUpdateMemberRole godoc
+// @Summary      Изменить роль участника группы
+// @Description  Только создатель группы может назначить участника администратором или вернуть его к роли участника
+// @Tags         chats
+// @Accept       json
+// @Produce      json
+// @Security     SessionCookie
+// @Param        id path string true "ID группы (UUID)" format(uuid)
+// @Param        user_id path string true "ID участника (UUID)" format(uuid)
+// @Param        request body UpdateMemberRoleRequest true "Новая роль участника"
+// @Success      200 {object} ChatMemberResponse
+// @Failure      400 {object} apperrors.ErrorResponse
+// @Failure      401 {object} apperrors.ErrorResponse
+// @Failure      403 {object} apperrors.ErrorResponse
+// @Failure      404 {object} apperrors.ErrorResponse
+// @Failure      500 {object} apperrors.ErrorResponse
+// @Router       /chats/{id}/members/{user_id}/role [patch]
+func (d *ChatDeliveryImpl) HandleUpdateMemberRole(w http.ResponseWriter, r *http.Request, req *UpdateMemberRoleRequest) *apperrors.AppError {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		return apperrors.NewUnauthorized("Authorization required")
+	}
+	if req.Role != "admin" && req.Role != "member" {
+		return apperrors.NewBadRequest("Validation failed", []apperrors.ErrorDetail{{Field: "role", Reason: "Role must be admin or member"}})
+	}
+
+	chatID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil || chatID == uuid.Nil {
+		return apperrors.NewBadRequest("Invalid id", []apperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}})
+	}
+	targetID, err := uuid.Parse(r.PathValue("user_id"))
+	if err != nil || targetID == uuid.Nil {
+		return apperrors.NewBadRequest("Invalid user_id", []apperrors.ErrorDetail{{Field: "user_id", Reason: "user_id must be a valid UUID"}})
+	}
+
+	result, usecaseErr := d.chatUsecase.UpdateMemberRole(r.Context(), userID, chatID, targetID, req.Role)
+	if usecaseErr != nil {
+		return mapChatError(usecaseErr)
+	}
+
+	memberResponse := ChatMemberToResponse(*result)
+	memberResponse.IsOnline = d.broadcaster.IsOnline(result.UserID)
+	d.broadcaster.BroadcastToChat(chatID, models.Event{
+		Type: models.EventMemberUpdated,
+		Payload: map[string]any{
+			"chat_id": chatID,
+			"user_id": targetID,
+			"role":    result.Role,
+		},
+	})
+	d.broadcastChatActivity(r.Context(), chatID)
+	tools.WriteJSON(w, http.StatusOK, memberResponse)
+	return nil
+}
+
 // HandleRemoveMember godoc
 // @Summary      Удалить участника из группы
 // @Description  Удаляет участника группы или позволяет пользователю выйти из неё

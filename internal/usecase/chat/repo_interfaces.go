@@ -24,6 +24,7 @@ type ChatRepository interface {
 	UpdateGroupAvatar(ctx context.Context, userID, chatID uuid.UUID, url, filename, contentType string) (*models.ChatDetail, error)
 	GetListMembers(ctx context.Context, userID, chatID uuid.UUID) ([]models.ChatMember, error)
 	AddMember(ctx context.Context, userID, chatID, newUserID uuid.UUID) (*models.ChatMember, error)
+	UpdateMemberRole(ctx context.Context, userID, chatID, targetID uuid.UUID, role string) (*models.ChatMember, error)
 	RemoveMember(ctx context.Context, userID, chatID, targetID uuid.UUID) error
 
 	MessageExists(ctx context.Context, chatID, messageID uuid.UUID) (bool, error)

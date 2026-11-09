@@ -10,6 +10,7 @@ const (
 	EventChatActivity   = "chat.activity"
 	EventChatDeleted    = "chat.deleted"
 	EventMemberAdded    = "member.added"
+	EventMemberUpdated  = "member.updated"
 	EventMemberRemoved  = "member.deleted"
 	EventTypingStarted  = "typing.started"
 	EventTypingStopped  = "typing.stopped"

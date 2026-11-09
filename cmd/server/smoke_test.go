@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -12,12 +13,11 @@ import (
 	"github.com/go-park-mail-ru/2026_2_se7en/config"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/router"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/storage"
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
 )
 
 func TestHealthRoute(t *testing.T) {
 	testDB := &storage.DB{}
-	handler, _ := router.New(testDB, nil, logger.InitLogger("test"))
+	handler, _ := router.New(testDB, nil, slog.Default())
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/health", nil))
 	if rec.Code != http.StatusOK {
@@ -102,7 +102,7 @@ func TestConfigLoadRejectsInvalidValues(t *testing.T) {
 }
 
 func TestStorageRequiresDatabaseURL(t *testing.T) {
-	if _, err := storage.Connect(context.Background(), ""); err == nil {
+	if _, err := storage.Connect(context.Background(), "", slog.Default()); err == nil {
 		t.Fatal("expected missing database URL error")
 	}
 	storage.Close(nil)

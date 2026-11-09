@@ -3,14 +3,14 @@ package register
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-	"golang.org/x/crypto/bcrypt"
-
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
+	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type mockRepo struct {
@@ -110,7 +110,7 @@ func (m *mockRepo) ExtendSession(ctx context.Context, sessionID uuid.UUID, expir
 func TestRegisterUsecase_Success(t *testing.T) {
 	repo := &mockRepo{}
 
-	uc := NewRegisterUsecase(repo, repo)
+	uc := NewRegisterUsecase(repo, repo, slog.Default())
 
 	user := &models.User{
 		Email: "test@example.com",
@@ -142,7 +142,7 @@ func TestRegisterUsecase_Success(t *testing.T) {
 
 func TestRegisterUsecase_EmailTaken(t *testing.T) {
 	repo := &mockRepo{emailExists: true}
-	uc := NewRegisterUsecase(repo, repo)
+	uc := NewRegisterUsecase(repo, repo, slog.Default())
 
 	user := &models.User{Email: "test@example.com", Profile: &models.Profile{Nickname: "test"}}
 	_, err := uc.Register(context.Background(), user, "password123")
@@ -154,7 +154,7 @@ func TestRegisterUsecase_EmailTaken(t *testing.T) {
 
 func TestRegisterUsecase_NicknameTaken(t *testing.T) {
 	repo := &mockRepo{nickExists: true}
-	uc := NewRegisterUsecase(repo, repo)
+	uc := NewRegisterUsecase(repo, repo, slog.Default())
 
 	user := &models.User{Email: "test@example.com", Profile: &models.Profile{Nickname: "test"}}
 	_, err := uc.Register(context.Background(), user, "password123")
@@ -166,7 +166,7 @@ func TestRegisterUsecase_NicknameTaken(t *testing.T) {
 
 func TestRegisterUsecase_ProfileCreationError(t *testing.T) {
 	repo := &mockRepo{createProfileErr: errors.New("db error")}
-	uc := NewRegisterUsecase(repo, repo)
+	uc := NewRegisterUsecase(repo, repo, slog.Default())
 
 	user := &models.User{Email: "test@example.com", Profile: &models.Profile{Nickname: "test"}}
 	_, err := uc.Register(context.Background(), user, "password123")

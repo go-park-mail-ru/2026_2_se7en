@@ -23,13 +23,11 @@ import (
 	"os/signal"
 	"syscall"
 
-	_ "github.com/go-park-mail-ru/2026_2_se7en/docs"
-
 	"github.com/go-park-mail-ru/2026_2_se7en/config"
+	_ "github.com/go-park-mail-ru/2026_2_se7en/docs"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/router"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/storage"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
-
 	"github.com/joho/godotenv"
 )
 
@@ -45,12 +43,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	log := logger.InitLogger(cfg.LogLevel)
+	log, err := logger.InitLogger(cfg.LogLevel)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "logger configuration error")
+		os.Exit(1)
+	}
 	slog.SetDefault(log)
 
-	db, err := storage.Connect(context.Background(), cfg.DatabaseURL)
+	db, err := storage.Connect(context.Background(), cfg.DatabaseURL, log)
 	if err != nil {
-		log.Error("Unable to connect to database", "err", err)
+		log.Error("Unable to connect to database", logger.Error(err))
 		os.Exit(1)
 	}
 	defer storage.Close(db)
@@ -71,7 +73,7 @@ func main() {
 	go func() {
 		log.Info("starting server", "addr", cfg.Addr)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Error("server error", "err", err)
+			log.Error("server error", logger.Error(err))
 			os.Exit(1)
 		}
 	}()
@@ -85,7 +87,7 @@ func main() {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	defer cancel()
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		log.Error("server shutdown error", "err", err)
+		log.Error("server shutdown error", logger.Error(err))
 	} else {
 		log.Info("server stopped gracefully")
 	}

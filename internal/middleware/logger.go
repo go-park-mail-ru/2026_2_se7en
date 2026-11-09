@@ -11,49 +11,59 @@ import (
 	"github.com/google/uuid"
 )
 
-func LoggerMiddleware(baseLogger *slog.Logger) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			reqID := r.Header.Get("X-Request-ID")
-			if reqID == "" {
-				reqID = uuid.NewString()
-			}
-
-			reqLogger := baseLogger.With("request_id", reqID)
-			ctx := logger.WithContext(r.Context(), reqLogger)
-			w.Header().Set("X-Request-ID", reqID)
-
-			next.ServeHTTP(w, r.WithContext(ctx))
-		})
-	}
+func RequestIDMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reqID := r.Header.Get(logger.HeaderRequestID)
+		if reqID == "" {
+			reqID = uuid.NewString()
+		}
+		ctx := logger.WithRequestID(r.Context(), reqID)
+		w.Header().Set(logger.HeaderRequestID, reqID)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
-func AccessLogMiddleware(next http.Handler) http.Handler {
+func AccessLogMiddleware(next http.Handler, baseLogger *slog.Logger) http.Handler {
+	log := logger.Scope(baseLogger, logger.LayerMiddleware, logger.ModuleHTTP)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		rw := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 
 		next.ServeHTTP(rw, r)
 
-		l := logger.FromContext(r.Context())
-		l.Info("HTTP request completed",
-			"method", r.Method,
-			"path", r.URL.Path,
-			"status", rw.statusCode,
-			"duration_ms", time.Since(start).Milliseconds(),
-			"remote_addr", r.RemoteAddr,
-			"user_agent", r.UserAgent(),
+		level := slog.LevelInfo
+		if rw.statusCode >= 500 {
+			level = slog.LevelError
+		} else if rw.statusCode == http.StatusNotFound {
+			level = slog.LevelDebug
+		} else if rw.statusCode >= 400 {
+			level = slog.LevelWarn
+		}
+		log.Log(r.Context(), level, logger.MessageHTTPCompleted,
+			logger.KeyMethod, r.Method,
+			logger.KeyPath, r.URL.Path,
+			logger.KeyStatus, rw.statusCode,
+			logger.KeyDuration, time.Since(start).Milliseconds(),
 		)
 	})
 }
 
 type responseWriter struct {
 	http.ResponseWriter
-	statusCode int
+	statusCode  int
+	wroteHeader bool
 }
 
 func (rw *responseWriter) WriteHeader(code int) {
+	if rw.wroteHeader {
+		return
+	}
+	if code >= 100 && code < 200 && code != http.StatusSwitchingProtocols {
+		rw.ResponseWriter.WriteHeader(code)
+		return
+	}
 	rw.statusCode = code
+	rw.wroteHeader = true
 	rw.ResponseWriter.WriteHeader(code)
 }
 
@@ -61,6 +71,14 @@ func (rw *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	conn, buffer, err := http.NewResponseController(rw.ResponseWriter).Hijack()
 	if err == nil {
 		rw.statusCode = http.StatusSwitchingProtocols
+		rw.wroteHeader = true
 	}
 	return conn, buffer, err
+}
+
+func (rw *responseWriter) Write(data []byte) (int, error) {
+	if !rw.wroteHeader {
+		rw.WriteHeader(http.StatusOK)
+	}
+	return rw.ResponseWriter.Write(data)
 }

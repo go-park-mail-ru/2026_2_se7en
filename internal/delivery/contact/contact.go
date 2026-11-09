@@ -2,20 +2,26 @@ package contact
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
 )
 
 type ContactDeliveryImpl struct {
+	log *slog.Logger
+
 	contactUsecase ContactUsecase
 }
 
-func NewContactDelivery(contactUsecase ContactUsecase) *ContactDeliveryImpl {
+func NewContactDelivery(contactUsecase ContactUsecase, baseLog *slog.Logger) *ContactDeliveryImpl {
 	return &ContactDeliveryImpl{
+		log: logger.Scope(baseLog, logger.LayerDelivery, logger.ModuleContact),
+
 		contactUsecase: contactUsecase,
 	}
 }
@@ -55,6 +61,8 @@ func (d *ContactDeliveryImpl) HandleGetContactsList(w http.ResponseWriter, r *ht
 
 	contactsList, err := d.contactUsecase.GetContactsList(r.Context(), userID, limit, offset, q)
 	if err != nil {
+		d.log.ErrorContext(r.Context(), "HandleGetContactsList failed", logger.Error(err))
+
 		apperrors.WriteError(w, apperrors.NewInternalError("Something went wrong", err))
 		return
 	}
@@ -79,6 +87,7 @@ func (d *ContactDeliveryImpl) HandleGetContactsList(w http.ResponseWriter, r *ht
 // @Failure      500  {object} apperrors.ErrorResponse
 // @Router       /contacts [post]
 func (d *ContactDeliveryImpl) HandleCreateContact(w http.ResponseWriter, r *http.Request, req *CreateContactRequest) *apperrors.AppError {
+
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
 		return apperrors.NewUnauthorized("Invalid session")
@@ -86,6 +95,8 @@ func (d *ContactDeliveryImpl) HandleCreateContact(w http.ResponseWriter, r *http
 
 	err := d.contactUsecase.CreateContact(r.Context(), userID, req.Nickname, req.Pseudonym)
 	if err != nil {
+		d.log.ErrorContext(r.Context(), "HandleCreateContact failed", logger.Error(err))
+
 		switch {
 		case errors.Is(err, apperrors.ErrUserNotFound):
 			return apperrors.NewNotFound("User not found")
@@ -117,6 +128,7 @@ func (d *ContactDeliveryImpl) HandleCreateContact(w http.ResponseWriter, r *http
 // @Failure      500  {object} apperrors.ErrorResponse
 // @Router       /contacts [delete]
 func (d *ContactDeliveryImpl) HandleDeleteContact(w http.ResponseWriter, r *http.Request, req *DeleteContactRequest) *apperrors.AppError {
+
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
 		return apperrors.NewUnauthorized("Invalid session")
@@ -124,6 +136,8 @@ func (d *ContactDeliveryImpl) HandleDeleteContact(w http.ResponseWriter, r *http
 
 	err := d.contactUsecase.DeleteContact(r.Context(), userID, req.ContactUserID)
 	if err != nil {
+		d.log.ErrorContext(r.Context(), "HandleDeleteContact failed", logger.Error(err))
+
 		switch {
 		case errors.Is(err, apperrors.ErrContactNotFound):
 			return apperrors.NewNotFound("Contact not found")

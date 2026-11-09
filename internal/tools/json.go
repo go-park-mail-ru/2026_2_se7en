@@ -2,9 +2,11 @@ package tools
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
 )
 
 type Validatable interface {
@@ -14,6 +16,8 @@ type Validatable interface {
 type Handler[T any] func(w http.ResponseWriter, r *http.Request, req *T) *apperrors.AppError
 
 type JSONDecoder[T any] struct {
+	log *slog.Logger
+
 	handler Handler[T]
 }
 
@@ -27,24 +31,35 @@ func (d *JSONDecoder[T]) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func() { _ = r.Body.Close() }()
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		d.log.WarnContext(r.Context(), "invalid request JSON", logger.Error(err))
+
 		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid JSON format", nil))
 		return
 	}
 
 	if v, ok := any(&req).(Validatable); ok {
 		if details := v.IsValid(); len(details) > 0 {
+			d.log.WarnContext(r.Context(), "request validation failed")
 			apperrors.WriteError(w, apperrors.NewBadRequest("Validation failed", details))
 			return
 		}
 	}
 
 	if appErr := d.handler(w, r, &req); appErr != nil {
+		level := slog.LevelError
+		if appErr.Status < http.StatusInternalServerError {
+			level = slog.LevelWarn
+		}
+		d.log.LogAttrs(r.Context(), level, "request failed", logger.Error(appErr))
+
 		apperrors.WriteError(w, appErr)
 	}
 }
 
-func NewJSONDecoder[T any](handler Handler[T]) http.Handler {
+func NewJSONDecoder[T any](handler Handler[T], baseLog *slog.Logger) http.Handler {
 	return &JSONDecoder[T]{
+		log: logger.Scope(baseLog, logger.LayerTools, logger.ModuleJSON),
+
 		handler: handler,
 	}
 }

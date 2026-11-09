@@ -3,24 +3,31 @@ package contact
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/storage"
-
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type ContactRepositoryImpl struct {
+	log *slog.Logger
+
 	pool storage.DBPool
 }
 
-func NewContactRepository(pool storage.DBPool) *ContactRepositoryImpl {
-	return &ContactRepositoryImpl{pool: pool}
+func NewContactRepository(pool storage.DBPool, baseLog *slog.Logger) *ContactRepositoryImpl {
+	return &ContactRepositoryImpl{
+		log:  logger.Scope(baseLog, logger.LayerRepository, logger.ModuleContact),
+		pool: pool}
 }
 
 func (r *ContactRepositoryImpl) GetContactsList(ctx context.Context, userID uuid.UUID, limit, offset int, q string) ([]models.Contact, error) {
+	r.log.DebugContext(ctx, "database operation", logger.KeyOperation, "GetContactsList", slog.Any(logger.KeyTargetID, userID))
+
 	const query = `
 		SELECT 
 			uc.user_id, uc.contact_user_id, uc.pseudonym, uc.created_at, uc.updated_at,
@@ -45,6 +52,8 @@ func (r *ContactRepositoryImpl) GetContactsList(ctx context.Context, userID uuid
 
 	rows, err := r.pool.Query(ctx, query, userID, limit, offset, q)
 	if err != nil {
+		r.log.ErrorContext(ctx, "GetContactsList failed", logger.Error(err))
+
 		return nil, err
 	}
 	defer rows.Close()
@@ -59,12 +68,16 @@ func (r *ContactRepositoryImpl) GetContactsList(ctx context.Context, userID uuid
 			&db.IsOnline,
 		)
 		if err != nil {
+			r.log.ErrorContext(ctx, "GetContactsList failed", logger.Error(err))
+
 			return nil, err
 		}
 		contacts = append(contacts, ContactDBToModel(&db))
 	}
 
 	if err = rows.Err(); err != nil {
+		r.log.ErrorContext(ctx, "GetContactsList failed", logger.Error(err))
+
 		return nil, err
 	}
 
@@ -72,6 +85,8 @@ func (r *ContactRepositoryImpl) GetContactsList(ctx context.Context, userID uuid
 }
 
 func (r *ContactRepositoryImpl) CreateContact(ctx context.Context, userID, contactUserID uuid.UUID, pseudonym *string) error {
+	r.log.DebugContext(ctx, "database operation", logger.KeyOperation, "CreateContact", slog.Any(logger.KeyTargetID, userID))
+
 	const query = `
 		INSERT INTO user_contact (user_id, contact_user_id, pseudonym)
 		VALUES ($1, $2, $3)
@@ -79,6 +94,8 @@ func (r *ContactRepositoryImpl) CreateContact(ctx context.Context, userID, conta
 
 	_, err := r.pool.Exec(ctx, query, userID, contactUserID, pseudonym)
 	if err != nil {
+		r.log.ErrorContext(ctx, "CreateContact failed", logger.Error(err))
+
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			if pgErr.Code == "23505" {
@@ -95,10 +112,14 @@ func (r *ContactRepositoryImpl) CreateContact(ctx context.Context, userID, conta
 }
 
 func (r *ContactRepositoryImpl) DeleteContact(ctx context.Context, userID, contactUserID uuid.UUID) error {
+	r.log.DebugContext(ctx, "database operation", logger.KeyOperation, "DeleteContact", slog.Any(logger.KeyTargetID, userID))
+
 	const query = `DELETE FROM user_contact WHERE user_id = $1 AND contact_user_id = $2`
 
 	tag, err := r.pool.Exec(ctx, query, userID, contactUserID)
 	if err != nil {
+		r.log.ErrorContext(ctx, "DeleteContact failed", logger.Error(err))
+
 		return err
 	}
 

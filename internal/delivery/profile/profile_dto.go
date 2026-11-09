@@ -14,6 +14,16 @@ type ProfileResponse struct {
 	IconURL     *string    `json:"icon_url,omitempty"`
 }
 
+type PublicProfileResponse struct {
+	ID        uuid.UUID  `json:"id" format:"uuid"`
+	Nickname  string     `json:"nickname"`
+	FirstName string     `json:"first_name"`
+	LastName  *string    `json:"last_name,omitempty"`
+	Bio       *string    `json:"bio,omitempty"`
+	IconID    *uuid.UUID `json:"icon_id,omitempty" format:"uuid"`
+	IconURL   *string    `json:"icon_url,omitempty"`
+}
+
 type UpdateProfileRequest struct {
 	Email       *string `json:"email,omitempty" format:"email"`
 	Nickname    *string `json:"nickname,omitempty"`

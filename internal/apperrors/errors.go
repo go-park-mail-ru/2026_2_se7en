@@ -7,6 +7,7 @@ import (
 )
 
 var ErrUserNotFound = errors.New("user not found")
+var ErrInvalidUUID = errors.New("invalid UUID")
 
 type ErrorDetail struct {
 	Field  string `json:"field"`
@@ -124,5 +125,10 @@ var (
 		Code:    "INVALID_CREDENTIALS",
 		Message: "Invalid email or password",
 		Status:  http.StatusUnauthorized,
+	}
+	ErrContactAlreadyExists = &AppError{
+		Code:    "CONTACT_ALREADY_EXISTS",
+		Message: "Contact already exists",
+		Status:  http.StatusConflict,
 	}
 )

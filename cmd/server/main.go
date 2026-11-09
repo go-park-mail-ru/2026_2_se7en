@@ -55,9 +55,11 @@ func main() {
 	}
 	defer storage.Close(db)
 
+	handler, hub := router.New(db, cfg.Origins, log)
+
 	server := &http.Server{
 		Addr:         cfg.Addr,
-		Handler:      router.New(db, log),
+		Handler:      handler,
 		ReadTimeout:  cfg.ReadTimeout,
 		WriteTimeout: cfg.WriteTimeout,
 		IdleTimeout:  cfg.IdleTimeout,
@@ -77,6 +79,8 @@ func main() {
 	<-ctx.Done()
 
 	log.Info("shutting down server...")
+
+	hub.Shutdown()
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	defer cancel()

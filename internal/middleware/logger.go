@@ -1,7 +1,9 @@
 package middleware
 
 import (
+	"bufio"
 	"log/slog"
+	"net"
 	"net/http"
 	"time"
 
@@ -53,4 +55,12 @@ type responseWriter struct {
 func (rw *responseWriter) WriteHeader(code int) {
 	rw.statusCode = code
 	rw.ResponseWriter.WriteHeader(code)
+}
+
+func (rw *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	conn, buffer, err := http.NewResponseController(rw.ResponseWriter).Hijack()
+	if err == nil {
+		rw.statusCode = http.StatusSwitchingProtocols
+	}
+	return conn, buffer, err
 }

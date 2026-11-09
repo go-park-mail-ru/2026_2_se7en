@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -15,6 +16,7 @@ type Config struct {
 	ShutdownTimeout time.Duration
 	LogLevel        string
 	DatabaseURL     string
+	Origins         []string
 }
 
 func Load() (Config, error) {
@@ -26,6 +28,13 @@ func Load() (Config, error) {
 	cfg.DatabaseURL = getEnv("DATABASE_URL", "")
 	if cfg.DatabaseURL == "" {
 		return Config{}, errors.New("DatabaseURL are required")
+	}
+
+	for _, value := range strings.Split(getEnv("ORIGINS", ""), ",") {
+		origin := strings.TrimSpace(value)
+		if origin != "" {
+			cfg.Origins = append(cfg.Origins, origin)
+		}
 	}
 
 	if cfg.ReadTimeout, err = getEnvDuration("READ_TIMEOUT", 5*time.Second); err != nil {

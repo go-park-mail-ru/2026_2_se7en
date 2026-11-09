@@ -10,13 +10,19 @@ import (
 	"github.com/google/uuid"
 )
 
-type AuthDeliveryImpl struct {
-	authUsecase AuthUsecase
+type SessionDisconnecter interface {
+	DisconnectSession(sessionID uuid.UUID)
 }
 
-func NewAuthDelivery(authUsecase AuthUsecase) *AuthDeliveryImpl {
+type AuthDeliveryImpl struct {
+	authUsecase         AuthUsecase
+	sessionDisconnecter SessionDisconnecter
+}
+
+func NewAuthDelivery(authUsecase AuthUsecase, disconnecter SessionDisconnecter) *AuthDeliveryImpl {
 	return &AuthDeliveryImpl{
-		authUsecase: authUsecase,
+		authUsecase:         authUsecase,
+		sessionDisconnecter: disconnecter,
 	}
 }
 
@@ -79,6 +85,8 @@ func (d *AuthDeliveryImpl) HandleLogout(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	d.sessionDisconnecter.DisconnectSession(sessionID)
+
 	middleware.ClearSessionCookie(w)
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -104,7 +112,7 @@ func (d *AuthDeliveryImpl) HandleMe(w http.ResponseWriter, r *http.Request) {
 
 	result, err := d.authUsecase.GetMe(r.Context(), userID)
 	if err != nil {
-		if err == apperrors.ErrUserNotFound {
+		if errors.Is(err, apperrors.ErrUserNotFound) {
 			apperrors.WriteError(w, apperrors.NewUnauthorized("User not found"))
 			return
 		}

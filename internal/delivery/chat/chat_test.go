@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -13,17 +15,397 @@ import (
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
 )
 
 type mockChatUsecase struct {
-	items  []*models.ChatListItem
-	err    error
-	called bool
+	items        []*models.ChatListItem
+	detail       *models.ChatDetail
+	dialogStatus models.DialogStatus
+	members      []models.ChatMember
+	member       *models.ChatMember
+	messages     []models.Message
+	isMember     bool
+	readChanged  bool
+	err          error
+	called       bool
+	userID       uuid.UUID
+	chatID       uuid.UUID
+	targetID     uuid.UUID
 }
 
-func (m *mockChatUsecase) ListUserChats(ctx context.Context, userID uuid.UUID, limit, offset int, chatType string) ([]*models.ChatListItem, error) {
+type mockBroadcaster struct {
+	chatID       uuid.UUID
+	userID       uuid.UUID
+	userIDs      []uuid.UUID
+	event        models.Event
+	chatCalled   bool
+	userCalled   bool
+	revokeCalled bool
+	removeCalled bool
+}
+
+func (m *mockBroadcaster) BroadcastToChat(chatID uuid.UUID, event models.Event) {
+	m.chatCalled = true
+	m.chatID = chatID
+	m.event = event
+}
+
+func (m *mockBroadcaster) BroadcastToUser(userID uuid.UUID, event models.Event) {
+	m.userCalled = true
+	m.userID = userID
+	m.userIDs = append(m.userIDs, userID)
+	m.event = event
+}
+
+func (m *mockBroadcaster) RevokeUserFromChat(userID, chatID uuid.UUID) {
+	m.revokeCalled = true
+	m.userID = userID
+	m.chatID = chatID
+}
+
+func (m *mockBroadcaster) RemoveChat(chatID uuid.UUID) {
+	m.removeCalled = true
+	m.chatID = chatID
+}
+
+var _ Broadcaster = (*mockBroadcaster)(nil)
+
+func TestChatDelivery_CreateGroup(t *testing.T) {
+	userID := uuid.New()
+	chatID := uuid.New()
+	uc := &mockChatUsecase{detail: &models.ChatDetail{Chat: &models.Chat{ID: chatID, Name: "team", Type: "group"}, Role: "creator"}}
+	req := httptest.NewRequest(http.MethodPost, "/chats/groups", strings.NewReader(`{"name":"team","members":[]}`))
+	req = req.WithContext(middleware.NewAuthContext(req.Context(), userID))
+	rec := httptest.NewRecorder()
+	tools.NewJSONDecoder(newTestChatDelivery(uc, &mockBroadcaster{}).HandleCreateGroup).ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated || !uc.called {
+		t.Fatalf("status = %d, called = %t, body = %s", rec.Code, uc.called, rec.Body.String())
+	}
+	var response ChatDetailResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil || response.Chat == nil || response.Chat.ID != chatID {
+		t.Fatalf("unexpected response: %+v, err: %v", response, err)
+	}
+}
+
+func TestChatDelivery_UpdateGroupBroadcastsOnlyOnSuccess(t *testing.T) {
+	userID, chatID := uuid.New(), uuid.New()
+	name := "Updated group"
+	for _, tc := range []struct {
+		name        string
+		usecaseErr  error
+		wantStatus  int
+		wantPublish bool
+	}{
+		{name: "updated", wantStatus: http.StatusOK, wantPublish: true},
+		{name: "forbidden", usecaseErr: apperrors.ErrChatPermissionDenied, wantStatus: http.StatusForbidden},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			uc := &mockChatUsecase{
+				detail: &models.ChatDetail{Chat: &models.Chat{ID: chatID, Name: name, Type: "group"}},
+				err:    tc.usecaseErr,
+			}
+			broadcaster := &mockBroadcaster{}
+			req := httptest.NewRequest(http.MethodPatch, "/chats/"+chatID.String(), strings.NewReader(`{"name":"Updated group"}`))
+			req.SetPathValue("id", chatID.String())
+			req = req.WithContext(middleware.NewAuthContext(req.Context(), userID))
+			rec := httptest.NewRecorder()
+			tools.NewJSONDecoder(newTestChatDelivery(uc, broadcaster).HandleUpdateGroup).ServeHTTP(rec, req)
+			if rec.Code != tc.wantStatus || broadcaster.chatCalled != tc.wantPublish {
+				t.Fatalf("status = %d, broadcast = %t, want status = %d, broadcast = %t", rec.Code, broadcaster.chatCalled, tc.wantStatus, tc.wantPublish)
+			}
+			if tc.wantPublish && (broadcaster.chatID != chatID || broadcaster.event.Type != models.EventChatUpdated || broadcaster.event.Payload.(map[string]any)["chat_id"] != chatID) {
+				t.Fatalf("unexpected event: %+v", broadcaster.event)
+			}
+		})
+	}
+}
+
+func TestChatDelivery_DeleteChatBroadcastsAndRemovesChat(t *testing.T) {
+	userID, chatID := uuid.New(), uuid.New()
+	uc := &mockChatUsecase{}
+	broadcaster := &mockBroadcaster{}
+	req := httptest.NewRequest(http.MethodDelete, "/chats/"+chatID.String(), nil)
+	req.SetPathValue("id", chatID.String())
+	req = req.WithContext(middleware.NewAuthContext(req.Context(), userID))
+	rec := httptest.NewRecorder()
+
+	newTestChatDelivery(uc, broadcaster).HandleDeleteChat(rec, req)
+	if rec.Code != http.StatusNoContent || !uc.called || uc.userID != userID || uc.chatID != chatID {
+		t.Fatalf("status = %d, usecase called = %t, user = %s, chat = %s", rec.Code, uc.called, uc.userID, uc.chatID)
+	}
+	if !broadcaster.chatCalled || !broadcaster.removeCalled || broadcaster.chatID != chatID || broadcaster.event.Type != models.EventChatDeleted {
+		t.Fatalf("chat deletion was not broadcast and removed: %+v", broadcaster)
+	}
+}
+
+func TestChatDelivery_LeaveGroupRemovesCurrentUser(t *testing.T) {
+	userID, chatID := uuid.New(), uuid.New()
+	uc := &mockChatUsecase{}
+	broadcaster := &mockBroadcaster{}
+	req := httptest.NewRequest(http.MethodDelete, "/chats/"+chatID.String()+"/leave", nil)
+	req.SetPathValue("id", chatID.String())
+	req = req.WithContext(middleware.NewAuthContext(req.Context(), userID))
+	rec := httptest.NewRecorder()
+
+	newTestChatDelivery(uc, broadcaster).HandleLeaveGroup(rec, req)
+	if rec.Code != http.StatusNoContent || !uc.called || uc.userID != userID || uc.chatID != chatID || uc.targetID != userID {
+		t.Fatalf("status = %d, usecase called = %t, actor = %s, chat = %s, target = %s", rec.Code, uc.called, uc.userID, uc.chatID, uc.targetID)
+	}
+	if !broadcaster.revokeCalled || !broadcaster.chatCalled || !broadcaster.userCalled || broadcaster.event.Type != models.EventMemberRemoved {
+		t.Fatalf("member removal was not broadcast: %+v", broadcaster)
+	}
+}
+
+func TestChatDelivery_CreateDialogBroadcastsOnlyWhenVisibleForFirstTime(t *testing.T) {
+	userID, peerID, chatID := uuid.New(), uuid.New(), uuid.New()
+	tests := []struct {
+		name    string
+		status  models.DialogStatus
+		userIDs []uuid.UUID
+	}{
+		{"created", models.DialogCreated, []uuid.UUID{userID, peerID}},
+		{"restored", models.DialogRestored, []uuid.UUID{userID}},
+		{"existing", models.DialogExisting, nil},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			uc := &mockChatUsecase{
+				detail:       &models.ChatDetail{Chat: &models.Chat{ID: chatID, Type: "dialog"}},
+				dialogStatus: tc.status,
+			}
+			broadcaster := &mockBroadcaster{}
+			req := httptest.NewRequest(http.MethodPost, "/chats/dialogs", strings.NewReader(fmt.Sprintf(`{"peer_id":%q}`, peerID)))
+			req = req.WithContext(middleware.NewAuthContext(req.Context(), userID))
+			rec := httptest.NewRecorder()
+			tools.NewJSONDecoder(newTestChatDelivery(uc, broadcaster).HandleCreateDialog).ServeHTTP(rec, req)
+			if rec.Code != http.StatusOK || !uc.called {
+				t.Fatalf("status = %d, called = %t, body = %s", rec.Code, uc.called, rec.Body.String())
+			}
+			if len(broadcaster.userIDs) != len(tc.userIDs) {
+				t.Fatalf("broadcasts to %v, want %v", broadcaster.userIDs, tc.userIDs)
+			}
+			for i, id := range tc.userIDs {
+				if broadcaster.userIDs[i] != id {
+					t.Fatalf("broadcasts to %v, want %v", broadcaster.userIDs, tc.userIDs)
+				}
+			}
+			if len(tc.userIDs) > 0 {
+				if broadcaster.event.Type != models.EventChatCreated || broadcaster.event.Payload.(map[string]any)["chat_id"] != chatID {
+					t.Fatalf("unexpected event: %+v", broadcaster.event)
+				}
+			}
+		})
+	}
+}
+
+func TestChatDelivery_AddMemberRejectsZeroID(t *testing.T) {
+	uc := &mockChatUsecase{}
+	req := httptest.NewRequest(http.MethodPost, "/chats/"+uuid.NewString()+"/members", strings.NewReader(`{"user_id":"00000000-0000-0000-0000-000000000000"}`))
+	req.SetPathValue("id", uuid.NewString())
+	req = req.WithContext(middleware.NewAuthContext(req.Context(), uuid.New()))
+	rec := httptest.NewRecorder()
+	tools.NewJSONDecoder(newTestChatDelivery(uc, &mockBroadcaster{}).HandleAddMember).ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest || uc.called {
+		t.Fatalf("status = %d, called = %t, body = %s", rec.Code, uc.called, rec.Body.String())
+	}
+}
+
+func TestChatDelivery_GetListMessagesRejectsInvalidCursor(t *testing.T) {
+	uc := &mockChatUsecase{}
+	req := httptest.NewRequest(http.MethodGet, "/chats/"+uuid.NewString()+"/messages?before=bad", nil)
+	req.SetPathValue("id", uuid.NewString())
+	req = req.WithContext(middleware.NewAuthContext(req.Context(), uuid.New()))
+	rec := httptest.NewRecorder()
+	newTestChatDelivery(uc, &mockBroadcaster{}).HandleGetListMessages(rec, req)
+	if rec.Code != http.StatusBadRequest || uc.called {
+		t.Fatalf("status = %d, called = %t, body = %s", rec.Code, uc.called, rec.Body.String())
+	}
+}
+
+func TestChatDelivery_GetListMessagesIncludesReadState(t *testing.T) {
+	userID, chatID, messageID := uuid.New(), uuid.New(), uuid.New()
+	uc := &mockChatUsecase{messages: []models.Message{{
+		ID:     messageID,
+		ChatID: chatID,
+		IsRead: true,
+	}}}
+	req := httptest.NewRequest(http.MethodGet, "/chats/"+chatID.String()+"/messages", nil)
+	req.SetPathValue("id", chatID.String())
+	req = req.WithContext(middleware.NewAuthContext(req.Context(), userID))
+	rec := httptest.NewRecorder()
+
+	newTestChatDelivery(uc, &mockBroadcaster{}).HandleGetListMessages(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var response ListMessagesResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if len(response.Items) != 1 || response.Items[0].ID != messageID || !response.Items[0].IsRead {
+		t.Fatalf("unexpected messages: %+v", response.Items)
+	}
+}
+
+func TestChatDelivery_BodyValidation(t *testing.T) {
+	userID := uuid.New()
+	memberID := uuid.New()
+	pathID := uuid.NewString()
+	stickerID := uuid.New()
+	tests := []struct {
+		name    string
+		body    string
+		handler func(*ChatDeliveryImpl) http.Handler
+	}{
+		{"dialog missing peer", `{}`, func(d *ChatDeliveryImpl) http.Handler { return tools.NewJSONDecoder(d.HandleCreateDialog) }},
+		{"dialog self", fmt.Sprintf(`{"peer_id":%q}`, userID), func(d *ChatDeliveryImpl) http.Handler { return tools.NewJSONDecoder(d.HandleCreateDialog) }},
+		{"group empty name", `{ "name": " " }`, func(d *ChatDeliveryImpl) http.Handler { return tools.NewJSONDecoder(d.HandleCreateGroup) }},
+		{"group long name", fmt.Sprintf(`{"name":%q}`, strings.Repeat("я", 101)), func(d *ChatDeliveryImpl) http.Handler { return tools.NewJSONDecoder(d.HandleCreateGroup) }},
+		{"group long description", fmt.Sprintf(`{"name":"Group","description":%q}`, strings.Repeat("я", 501)), func(d *ChatDeliveryImpl) http.Handler { return tools.NewJSONDecoder(d.HandleCreateGroup) }},
+		{"group duplicate members", fmt.Sprintf(`{"name":"Group","members":[%q,%q]}`, memberID, memberID), func(d *ChatDeliveryImpl) http.Handler { return tools.NewJSONDecoder(d.HandleCreateGroup) }},
+		{"group creator member", fmt.Sprintf(`{"name":"Group","members":[%q]}`, userID), func(d *ChatDeliveryImpl) http.Handler { return tools.NewJSONDecoder(d.HandleCreateGroup) }},
+		{"update no changes", `{}`, func(d *ChatDeliveryImpl) http.Handler { return tools.NewJSONDecoder(d.HandleUpdateGroup) }},
+		{"update description without flag", `{"name":"Group","description":"new"}`, func(d *ChatDeliveryImpl) http.Handler { return tools.NewJSONDecoder(d.HandleUpdateGroup) }},
+		{"member missing id", `{}`, func(d *ChatDeliveryImpl) http.Handler { return tools.NewJSONDecoder(d.HandleAddMember) }},
+		{"member self", fmt.Sprintf(`{"user_id":%q}`, userID), func(d *ChatDeliveryImpl) http.Handler { return tools.NewJSONDecoder(d.HandleAddMember) }},
+		{"message empty content", `{"type":"text","content":""}`, func(d *ChatDeliveryImpl) http.Handler { return tools.NewJSONDecoder(d.HandleCreateMessage) }},
+		{"message both fields", fmt.Sprintf(`{"type":"text","content":"hi","sticker_id":%q}`, stickerID), func(d *ChatDeliveryImpl) http.Handler { return tools.NewJSONDecoder(d.HandleCreateMessage) }},
+		{"message long content", fmt.Sprintf(`{"type":"text","content":%q}`, strings.Repeat("я", 4097)), func(d *ChatDeliveryImpl) http.Handler { return tools.NewJSONDecoder(d.HandleCreateMessage) }},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			uc := &mockChatUsecase{}
+			req := httptest.NewRequest(http.MethodPost, "/chats/"+pathID, strings.NewReader(tc.body))
+			req.SetPathValue("id", pathID)
+			req = req.WithContext(middleware.NewAuthContext(req.Context(), userID))
+			rec := httptest.NewRecorder()
+			tc.handler(newTestChatDelivery(uc, &mockBroadcaster{})).ServeHTTP(rec, req)
+			if rec.Code != http.StatusBadRequest || uc.called {
+				t.Fatalf("status = %d, called = %t, body = %s", rec.Code, uc.called, rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestChatDelivery_GetListMessagesLimitValidation(t *testing.T) {
+	for _, limit := range []string{"0", "51", "abc", "1&limit=2"} {
+		t.Run(limit, func(t *testing.T) {
+			uc := &mockChatUsecase{}
+			req := httptest.NewRequest(http.MethodGet, "/chats/"+uuid.NewString()+"/messages?limit="+limit, nil)
+			req.SetPathValue("id", uuid.NewString())
+			req = req.WithContext(middleware.NewAuthContext(req.Context(), uuid.New()))
+			rec := httptest.NewRecorder()
+			newTestChatDelivery(uc, &mockBroadcaster{}).HandleGetListMessages(rec, req)
+			if rec.Code != http.StatusBadRequest || uc.called {
+				t.Fatalf("status = %d, called = %t", rec.Code, uc.called)
+			}
+		})
+	}
+}
+
+func TestMapChatError(t *testing.T) {
+	cases := []struct {
+		err    error
+		status int
+	}{
+		{apperrors.ErrChatNotFound, http.StatusNotFound},
+		{apperrors.ErrUserNotFound, http.StatusNotFound},
+		{apperrors.ErrChatPermissionDenied, http.StatusForbidden},
+		{apperrors.ErrChatMemberExists, http.StatusConflict},
+		{apperrors.ErrInvalidChatOperation, http.StatusBadRequest},
+		{errors.New("database failed"), http.StatusInternalServerError},
+	}
+	for _, tc := range cases {
+		if got := mapChatError(tc.err).Status; got != tc.status {
+			t.Errorf("error %v: status = %d, want %d", tc.err, got, tc.status)
+		}
+	}
+}
+
+func (m *mockChatUsecase) IsMember(ctx context.Context, userID, chatID uuid.UUID) (bool, error) {
+	m.called = true
+	return m.isMember, m.err
+}
+
+func (m *mockChatUsecase) GetListUserChats(ctx context.Context, userID uuid.UUID, limit, offset int, chatType string) ([]*models.ChatListItem, error) {
 	m.called = true
 	return m.items, m.err
+}
+
+func (m *mockChatUsecase) GetChatDetail(context.Context, uuid.UUID, uuid.UUID) (*models.ChatDetail, error) {
+	m.called = true
+	return m.detail, m.err
+}
+
+func (m *mockChatUsecase) CreateDialog(context.Context, uuid.UUID, uuid.UUID) (*models.ChatDetail, models.DialogStatus, error) {
+	m.called = true
+	return m.detail, m.dialogStatus, m.err
+}
+
+func (m *mockChatUsecase) HideDialog(context.Context, uuid.UUID, uuid.UUID) error {
+	m.called = true
+	return m.err
+}
+
+func (m *mockChatUsecase) CreateGroup(context.Context, uuid.UUID, string, *string, []uuid.UUID) (*models.ChatDetail, error) {
+	m.called = true
+	return m.detail, m.err
+}
+
+func (m *mockChatUsecase) UpdateGroup(context.Context, uuid.UUID, uuid.UUID, *string, *string, bool) (*models.ChatDetail, error) {
+	m.called = true
+	return m.detail, m.err
+}
+
+func (m *mockChatUsecase) DeleteChat(_ context.Context, userID, chatID uuid.UUID) error {
+	m.called = true
+	m.userID = userID
+	m.chatID = chatID
+	return m.err
+}
+
+func (m *mockChatUsecase) GetListMembers(context.Context, uuid.UUID, uuid.UUID) ([]models.ChatMember, error) {
+	m.called = true
+	return m.members, m.err
+}
+
+func (m *mockChatUsecase) AddMember(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*models.ChatMember, error) {
+	m.called = true
+	return m.member, m.err
+}
+
+func (m *mockChatUsecase) RemoveMember(_ context.Context, userID, chatID, targetID uuid.UUID) error {
+	m.called = true
+	m.userID = userID
+	m.chatID = chatID
+	m.targetID = targetID
+	return m.err
+}
+
+func (m *mockChatUsecase) GetListMessages(context.Context, uuid.UUID, uuid.UUID, int, *uuid.UUID) ([]models.Message, error) {
+	m.called = true
+	return m.messages, m.err
+}
+
+func (m *mockChatUsecase) CreateMessage(ctx context.Context, userID, chatID uuid.UUID, replyToMessageID, stickerID *uuid.UUID, content *string, messageType string) (*models.Message, error) {
+	m.called = true
+	if len(m.messages) > 0 {
+		return &m.messages[0], m.err
+	} else {
+		return nil, m.err
+	}
+}
+
+func (m *mockChatUsecase) MarkMessageRead(ctx context.Context, userID, chatID, messageID uuid.UUID) (bool, error) {
+	m.called = true
+	return m.readChanged, m.err
+}
+
+var _ ChatUsecase = (*mockChatUsecase)(nil)
+
+func newTestChatDelivery(uc *mockChatUsecase, broadcaster Broadcaster) *ChatDeliveryImpl {
+	return NewChatDelivery(uc, broadcaster)
 }
 
 func performAuthenticatedChatRequest(target string, uc *mockChatUsecase, userID uuid.UUID) *httptest.ResponseRecorder {
@@ -31,16 +413,16 @@ func performAuthenticatedChatRequest(target string, uc *mockChatUsecase, userID 
 	req = req.WithContext(middleware.NewAuthContext(req.Context(), userID))
 	rec := httptest.NewRecorder()
 
-	NewChatDelivery(uc).HandleListUserChats(rec, req)
+	newTestChatDelivery(uc, &mockBroadcaster{}).HandleGetListUserChats(rec, req)
 	return rec
 }
 
-func TestChatDelivery_HandleListUserChats_RequiresAuth(t *testing.T) {
+func TestChatDelivery_HandleGetListUserChats_RequiresAuth(t *testing.T) {
 	uc := &mockChatUsecase{}
 	req := httptest.NewRequest(http.MethodGet, "/chats", nil)
 	rec := httptest.NewRecorder()
 
-	NewChatDelivery(uc).HandleListUserChats(rec, req)
+	newTestChatDelivery(uc, &mockBroadcaster{}).HandleGetListUserChats(rec, req)
 
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
@@ -50,7 +432,7 @@ func TestChatDelivery_HandleListUserChats_RequiresAuth(t *testing.T) {
 	}
 }
 
-func TestChatDelivery_HandleListUserChats_QueryValidation(t *testing.T) {
+func TestChatDelivery_HandleGetListUserChats_QueryValidation(t *testing.T) {
 	tests := []struct {
 		name   string
 		target string
@@ -61,6 +443,10 @@ func TestChatDelivery_HandleListUserChats_QueryValidation(t *testing.T) {
 		{name: "duplicate offset", target: "/chats?offset=1&offset=2"},
 		{name: "empty type", target: "/chats?type="},
 		{name: "duplicate type", target: "/chats?type=group&type=dialog"},
+		{name: "zero limit", target: "/chats?limit=0"},
+		{name: "excessive limit", target: "/chats?limit=51"},
+		{name: "negative offset", target: "/chats?offset=-1"},
+		{name: "invalid type", target: "/chats?type=invalid"},
 	}
 
 	for _, tt := range tests {
@@ -78,7 +464,7 @@ func TestChatDelivery_HandleListUserChats_QueryValidation(t *testing.T) {
 	}
 }
 
-func TestChatDelivery_HandleListUserChats_Success(t *testing.T) {
+func TestChatDelivery_HandleGetListUserChats_Success(t *testing.T) {
 	userID := uuid.New()
 	chatID := uuid.New()
 	msgID := uuid.New()
@@ -127,7 +513,7 @@ func TestChatDelivery_HandleListUserChats_Success(t *testing.T) {
 	}
 }
 
-func TestChatDelivery_HandleListUserChats_DatabaseErrors(t *testing.T) {
+func TestChatDelivery_HandleGetListUserChats_DatabaseErrors(t *testing.T) {
 	tests := []struct {
 		name       string
 		err        error

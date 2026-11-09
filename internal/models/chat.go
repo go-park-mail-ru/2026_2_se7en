@@ -29,3 +29,36 @@ type ChatListItem struct {
 	Chat        *Chat
 	LastMessage *MessagePreview
 }
+
+type ChatDetail struct {
+	Chat *Chat
+	Role string
+}
+
+type DialogStatus uint8
+
+const (
+	DialogExisting DialogStatus = iota
+	DialogCreated
+	DialogRestored
+)
+
+type ChatMember struct {
+	UserID  uuid.UUID
+	Role    string
+	Profile *Profile
+}
+
+type Message struct {
+	ID               uuid.UUID
+	UserID           uuid.UUID
+	ChatID           uuid.UUID
+	ReplyToMessageID *uuid.UUID
+	StickerID        *uuid.UUID
+	Content          *string
+	IsEdited         bool
+	IsRead           bool
+	Type             string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}

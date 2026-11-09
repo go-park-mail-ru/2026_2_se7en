@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -35,9 +36,11 @@ func NewAuthUsecase(userRepo UserRepository, profileRepo ProfileRepository, sess
 }
 
 func (uc *AuthUsecaseImpl) Login(ctx context.Context, email, password string) (*models.UserWithSession, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+
 	log := logger.FromContext(ctx).With("layer", "usecase", "module", "auth")
 	maskedEmail := logger.MaskEmail(email)
-	
+
 	log.Info("attempting login", "email_mask", maskedEmail)
 
 	user, err := uc.userRepo.FindByEmail(ctx, email)
@@ -78,7 +81,7 @@ func (uc *AuthUsecaseImpl) Login(ctx context.Context, email, password string) (*
 	}
 
 	log.Info("login successful", "user_id", user.ID.String())
-	
+
 	return &models.UserWithSession{
 		User:      user,
 		SessionID: session.ID,

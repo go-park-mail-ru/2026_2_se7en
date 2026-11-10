@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
 	"github.com/google/uuid"
 )
 
@@ -31,6 +32,8 @@ func (uc *ChatUsecaseImpl) UpdateGroup(ctx context.Context, userID, chatID uuid.
 
 func (uc *ChatUsecaseImpl) GetListMembers(ctx context.Context, userID, chatID uuid.UUID) ([]models.ChatMember, error) {
 	if _, err := uc.repo.GetChat(ctx, userID, chatID); err != nil {
+		uc.log.ErrorContext(ctx, "GetListMembers failed", logger.Error(err))
+
 		return nil, err
 	}
 
@@ -46,5 +49,6 @@ func (uc *ChatUsecaseImpl) UpdateMemberRole(ctx context.Context, userID, chatID,
 }
 
 func (uc *ChatUsecaseImpl) RemoveMember(ctx context.Context, userID, chatID, targetID uuid.UUID) error {
+
 	return uc.repo.RemoveMember(ctx, userID, chatID, targetID)
 }

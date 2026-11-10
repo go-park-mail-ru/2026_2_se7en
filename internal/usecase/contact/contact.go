@@ -3,27 +3,36 @@ package contact
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
 	"github.com/google/uuid"
 )
 
 type ContactUsecaseImpl struct {
+	log *slog.Logger
+
 	contactRepo ContactRepository
 	userRepo    UserRepository
 }
 
-func NewContactUsecase(contactRepo ContactRepository, userRepo UserRepository) *ContactUsecaseImpl {
+func NewContactUsecase(contactRepo ContactRepository, userRepo UserRepository, baseLog *slog.Logger) *ContactUsecaseImpl {
 	return &ContactUsecaseImpl{
+		log: logger.Scope(baseLog, logger.LayerUsecase, logger.ModuleContact),
+
 		contactRepo: contactRepo,
 		userRepo:    userRepo,
 	}
 }
 
 func (uc *ContactUsecaseImpl) CreateContact(ctx context.Context, userID uuid.UUID, nickname string, pseudonym *string) error {
+
 	user, err := uc.userRepo.FindByNickname(ctx, nickname)
 	if err != nil {
+		uc.log.ErrorContext(ctx, "CreateContact failed", logger.Error(err))
+
 		if errors.Is(err, apperrors.ErrUserNotFound) {
 			return apperrors.ErrUserNotFound
 		}
@@ -42,8 +51,11 @@ func (uc *ContactUsecaseImpl) GetContactsList(ctx context.Context, userID uuid.U
 }
 
 func (uc *ContactUsecaseImpl) DeleteContact(ctx context.Context, userID, contactUserID uuid.UUID) error {
+
 	err := uc.contactRepo.DeleteContact(ctx, userID, contactUserID)
 	if err != nil {
+		uc.log.ErrorContext(ctx, "DeleteContact failed", logger.Error(err))
+
 		if errors.Is(err, apperrors.ErrContactNotFound) {
 			return apperrors.ErrContactNotFound
 		}

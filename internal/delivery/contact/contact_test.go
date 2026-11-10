@@ -3,6 +3,7 @@ package contact
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -20,7 +21,7 @@ func TestContactDelivery_HandleGetContactsList_Success(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockUC := NewMockContactUsecase(ctrl)
-	delivery := NewContactDelivery(mockUC, nil)
+	delivery := NewContactDelivery(mockUC, nil, slog.Default())
 
 	userID := uuid.New()
 	expectedContacts := []models.Contact{
@@ -60,7 +61,7 @@ func TestContactDelivery_HandleCreateContact_Success(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockUC := NewMockContactUsecase(ctrl)
-	delivery := NewContactDelivery(mockUC, nil)
+	delivery := NewContactDelivery(mockUC, nil, slog.Default())
 
 	userID := uuid.New()
 
@@ -103,7 +104,7 @@ func TestContactDelivery_HandleCreateContact_Errors(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockUC := NewMockContactUsecase(ctrl)
-			delivery := NewContactDelivery(mockUC, nil)
+			delivery := NewContactDelivery(mockUC, nil, slog.Default())
 
 			userID := uuid.New()
 			reqData := &CreateContactRequest{Nickname: "friend"}
@@ -130,7 +131,7 @@ func TestContactDelivery_HandleDeleteContact_Success(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockUC := NewMockContactUsecase(ctrl)
-	delivery := NewContactDelivery(mockUC, nil)
+	delivery := NewContactDelivery(mockUC, nil, slog.Default())
 
 	userID := uuid.New()
 	contactUserID := uuid.New()
@@ -159,7 +160,7 @@ func TestContactDelivery_HandleDeleteContact_NotFound(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockUC := NewMockContactUsecase(ctrl)
-	delivery := NewContactDelivery(mockUC, nil)
+	delivery := NewContactDelivery(mockUC, nil, slog.Default())
 
 	userID := uuid.New()
 	contactUserID := uuid.New()

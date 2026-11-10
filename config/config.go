@@ -6,6 +6,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
 )
 
 type Config struct {
@@ -24,7 +26,10 @@ func Load() (Config, error) {
 	var err error
 
 	cfg.Addr = getEnv("ADDR", ":8080")
-	cfg.LogLevel = getEnv("LOG_LEVEL", "info")
+	cfg.LogLevel = strings.ToLower(getEnv("LOG_LEVEL", logger.LevelInfo))
+	if _, err := logger.ParseLevel(cfg.LogLevel); err != nil {
+		return Config{}, err
+	}
 	cfg.DatabaseURL = getEnv("DATABASE_URL", "")
 	if cfg.DatabaseURL == "" {
 		return Config{}, errors.New("DatabaseURL are required")

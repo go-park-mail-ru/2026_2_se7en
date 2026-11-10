@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -12,6 +13,7 @@ import (
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
 	"github.com/google/uuid"
 )
 
@@ -25,12 +27,16 @@ type Broadcaster interface {
 }
 
 type ChatDeliveryImpl struct {
+	log *slog.Logger
+
 	chatUsecase ChatUsecase
 	broadcaster Broadcaster
 }
 
-func NewChatDelivery(chatUsecase ChatUsecase, broadcaster Broadcaster) *ChatDeliveryImpl {
-	return &ChatDeliveryImpl{chatUsecase: chatUsecase, broadcaster: broadcaster}
+func NewChatDelivery(chatUsecase ChatUsecase, broadcaster Broadcaster, baseLog *slog.Logger) *ChatDeliveryImpl {
+	return &ChatDeliveryImpl{
+		log:         logger.Scope(baseLog, logger.LayerDelivery, logger.ModuleChat),
+		chatUsecase: chatUsecase, broadcaster: broadcaster}
 }
 
 // HandleGetListUserChats godoc
@@ -60,6 +66,8 @@ func (d *ChatDeliveryImpl) HandleGetListUserChats(w http.ResponseWriter, r *http
 
 	limit, err := parseQueryInt(q, "limit")
 	if err != nil {
+		d.log.ErrorContext(r.Context(), "HandleGetListUserChats failed", logger.Error(err))
+
 		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid limit format", []apperrors.ErrorDetail{{Field: "limit", Reason: err.Error()}}))
 		return
 	}
@@ -70,6 +78,19 @@ func (d *ChatDeliveryImpl) HandleGetListUserChats(w http.ResponseWriter, r *http
 
 	if limit < 1 || limit > 50 {
 		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid limit", []apperrors.ErrorDetail{{Field: "limit", Reason: "Limit must be between 1 and 50"}}))
+		return
+	}
+
+	offset, err := parseQueryInt(q, "offset")
+	if err != nil {
+		d.log.ErrorContext(r.Context(), "HandleGetListUserChats failed", logger.Error(err))
+
+		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid offset format", []apperrors.ErrorDetail{{Field: "offset", Reason: err.Error()}}))
+		return
+	}
+
+	if offset < 0 {
+		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid offset", []apperrors.ErrorDetail{{Field: "offset", Reason: "Offset must be >= 0"}}))
 		return
 	}
 
@@ -96,6 +117,8 @@ func (d *ChatDeliveryImpl) HandleGetListUserChats(w http.ResponseWriter, r *http
 
 	items, err := d.chatUsecase.GetListUserChats(r.Context(), userID, limit+1, chatType, cursorTime, cursorID)
 	if err != nil {
+		d.log.ErrorContext(r.Context(), "HandleGetListUserChats failed", logger.Error(err))
+
 		apperrors.WriteError(w, mapChatError(err))
 		return
 	}
@@ -143,12 +166,18 @@ func (d *ChatDeliveryImpl) HandleGetChatDetail(w http.ResponseWriter, r *http.Re
 
 	chatID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil || chatID == uuid.Nil {
+		if err != nil {
+			d.log.ErrorContext(r.Context(), "HandleGetChatDetail failed", logger.Error(err))
+		}
+
 		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid id", []apperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}}))
 		return
 	}
 
 	result, err := d.chatUsecase.GetChatDetail(r.Context(), userID, chatID)
 	if err != nil {
+		d.log.ErrorContext(r.Context(), "HandleGetChatDetail failed", logger.Error(err))
+
 		apperrors.WriteError(w, mapChatError(err))
 		return
 	}
@@ -179,6 +208,10 @@ func (d *ChatDeliveryImpl) HandleDeleteChat(w http.ResponseWriter, r *http.Reque
 
 	chatID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil || chatID == uuid.Nil {
+		if err != nil {
+			d.log.ErrorContext(r.Context(), "HandleDeleteChat failed", logger.Error(err))
+		}
+
 		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid id", []apperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}}))
 		return
 	}
@@ -190,6 +223,8 @@ func (d *ChatDeliveryImpl) HandleDeleteChat(w http.ResponseWriter, r *http.Reque
 	}
 
 	if err := d.chatUsecase.DeleteChat(r.Context(), userID, chatID); err != nil {
+		d.log.ErrorContext(r.Context(), "HandleDeleteChat failed", logger.Error(err))
+
 		apperrors.WriteError(w, mapChatError(err))
 		return
 	}
@@ -212,6 +247,7 @@ func parseQueryInt(query url.Values, key string) (int, error) {
 
 	val, err := strconv.Atoi(vals[0])
 	if err != nil {
+
 		return 0, err
 	}
 
@@ -230,6 +266,7 @@ func parseQueryUUID(query url.Values, key string) (uuid.UUID, error) {
 
 	val, err := uuid.Parse(vals[0])
 	if err != nil || val == uuid.Nil {
+
 		return uuid.Nil, apperrors.ErrInvalidUUID
 	}
 

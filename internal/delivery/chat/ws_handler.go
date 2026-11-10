@@ -1,11 +1,13 @@
 package chat
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/chat/ws"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
 	"github.com/gorilla/websocket"
 )
 
@@ -15,13 +17,17 @@ const (
 )
 
 type WSHandler struct {
+	log *slog.Logger
+
 	hub      *ws.Hub
 	usecase  ChatUsecase
 	upgrader websocket.Upgrader
 }
 
-func NewWSHandler(hub *ws.Hub, uc ChatUsecase, origins []string) *WSHandler {
+func NewWSHandler(hub *ws.Hub, uc ChatUsecase, origins []string, baseLog *slog.Logger) *WSHandler {
 	return &WSHandler{
+		log: logger.Scope(baseLog, logger.LayerDelivery, logger.ModuleWebSocket),
+
 		hub:     hub,
 		usecase: uc,
 		upgrader: websocket.Upgrader{
@@ -35,6 +41,7 @@ func NewWSHandler(hub *ws.Hub, uc ChatUsecase, origins []string) *WSHandler {
 					}
 				}
 
+				logger.Scope(baseLog, logger.LayerDelivery, logger.ModuleWebSocket).WarnContext(r.Context(), "websocket origin rejected")
 				return false
 			},
 		},
@@ -56,10 +63,13 @@ func (h *WSHandler) HandleWS(w http.ResponseWriter, r *http.Request) {
 
 	conn, err := h.upgrader.Upgrade(w, r, nil)
 	if err != nil {
+		h.log.ErrorContext(r.Context(), "HandleWS failed", logger.Error(err))
+
 		return
 	}
 
-	client := ws.NewClient(userID, sessionID, conn, h.hub, h.usecase)
+	h.log.InfoContext(r.Context(), "websocket connection established")
+	client := ws.NewClient(r.Context(), userID, sessionID, conn, h.hub, h.usecase, h.log)
 	h.hub.Register(client)
 	client.Serve()
 }

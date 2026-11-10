@@ -3,6 +3,7 @@ package register
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -38,7 +39,7 @@ func TestRegisterDelivery_Success(t *testing.T) {
 		},
 	}
 
-	delivery := NewRegisterDelivery(mockUC)
+	delivery := NewRegisterDelivery(mockUC, slog.Default())
 
 	reqData := &RegisterRequest{
 		Email:     "test@example.com",
@@ -100,7 +101,7 @@ func TestRegisterDelivery_Validation(t *testing.T) {
 
 func TestRegisterDelivery_EmailConflict(t *testing.T) {
 	mockUC := &mockRegisterUsecase{err: apperrors.ErrEmailTaken}
-	delivery := NewRegisterDelivery(mockUC)
+	delivery := NewRegisterDelivery(mockUC, slog.Default())
 
 	reqData := &RegisterRequest{
 		Email:     "test@example.com",

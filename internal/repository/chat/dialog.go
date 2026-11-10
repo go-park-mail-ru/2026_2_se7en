@@ -3,17 +3,23 @@ package chat
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"sort"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
 func (r *ChatRepositoryImpl) CreateChat(ctx context.Context, userID, peerID uuid.UUID) (uuid.UUID, models.DialogStatus, error) {
+	r.log.DebugContext(ctx, "database operation", logger.KeyOperation, "CreateChat", slog.Any(logger.KeyTargetID, userID), slog.Any(logger.KeyPeerID, peerID))
+
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
+		r.log.ErrorContext(ctx, "CreateChat failed", logger.Error(err))
+
 		return uuid.Nil, models.DialogExisting, err
 	}
 
@@ -23,6 +29,8 @@ func (r *ChatRepositoryImpl) CreateChat(ctx context.Context, userID, peerID uuid
 	const lockDialog = `select pg_advisory_xact_lock(hashtextextended($1, 0))`
 	_, err = tx.Exec(ctx, lockDialog, ids[0]+ids[1])
 	if err != nil {
+		r.log.ErrorContext(ctx, "CreateChat failed", logger.Error(err))
+
 		return uuid.Nil, models.DialogExisting, err
 	}
 
@@ -30,6 +38,8 @@ func (r *ChatRepositoryImpl) CreateChat(ctx context.Context, userID, peerID uuid
 	const usersExist = `select count(*) from app_user where id in ($1, $2) and deleted_at is null`
 	err = tx.QueryRow(ctx, usersExist, userID, peerID).Scan(&activeUsers)
 	if err != nil {
+		r.log.ErrorContext(ctx, "CreateChat failed", logger.Error(err))
+
 		return uuid.Nil, models.DialogExisting, err
 	}
 
@@ -49,6 +59,8 @@ func (r *ChatRepositoryImpl) CreateChat(ctx context.Context, userID, peerID uuid
 	`
 	err = tx.QueryRow(ctx, findDialog, userID, peerID).Scan(&chatID)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		r.log.ErrorContext(ctx, "CreateChat failed", logger.Error(err))
+
 		return uuid.Nil, models.DialogExisting, err
 	}
 
@@ -57,11 +69,15 @@ func (r *ChatRepositoryImpl) CreateChat(ctx context.Context, userID, peerID uuid
 		const insertDialog = `insert into chat (name, type, members_count) values (null, 'dialog', 2) returning id`
 		err = tx.QueryRow(ctx, insertDialog).Scan(&chatID)
 		if err != nil {
+			r.log.ErrorContext(ctx, "CreateChat failed", logger.Error(err))
+
 			return uuid.Nil, models.DialogExisting, err
 		}
 
 		memberRole, err := role(ctx, tx, "member")
 		if err != nil {
+			r.log.ErrorContext(ctx, "CreateChat failed", logger.Error(err))
+
 			return uuid.Nil, models.DialogExisting, err
 		}
 
@@ -71,6 +87,8 @@ func (r *ChatRepositoryImpl) CreateChat(ctx context.Context, userID, peerID uuid
 		`
 		_, err = tx.Exec(ctx, insertMembers, userID, peerID, chatID, memberRole)
 		if err != nil {
+			r.log.ErrorContext(ctx, "CreateChat failed", logger.Error(err))
+
 			return uuid.Nil, models.DialogExisting, err
 		}
 
@@ -78,6 +96,8 @@ func (r *ChatRepositoryImpl) CreateChat(ctx context.Context, userID, peerID uuid
 	} else {
 		memberRole, err := role(ctx, tx, "member")
 		if err != nil {
+			r.log.ErrorContext(ctx, "CreateChat failed", logger.Error(err))
+
 			return uuid.Nil, models.DialogExisting, err
 		}
 
@@ -91,6 +111,8 @@ func (r *ChatRepositoryImpl) CreateChat(ctx context.Context, userID, peerID uuid
 		`
 		commandTag, err := tx.Exec(ctx, restoreMember, userID, chatID, memberRole)
 		if err != nil {
+			r.log.ErrorContext(ctx, "CreateChat failed", logger.Error(err))
+
 			return uuid.Nil, models.DialogExisting, err
 		}
 
@@ -108,11 +130,15 @@ func (r *ChatRepositoryImpl) CreateChat(ctx context.Context, userID, peerID uuid
 		`
 		_, err = tx.Exec(ctx, updateCount, chatID)
 		if err != nil {
+			r.log.ErrorContext(ctx, "CreateChat failed", logger.Error(err))
+
 			return uuid.Nil, models.DialogExisting, err
 		}
 	}
 
 	if err = tx.Commit(ctx); err != nil {
+		r.log.ErrorContext(ctx, "CreateChat failed", logger.Error(err))
+
 		return uuid.Nil, models.DialogExisting, err
 	}
 
@@ -120,14 +146,20 @@ func (r *ChatRepositoryImpl) CreateChat(ctx context.Context, userID, peerID uuid
 }
 
 func (r *ChatRepositoryImpl) HideDialog(ctx context.Context, userID, chatID uuid.UUID) error {
+	r.log.DebugContext(ctx, "database operation", logger.KeyOperation, "HideDialog", slog.Any(logger.KeyTargetID, userID), slog.Any(logger.KeyChatID, chatID))
+
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
+		r.log.ErrorContext(ctx, "HideDialog failed", logger.Error(err))
+
 		return err
 	}
 
 	defer tx.Rollback(ctx)
 	chatType, _, err := activeRole(ctx, tx, userID, chatID)
 	if err != nil {
+		r.log.ErrorContext(ctx, "HideDialog failed", logger.Error(err))
+
 		return err
 	}
 
@@ -142,6 +174,8 @@ func (r *ChatRepositoryImpl) HideDialog(ctx context.Context, userID, chatID uuid
 	`
 	tag, err := tx.Exec(ctx, hideMember, userID, chatID)
 	if err != nil {
+		r.log.ErrorContext(ctx, "HideDialog failed", logger.Error(err))
+
 		return err
 	}
 
@@ -159,8 +193,14 @@ func (r *ChatRepositoryImpl) HideDialog(ctx context.Context, userID, chatID uuid
 	`
 	_, err = tx.Exec(ctx, updateCount, chatID)
 	if err != nil {
+		r.log.ErrorContext(ctx, "HideDialog failed", logger.Error(err))
+
 		return err
 	}
 
-	return tx.Commit(ctx)
+	err = tx.Commit(ctx)
+	if err != nil {
+		r.log.ErrorContext(ctx, "Commit failed", logger.Error(err))
+	}
+	return err
 }

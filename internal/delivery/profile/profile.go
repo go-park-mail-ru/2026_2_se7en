@@ -2,21 +2,28 @@ package profile
 
 import (
 	"errors"
+	"io"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
 	usecaseprofile "github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/profile"
 )
 
 type ProfileDeliveryImpl struct {
+	log *slog.Logger
+
 	uc ProfileUsecase
 }
 
-func NewProfileDelivery(uc ProfileUsecase) *ProfileDeliveryImpl {
-	return &ProfileDeliveryImpl{uc: uc}
+func NewProfileDelivery(uc ProfileUsecase, baseLog *slog.Logger) *ProfileDeliveryImpl {
+	return &ProfileDeliveryImpl{
+		log: logger.Scope(baseLog, logger.LayerDelivery, logger.ModuleProfile),
+		uc:  uc}
 }
 
 // HandleGetProfile godoc
@@ -40,6 +47,8 @@ func (d *ProfileDeliveryImpl) HandleGetProfile(w http.ResponseWriter, r *http.Re
 
 	user, prof, err := d.uc.GetProfile(r.Context(), userID)
 	if err != nil {
+		d.log.ErrorContext(r.Context(), "HandleGetProfile failed", logger.Error(err))
+
 		if errors.Is(err, apperrors.ErrUserNotFound) {
 			apperrors.WriteError(w, apperrors.NewNotFound("User not found"))
 			return
@@ -66,6 +75,7 @@ func (d *ProfileDeliveryImpl) HandleGetProfile(w http.ResponseWriter, r *http.Re
 // @Failure 500 {object} apperrors.ErrorResponse
 // @Router       /profile [patch]
 func (d *ProfileDeliveryImpl) HandleUpdateProfile(w http.ResponseWriter, r *http.Request, req *UpdateProfileRequest) *apperrors.AppError {
+
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
 		return apperrors.NewUnauthorized("Authorization required")
@@ -82,6 +92,8 @@ func (d *ProfileDeliveryImpl) HandleUpdateProfile(w http.ResponseWriter, r *http
 
 	err := d.uc.UpdateProfile(r.Context(), userID, params)
 	if err != nil {
+		d.log.ErrorContext(r.Context(), "HandleUpdateProfile failed", logger.Error(err))
+
 		if errors.Is(err, apperrors.ErrEmailTaken) || errors.Is(err, apperrors.ErrNicknameTaken) {
 			return apperrors.NewConflict(err.Error(), nil)
 		}
@@ -91,6 +103,8 @@ func (d *ProfileDeliveryImpl) HandleUpdateProfile(w http.ResponseWriter, r *http
 
 	user, prof, err := d.uc.GetProfile(r.Context(), userID)
 	if err != nil {
+		d.log.ErrorContext(r.Context(), "HandleUpdateProfile failed", logger.Error(err))
+
 		return apperrors.NewInternalError("Something went wrong", err)
 	}
 
@@ -121,6 +135,8 @@ func (d *ProfileDeliveryImpl) HandleUploadAvatar(w http.ResponseWriter, r *http.
 
 	upload, closeFunc, appErr := extractAndValidateAvatar(w, r)
 	if appErr != nil {
+		d.log.ErrorContext(r.Context(), "HandleUploadAvatar failed", logger.Error(appErr))
+
 		apperrors.WriteError(w, appErr)
 		return
 	}
@@ -128,6 +144,8 @@ func (d *ProfileDeliveryImpl) HandleUploadAvatar(w http.ResponseWriter, r *http.
 
 	url, err := d.uc.UploadAvatar(r.Context(), userID, upload)
 	if err != nil {
+		d.log.ErrorContext(r.Context(), "HandleUploadAvatar failed", logger.Error(err))
+
 		apperrors.WriteError(w, apperrors.NewInternalError("Failed to upload avatar", err))
 		return
 	}
@@ -138,6 +156,7 @@ func (d *ProfileDeliveryImpl) HandleUploadAvatar(w http.ResponseWriter, r *http.
 func extractAndValidateAvatar(w http.ResponseWriter, r *http.Request) (*models.FileUpload, func(), *apperrors.AppError) {
 	upload, closeFile, err := tools.ExtractAvatar(w, r)
 	if err != nil {
+    slog.Default().ErrorContext(r.Context(), "extractAndValidateAvatar failed", logger.Error(err))
 		return nil, nil, apperrors.NewBadRequest("Invalid avatar file", nil)
 	}
 	return upload, closeFile, nil
@@ -157,12 +176,15 @@ func extractAndValidateAvatar(w http.ResponseWriter, r *http.Request) (*models.F
 // @Failure 500 {object} apperrors.ErrorResponse
 // @Router       /profile/password [patch]
 func (d *ProfileDeliveryImpl) HandleUpdatePassword(w http.ResponseWriter, r *http.Request, req *UpdatePasswordRequest) *apperrors.AppError {
+
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
 		return apperrors.NewUnauthorized("Authorization required")
 	}
 
 	if err := d.uc.UpdatePassword(r.Context(), userID, req.OldPassword, req.NewPassword); err != nil {
+		d.log.ErrorContext(r.Context(), "HandleUpdatePassword failed", logger.Error(err))
+
 		if errors.Is(err, apperrors.ErrInvalidCredentials) {
 			return apperrors.NewBadRequest("Invalid old password", []apperrors.ErrorDetail{
 				{Field: "old_password", Reason: "invalid_old_password"},

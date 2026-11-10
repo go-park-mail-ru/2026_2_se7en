@@ -7,6 +7,7 @@ import (
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
 	"github.com/google/uuid"
 )
 
@@ -25,6 +26,7 @@ import (
 // @Failure      500 {object} apperrors.ErrorResponse
 // @Router       /chats/dialogs [post]
 func (d *ChatDeliveryImpl) HandleCreateDialog(w http.ResponseWriter, r *http.Request, req *CreateDialogRequest) *apperrors.AppError {
+
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
 		return apperrors.NewUnauthorized("Authorization required")
@@ -36,6 +38,8 @@ func (d *ChatDeliveryImpl) HandleCreateDialog(w http.ResponseWriter, r *http.Req
 
 	result, status, err := d.chatUsecase.CreateDialog(r.Context(), userID, req.PeerID)
 	if err != nil {
+		d.log.ErrorContext(r.Context(), "HandleCreateDialog failed", logger.Error(err))
+
 		return mapChatError(err)
 	}
 	result.IsOnline = d.chatOnline(result.Chat, result.PeerID)
@@ -77,11 +81,17 @@ func (d *ChatDeliveryImpl) HandleHideDialog(w http.ResponseWriter, r *http.Reque
 
 	chatID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil || chatID == uuid.Nil {
+		if err != nil {
+			d.log.ErrorContext(r.Context(), "HandleHideDialog failed", logger.Error(err))
+		}
+
 		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid id", []apperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}}))
 		return
 	}
 
 	if err := d.chatUsecase.HideDialog(r.Context(), userID, chatID); err != nil {
+		d.log.ErrorContext(r.Context(), "HandleHideDialog failed", logger.Error(err))
+
 		apperrors.WriteError(w, mapChatError(err))
 		return
 	}

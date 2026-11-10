@@ -2,11 +2,13 @@ package auth
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
 	"github.com/google/uuid"
 )
 
@@ -15,12 +17,16 @@ type SessionDisconnecter interface {
 }
 
 type AuthDeliveryImpl struct {
+	log *slog.Logger
+
 	authUsecase         AuthUsecase
 	sessionDisconnecter SessionDisconnecter
 }
 
-func NewAuthDelivery(authUsecase AuthUsecase, disconnecter SessionDisconnecter) *AuthDeliveryImpl {
+func NewAuthDelivery(authUsecase AuthUsecase, disconnecter SessionDisconnecter, baseLog *slog.Logger) *AuthDeliveryImpl {
 	return &AuthDeliveryImpl{
+		log: logger.Scope(baseLog, logger.LayerDelivery, logger.ModuleAuth),
+
 		authUsecase:         authUsecase,
 		sessionDisconnecter: disconnecter,
 	}
@@ -40,8 +46,11 @@ func NewAuthDelivery(authUsecase AuthUsecase, disconnecter SessionDisconnecter) 
 // @Failure 500 {object} apperrors.ErrorResponse
 // @Router       /auth/login [post]
 func (d *AuthDeliveryImpl) HandleLogin(w http.ResponseWriter, r *http.Request, req *LoginRequest) *apperrors.AppError {
+
 	result, err := d.authUsecase.Login(r.Context(), req.Email, req.Password)
 	if err != nil {
+		d.log.ErrorContext(r.Context(), "HandleLogin failed", logger.Error(err))
+
 		if errors.Is(err, apperrors.ErrInvalidCredentials) || errors.Is(err, apperrors.ErrUserNotFound) {
 			return apperrors.NewUnauthorized("Incorrect email or password")
 		}
@@ -70,17 +79,23 @@ func (d *AuthDeliveryImpl) HandleLogin(w http.ResponseWriter, r *http.Request, r
 func (d *AuthDeliveryImpl) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie(middleware.SessionCookieName)
 	if err != nil {
+		d.log.ErrorContext(r.Context(), "HandleLogout failed", logger.Error(err))
+
 		apperrors.WriteError(w, apperrors.NewUnauthorized("Invalid session"))
 		return
 	}
 
 	sessionID, err := uuid.Parse(cookie.Value)
 	if err != nil {
+		d.log.ErrorContext(r.Context(), "HandleLogout failed", logger.Error(err))
+
 		apperrors.WriteError(w, apperrors.NewUnauthorized("Invalid session"))
 		return
 	}
 
 	if err := d.authUsecase.Logout(r.Context(), sessionID); err != nil {
+		d.log.ErrorContext(r.Context(), "HandleLogout failed", logger.Error(err))
+
 		apperrors.WriteError(w, apperrors.NewInternalError("Something went wrong", err))
 		return
 	}
@@ -112,6 +127,8 @@ func (d *AuthDeliveryImpl) HandleMe(w http.ResponseWriter, r *http.Request) {
 
 	result, err := d.authUsecase.GetMe(r.Context(), userID)
 	if err != nil {
+		d.log.ErrorContext(r.Context(), "HandleMe failed", logger.Error(err))
+
 		if errors.Is(err, apperrors.ErrUserNotFound) {
 			apperrors.WriteError(w, apperrors.NewUnauthorized("User not found"))
 			return

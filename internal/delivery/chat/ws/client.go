@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
@@ -27,6 +29,8 @@ type ChatService interface {
 }
 
 type Client struct {
+	log *slog.Logger
+
 	userID        uuid.UUID
 	sessionID     uuid.UUID
 	conn          *websocket.Conn
@@ -39,10 +43,12 @@ type Client struct {
 	chatService   ChatService
 }
 
-func NewClient(userID, sessionID uuid.UUID, conn *websocket.Conn, hub *Hub, cs ChatService) *Client {
-	ctx, cancel := context.WithCancel(context.Background())
+func NewClient(parent context.Context, userID, sessionID uuid.UUID, conn *websocket.Conn, hub *Hub, cs ChatService, baseLog *slog.Logger) *Client {
+	ctx, cancel := context.WithCancel(context.WithoutCancel(logger.WithUserID(parent, userID.String())))
 
 	return &Client{
+		log: logger.Scope(baseLog, logger.LayerDelivery, logger.ModuleWebSocket),
+
 		userID:        userID,
 		sessionID:     sessionID,
 		conn:          conn,
@@ -57,6 +63,7 @@ func NewClient(userID, sessionID uuid.UUID, conn *websocket.Conn, hub *Hub, cs C
 
 func (c *Client) Close(code int, reason string) {
 	c.closeOnce.Do(func() {
+		c.log.InfoContext(c.ctx, "websocket connection closed", logger.KeyCode, code)
 		c.cancel()
 		msg := websocket.FormatCloseMessage(code, reason)
 		_ = c.conn.WriteControl(websocket.CloseMessage, msg, time.Now().Add(writeTimeout))
@@ -75,15 +82,23 @@ func (c *Client) Send(event models.Event) {
 	case c.send <- event:
 	case <-c.ctx.Done():
 	default:
+		c.log.WarnContext(c.ctx, "websocket send queue full")
 		c.Close(websocket.ClosePolicyViolation, "slow consumer")
 	}
 }
 
 func (c *Client) sendActionError(code string) {
+	c.log.WarnContext(c.ctx, "websocket action rejected", logger.KeyCode, code)
+
 	c.Send(models.Event{Type: "error", Payload: map[string]string{"code": code}})
 }
 
 func (c *Client) handleAction(action models.Action) {
+	switch action.Type {
+	case models.ActionSubscribe, models.ActionUnsubscribe, models.ActionTypingStart, models.ActionTypingStop, models.ActionMessageMarkRead:
+		c.log.DebugContext(c.ctx, "websocket action received", logger.KeyEvent, action.Type)
+	}
+
 	switch action.Type {
 	case models.ActionUnsubscribe:
 		if action.ChatID == uuid.Nil {
@@ -102,6 +117,8 @@ func (c *Client) handleAction(action models.Action) {
 
 		isMember, err := c.chatService.IsMember(c.ctx, c.userID, action.ChatID)
 		if err != nil {
+			c.log.ErrorContext(c.ctx, "handleAction failed", logger.Error(err))
+
 			c.sendActionError("internal_error")
 			return
 		}
@@ -136,6 +153,8 @@ func (c *Client) handleAction(action models.Action) {
 
 		changed, err := c.chatService.MarkMessageRead(c.ctx, c.userID, action.ChatID, action.MessageID)
 		if err != nil {
+			c.log.ErrorContext(c.ctx, "handleAction failed", logger.Error(err))
+
 			switch {
 			case errors.Is(err, apperrors.ErrChatNotFound):
 				c.sendActionError("not_a_member")
@@ -182,11 +201,17 @@ func (c *Client) readPump() {
 	for {
 		_, data, err := c.conn.ReadMessage()
 		if err != nil {
+			if c.ctx.Err() == nil && !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+				c.log.ErrorContext(c.ctx, "websocket read failed", logger.Error(err))
+			}
+
 			return
 		}
 
 		var action models.Action
 		if err := json.Unmarshal(data, &action); err != nil {
+			c.log.WarnContext(c.ctx, "invalid websocket JSON", logger.Error(err))
+
 			c.sendActionError("invalid_json")
 			continue
 		}
@@ -210,14 +235,20 @@ func (c *Client) writePump() {
 			c.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 			data, err := json.Marshal(event)
 			if err != nil {
+				c.log.ErrorContext(c.ctx, "writePump failed", logger.Error(err))
+
 				continue
 			}
 
 			if err := c.conn.WriteMessage(websocket.TextMessage, data); err != nil {
+				c.log.ErrorContext(c.ctx, "writePump failed", logger.Error(err))
+
 				return
 			}
 		case <-ticker.C:
 			if err := c.conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(pingInterval)); err != nil {
+				c.log.ErrorContext(c.ctx, "writePump failed", logger.Error(err))
+
 				return
 			}
 		}

@@ -3,14 +3,18 @@ package chat
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
 func (r *ChatRepositoryImpl) MessageExists(ctx context.Context, chatID, messageID uuid.UUID) (bool, error) {
+	r.log.DebugContext(ctx, "database operation", logger.KeyOperation, "MessageExists", slog.Any(logger.KeyChatID, chatID), slog.Any(logger.KeyMessageID, messageID))
+
 	const query = `
 		select exists (
 			select 1 from message
@@ -23,6 +27,8 @@ func (r *ChatRepositoryImpl) MessageExists(ctx context.Context, chatID, messageI
 }
 
 func (r *ChatRepositoryImpl) GetListMessages(ctx context.Context, userID, chatID uuid.UUID, limit int, before *uuid.UUID) ([]models.Message, error) {
+	r.log.DebugContext(ctx, "database operation", logger.KeyOperation, "GetListMessages", slog.Any(logger.KeyTargetID, userID), slog.Any(logger.KeyChatID, chatID))
+
 	const queryWithoutBefore = `
 		select m.id, m.user_id, m.chat_id, m.reply_to_message_id, m.sticker_id,
 			m.content, m.is_edited, m.is_read, m.type, m.created_at, m.updated_at
@@ -65,6 +71,8 @@ func (r *ChatRepositoryImpl) GetListMessages(ctx context.Context, userID, chatID
 	}
 
 	if err != nil {
+		r.log.ErrorContext(ctx, "GetListMessages failed", logger.Error(err))
+
 		return nil, err
 	}
 
@@ -74,18 +82,28 @@ func (r *ChatRepositoryImpl) GetListMessages(ctx context.Context, userID, chatID
 		var db MessageDB
 		err = rows.Scan(&db.ID, &db.UserID, &db.ChatID, &db.ReplyToMessageID, &db.StickerID, &db.Content, &db.IsEdited, &db.IsRead, &db.Type, &db.CreatedAt, &db.UpdatedAt)
 		if err != nil {
+			r.log.ErrorContext(ctx, "GetListMessages failed", logger.Error(err))
+
 			return nil, err
 		}
 
 		items = append(items, MessageDBToModel(&db))
 	}
 
-	return items, rows.Err()
+	err = rows.Err()
+	if err != nil {
+		r.log.ErrorContext(ctx, "ReadRows failed", logger.Error(err))
+	}
+	return items, err
 }
 
 func (r *ChatRepositoryImpl) CreateMessage(ctx context.Context, userID, chatID uuid.UUID, replyToMessageID, stickerID *uuid.UUID, content *string, messageType string) (*models.Message, error) {
+	r.log.DebugContext(ctx, "database operation", logger.KeyOperation, "CreateMessage", slog.Any(logger.KeyTargetID, userID), slog.Any(logger.KeyChatID, chatID))
+
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
+		r.log.ErrorContext(ctx, "CreateMessage failed", logger.Error(err))
+
 		return nil, err
 	}
 
@@ -111,6 +129,8 @@ func (r *ChatRepositoryImpl) CreateMessage(ctx context.Context, userID, chatID u
 	}
 
 	if err != nil {
+		r.log.ErrorContext(ctx, "CreateMessage failed", logger.Error(err))
+
 		return nil, err
 	}
 
@@ -128,6 +148,8 @@ func (r *ChatRepositoryImpl) CreateMessage(ctx context.Context, userID, chatID u
 		}
 
 		if err != nil {
+			r.log.ErrorContext(ctx, "CreateMessage failed", logger.Error(err))
+
 			return nil, err
 		}
 	}
@@ -141,10 +163,14 @@ func (r *ChatRepositoryImpl) CreateMessage(ctx context.Context, userID, chatID u
 	`
 	err = tx.QueryRow(ctx, insertMessage, userID, chatID, replyToMessageID, stickerID, content, messageType).Scan(&msgDB.ID, &msgDB.UserID, &msgDB.ChatID, &msgDB.ReplyToMessageID, &msgDB.StickerID, &msgDB.Content, &msgDB.IsEdited, &msgDB.IsRead, &msgDB.Type, &msgDB.CreatedAt, &msgDB.UpdatedAt)
 	if err != nil {
+		r.log.ErrorContext(ctx, "CreateMessage failed", logger.Error(err))
+
 		return nil, err
 	}
 
 	if err = tx.Commit(ctx); err != nil {
+		r.log.ErrorContext(ctx, "CreateMessage failed", logger.Error(err))
+
 		return nil, err
 	}
 
@@ -153,6 +179,8 @@ func (r *ChatRepositoryImpl) CreateMessage(ctx context.Context, userID, chatID u
 }
 
 func (r *ChatRepositoryImpl) MarkMessageRead(ctx context.Context, userID, chatID, messageID uuid.UUID) (bool, error) {
+	r.log.DebugContext(ctx, "database operation", logger.KeyOperation, "MarkMessageRead", slog.Any(logger.KeyTargetID, userID), slog.Any(logger.KeyChatID, chatID), slog.Any(logger.KeyMessageID, messageID))
+
 	const markRead = `
 		update message m
 		set is_read = true
@@ -186,6 +214,8 @@ func (r *ChatRepositoryImpl) MarkMessageRead(ctx context.Context, userID, chatID
 }
 
 func (r *ChatRepositoryImpl) GetMessageAuthor(ctx context.Context, chatID, messageID uuid.UUID) (uuid.UUID, error) {
+	r.log.DebugContext(ctx, "database operation", logger.KeyOperation, "GetMessageAuthor", slog.Any(logger.KeyChatID, chatID), slog.Any(logger.KeyMessageID, messageID))
+
 	const findMessage = `
 		select user_id
 		from message
@@ -198,6 +228,8 @@ func (r *ChatRepositoryImpl) GetMessageAuthor(ctx context.Context, chatID, messa
 	}
 
 	if err != nil {
+		r.log.ErrorContext(ctx, "GetMessageAuthor failed", logger.Error(err))
+
 		return uuid.Nil, err
 	}
 

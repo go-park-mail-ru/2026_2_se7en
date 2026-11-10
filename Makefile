@@ -4,7 +4,7 @@ SWAG ?= $(shell go env GOPATH)/bin/swag
 .PHONY: coverage generate_swagger
 
 coverage:
-	go test -coverpkg=./... -coverprofile=$(COVERAGE_FILE) . ./handlers
+	go test -coverpkg=./... -coverprofile=$(COVERAGE_FILE) ./...
 	go tool cover -func=$(COVERAGE_FILE)
 
 generate_swagger:

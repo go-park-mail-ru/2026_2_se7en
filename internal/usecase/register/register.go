@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/apperrors"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -43,7 +43,7 @@ func (uc *RegisterUsecaseImpl) Register(ctx context.Context, user *models.User, 
 	}
 
 	if user.Profile == nil {
-		return nil, apperrors.NewBadRequest("Profile is required", nil)
+		return nil, apperrors.ErrProfileRequired
 	}
 
 	nicknameExists, err := uc.profileRepo.CheckNicknameExist(ctx, user.Profile.Nickname)

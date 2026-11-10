@@ -17,8 +17,8 @@ type mockChatService struct {
 	called  bool
 }
 
-func (m *mockChatService) IsMember(context.Context, uuid.UUID, uuid.UUID) (bool, error) {
-	return true, nil
+func (m *mockChatService) IsMember(context.Context, uuid.UUID, uuid.UUID) (*models.ChatMembership, error) {
+	return &models.ChatMembership{IsMember: true}, nil
 }
 
 func (m *mockChatService) MarkMessageRead(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (bool, error) {

@@ -2,14 +2,16 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+var ErrDatabaseURLMissing = errors.New("DATABASE_URL is empty")
 
 type DBPool interface {
 	Exec(ctx context.Context, sql string, arguments ...interface{}) (pgconn.CommandTag, error)
@@ -32,7 +34,7 @@ func Connect(ctx context.Context, connString string, baseLog *slog.Logger) (*DB,
 	log := logger.Scope(baseLog, logger.LayerStorage, logger.ModuleDatabase)
 
 	if connString == "" {
-		return nil, apperrors.ErrDatabaseURLMissing
+		return nil, ErrDatabaseURLMissing
 	}
 
 	pool, err := pgxpool.New(ctx, connString)

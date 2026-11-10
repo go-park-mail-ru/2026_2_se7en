@@ -10,45 +10,57 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/apperrors"
 	"github.com/google/uuid"
 )
 
 type mockChatUsecase struct {
-	items        []*models.ChatListItem
-	detail       *models.ChatDetail
-	dialogStatus models.DialogStatus
-	members      []models.ChatMember
-	member       *models.ChatMember
-	messages     []models.Message
-	isMember     bool
-	readChanged  bool
-	err          error
-	called       bool
-	userID       uuid.UUID
-	chatID       uuid.UUID
-	targetID     uuid.UUID
+	items           []*models.ChatListItem
+	detail          *models.ChatDetail
+	dialogStatus    models.DialogStatus
+	members         []models.ChatMember
+	member          *models.ChatMember
+	messages        []models.Message
+	activeMemberIDs []uuid.UUID
+	isMember        bool
+	readChanged     bool
+	err             error
+	called          bool
+	userID          uuid.UUID
+	chatID          uuid.UUID
+	targetID        uuid.UUID
+	limit           int
+	offset          int
+	chatType        string
 }
 
 type mockBroadcaster struct {
 	chatID       uuid.UUID
 	userID       uuid.UUID
 	userIDs      []uuid.UUID
+	onlineUsers  map[uuid.UUID]bool
 	event        models.Event
+	events       []models.Event
 	chatCalled   bool
 	userCalled   bool
 	revokeCalled bool
 	removeCalled bool
 }
 
+func (m *mockBroadcaster) IsOnline(userID uuid.UUID) bool {
+	return m.onlineUsers[userID]
+}
+
 func (m *mockBroadcaster) BroadcastToChat(chatID uuid.UUID, event models.Event) {
 	m.chatCalled = true
 	m.chatID = chatID
 	m.event = event
+	m.events = append(m.events, event)
 }
 
 func (m *mockBroadcaster) BroadcastToUser(userID uuid.UUID, event models.Event) {
@@ -56,6 +68,13 @@ func (m *mockBroadcaster) BroadcastToUser(userID uuid.UUID, event models.Event) 
 	m.userID = userID
 	m.userIDs = append(m.userIDs, userID)
 	m.event = event
+	m.events = append(m.events, event)
+}
+
+func (m *mockBroadcaster) BroadcastToUsers(userIDs []uuid.UUID, event models.Event) {
+	for _, userID := range userIDs {
+		m.BroadcastToUser(userID, event)
+	}
 }
 
 func (m *mockBroadcaster) RevokeUserFromChat(userID, chatID uuid.UUID) {
@@ -123,7 +142,8 @@ func TestChatDelivery_UpdateGroupBroadcastsOnlyOnSuccess(t *testing.T) {
 
 func TestChatDelivery_DeleteChatBroadcastsAndRemovesChat(t *testing.T) {
 	userID, chatID := uuid.New(), uuid.New()
-	uc := &mockChatUsecase{}
+	memberIDs := []uuid.UUID{uuid.New(), uuid.New()}
+	uc := &mockChatUsecase{activeMemberIDs: memberIDs}
 	broadcaster := &mockBroadcaster{}
 	req := httptest.NewRequest(http.MethodDelete, "/chats/"+chatID.String(), nil)
 	req.SetPathValue("id", chatID.String())
@@ -134,8 +154,13 @@ func TestChatDelivery_DeleteChatBroadcastsAndRemovesChat(t *testing.T) {
 	if rec.Code != http.StatusNoContent || !uc.called || uc.userID != userID || uc.chatID != chatID {
 		t.Fatalf("status = %d, usecase called = %t, user = %s, chat = %s", rec.Code, uc.called, uc.userID, uc.chatID)
 	}
-	if !broadcaster.chatCalled || !broadcaster.removeCalled || broadcaster.chatID != chatID || broadcaster.event.Type != models.EventChatDeleted {
+	if broadcaster.chatCalled || !broadcaster.removeCalled || broadcaster.chatID != chatID || len(broadcaster.userIDs) != len(memberIDs) {
 		t.Fatalf("chat deletion was not broadcast and removed: %+v", broadcaster)
+	}
+	for i, memberID := range memberIDs {
+		if broadcaster.userIDs[i] != memberID || broadcaster.events[i].Type != models.EventChatDeleted || broadcaster.events[i].Payload.(map[string]any)["chat_id"] != chatID {
+			t.Fatalf("unexpected deletion notification for member %s: %+v", memberID, broadcaster.events[i])
+		}
 	}
 }
 
@@ -152,7 +177,13 @@ func TestChatDelivery_LeaveGroupRemovesCurrentUser(t *testing.T) {
 	if rec.Code != http.StatusNoContent || !uc.called || uc.userID != userID || uc.chatID != chatID || uc.targetID != userID {
 		t.Fatalf("status = %d, usecase called = %t, actor = %s, chat = %s, target = %s", rec.Code, uc.called, uc.userID, uc.chatID, uc.targetID)
 	}
-	if !broadcaster.revokeCalled || !broadcaster.chatCalled || !broadcaster.userCalled || broadcaster.event.Type != models.EventMemberRemoved {
+	removed := false
+	for _, event := range broadcaster.events {
+		if event.Type == models.EventMemberRemoved {
+			removed = true
+		}
+	}
+	if !broadcaster.revokeCalled || !broadcaster.chatCalled || !broadcaster.userCalled || !removed {
 		t.Fatalf("member removal was not broadcast: %+v", broadcaster)
 	}
 }
@@ -347,13 +378,20 @@ func TestMapChatError(t *testing.T) {
 	}
 }
 
-func (m *mockChatUsecase) IsMember(ctx context.Context, userID, chatID uuid.UUID) (bool, error) {
+func (m *mockChatUsecase) IsMember(ctx context.Context, userID, chatID uuid.UUID) (*models.ChatMembership, error) {
 	m.called = true
-	return m.isMember, m.err
+	return &models.ChatMembership{IsMember: m.isMember}, m.err
 }
 
-func (m *mockChatUsecase) GetListUserChats(ctx context.Context, userID uuid.UUID, limit, offset int, chatType string) ([]*models.ChatListItem, error) {
+func (m *mockChatUsecase) GetActiveMemberIDs(context.Context, uuid.UUID) ([]uuid.UUID, error) {
+	return m.activeMemberIDs, m.err
+}
+
+func (m *mockChatUsecase) GetListUserChats(_ context.Context, _ uuid.UUID, limit, offset int, chatType string, _ *time.Time, _ uuid.UUID) ([]*models.ChatListItem, error) {
 	m.called = true
+	m.limit = limit
+	m.offset = offset
+	m.chatType = chatType
 	return m.items, m.err
 }
 
@@ -382,6 +420,11 @@ func (m *mockChatUsecase) UpdateGroup(context.Context, uuid.UUID, uuid.UUID, *st
 	return m.detail, m.err
 }
 
+func (m *mockChatUsecase) UploadGroupAvatar(context.Context, uuid.UUID, uuid.UUID, *models.FileUpload) (*models.ChatDetail, error) {
+	m.called = true
+	return m.detail, m.err
+}
+
 func (m *mockChatUsecase) DeleteChat(_ context.Context, userID, chatID uuid.UUID) error {
 	m.called = true
 	m.userID = userID
@@ -395,6 +438,11 @@ func (m *mockChatUsecase) GetListMembers(context.Context, uuid.UUID, uuid.UUID) 
 }
 
 func (m *mockChatUsecase) AddMember(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*models.ChatMember, error) {
+	m.called = true
+	return m.member, m.err
+}
+
+func (m *mockChatUsecase) UpdateMemberRole(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, string) (*models.ChatMember, error) {
 	m.called = true
 	return m.member, m.err
 }
@@ -463,13 +511,10 @@ func TestChatDelivery_HandleGetListUserChats_QueryValidation(t *testing.T) {
 	}{
 		{name: "non-numeric limit", target: "/chats?limit=nope"},
 		{name: "duplicate limit", target: "/chats?limit=1&limit=2"},
-		{name: "non-numeric offset", target: "/chats?offset=nope"},
-		{name: "duplicate offset", target: "/chats?offset=1&offset=2"},
 		{name: "empty type", target: "/chats?type="},
 		{name: "duplicate type", target: "/chats?type=group&type=dialog"},
 		{name: "zero limit", target: "/chats?limit=0"},
 		{name: "excessive limit", target: "/chats?limit=51"},
-		{name: "negative offset", target: "/chats?offset=-1"},
 		{name: "invalid type", target: "/chats?type=invalid"},
 	}
 
@@ -520,6 +565,9 @@ func TestChatDelivery_HandleGetListUserChats_Success(t *testing.T) {
 	if !uc.called {
 		t.Fatal("usecase was not called")
 	}
+	if uc.limit != 11 || uc.offset != 3 || uc.chatType != "group" {
+		t.Fatalf("usecase query = (limit %d, offset %d, type %q), want (11, 3, group)", uc.limit, uc.offset, uc.chatType)
+	}
 
 	var response ListChatsResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
@@ -543,9 +591,8 @@ func TestChatDelivery_HandleGetListUserChats_DatabaseErrors(t *testing.T) {
 		err        error
 		wantStatus int
 	}{
-		{name: "invalid limit", err: apperrors.ErrInvalidChatLimit, wantStatus: http.StatusBadRequest},
-		{name: "invalid offset", err: apperrors.ErrInvalidChatOffset, wantStatus: http.StatusBadRequest},
-		{name: "invalid type", err: apperrors.ErrInvalidChatType, wantStatus: http.StatusBadRequest},
+		{name: "invalid limit", err: errInvalidChatLimit, wantStatus: http.StatusBadRequest},
+		{name: "invalid type", err: errInvalidChatType, wantStatus: http.StatusBadRequest},
 		{name: "unknown database error", err: errors.New("db down"), wantStatus: http.StatusInternalServerError},
 	}
 

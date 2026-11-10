@@ -5,10 +5,10 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/apperrors"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -84,7 +84,7 @@ func (uc *ProfileUsecaseImpl) UpdateProfile(ctx context.Context, userID uuid.UUI
 			return err
 		}
 		if prof == nil {
-			return apperrors.NewNotFound("Profile not found")
+			return apperrors.ErrProfileNotFound
 		}
 
 		if params.Email != nil && *params.Email != user.Email {
@@ -131,15 +131,15 @@ func (uc *ProfileUsecaseImpl) UpdateProfile(ctx context.Context, userID uuid.UUI
 	})
 }
 
-func (uc *ProfileUsecaseImpl) UploadAvatar(ctx context.Context, userID uuid.UUID, file *models.FileUpload) (string, error) {
+func (uc *ProfileUsecaseImpl) UploadAvatar(ctx context.Context, userID uuid.UUID, file *models.FileUpload) (*models.File, error) {
 	url, filename, err := tools.SaveAvatar(ctx, file, uc.log)
 	if err != nil {
 		uc.log.ErrorContext(ctx, "UploadAvatar failed", logger.Error(err))
 
-		return "", apperrors.NewBadRequest("Failed to save avatar", nil)
+		return nil, err
 	}
 
-	var fileURL string
+	var fileModel *models.File
 	err = uc.txManager.WithinTransaction(ctx, func(ctx context.Context) error {
 		prof, err := uc.profileRepo.GetWithFileByUserID(ctx, userID)
 		if err != nil {
@@ -148,14 +148,17 @@ func (uc *ProfileUsecaseImpl) UploadAvatar(ctx context.Context, userID uuid.UUID
 			return err
 		}
 		if prof == nil {
-			return apperrors.NewNotFound("Profile not found")
+			return apperrors.ErrProfileNotFound
 		}
 
-		fileModel, err := uc.fileRepo.Create(ctx, url, filename, "image")
+		fileModel, err = uc.fileRepo.Create(ctx, url, filename, file.ContentType)
 		if err != nil {
 			uc.log.ErrorContext(ctx, "UploadAvatar failed", logger.Error(err))
 
 			return err
+		}
+		if fileModel == nil {
+			return apperrors.ErrFileNotCreated
 		}
 
 		if err := uc.profileRepo.UpdateIcon(ctx, prof.ID, fileModel.ID); err != nil {
@@ -164,17 +167,17 @@ func (uc *ProfileUsecaseImpl) UploadAvatar(ctx context.Context, userID uuid.UUID
 			return err
 		}
 
-		fileURL = fileModel.URL
 		return nil
 	})
 
 	if err != nil {
+		_ = tools.RemoveAvatar(filename)
 		uc.log.ErrorContext(ctx, "UploadAvatar failed", logger.Error(err))
 
-		return "", err
+		return nil, err
 	}
 
-	return fileURL, nil
+	return fileModel, nil
 }
 
 func (uc *ProfileUsecaseImpl) UpdatePassword(ctx context.Context, userID uuid.UUID, oldPassword, newPassword string) error {

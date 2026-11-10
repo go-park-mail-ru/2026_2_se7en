@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/apperrors"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -100,8 +100,8 @@ func (m *mockRepo) CreateSession(ctx context.Context, userID uuid.UUID, expiresA
 }
 
 func (m *mockRepo) DeleteSession(ctx context.Context, sessionID uuid.UUID) error { return nil }
-func (m *mockRepo) GetSessionUser(ctx context.Context, sessionID uuid.UUID) (uuid.UUID, error) {
-	return uuid.Nil, nil
+func (m *mockRepo) GetSessionUser(ctx context.Context, sessionID uuid.UUID) (*models.SessionUser, error) {
+	return &models.SessionUser{}, nil
 }
 func (m *mockRepo) ExtendSession(ctx context.Context, sessionID uuid.UUID, expiresAt time.Time) error {
 	return nil

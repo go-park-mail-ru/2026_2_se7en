@@ -1,9 +1,9 @@
 package chat
 
 import (
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/httperrors"
 	"net/http"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
@@ -20,20 +20,20 @@ import (
 // @Security     SessionCookie
 // @Param        request body CreateDialogRequest true "Данные для создания"
 // @Success      200 {object} ChatDetailResponse
-// @Failure      400 {object} apperrors.ErrorResponse
-// @Failure      401 {object} apperrors.ErrorResponse
-// @Failure      404 {object} apperrors.ErrorResponse
-// @Failure      500 {object} apperrors.ErrorResponse
+// @Failure      400 {object} httperrors.ErrorResponse
+// @Failure      401 {object} httperrors.ErrorResponse
+// @Failure      404 {object} httperrors.ErrorResponse
+// @Failure      500 {object} httperrors.ErrorResponse
 // @Router       /chats/dialogs [post]
-func (d *ChatDeliveryImpl) HandleCreateDialog(w http.ResponseWriter, r *http.Request, req *CreateDialogRequest) *apperrors.AppError {
+func (d *ChatDeliveryImpl) HandleCreateDialog(w http.ResponseWriter, r *http.Request, req *CreateDialogRequest) *httperrors.HTTPError {
 
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
-		return apperrors.NewUnauthorized("Authorization required")
+		return httperrors.NewUnauthorized("Authorization required")
 	}
 
 	if userID == req.PeerID {
-		return apperrors.NewBadRequest("Validation failed", []apperrors.ErrorDetail{{Field: "peer_id", Reason: "Cannot create a dialog with yourself"}})
+		return httperrors.NewBadRequest("Validation failed", []httperrors.ErrorDetail{{Field: "peer_id", Reason: "Cannot create a dialog with yourself"}})
 	}
 
 	result, status, err := d.chatUsecase.CreateDialog(r.Context(), userID, req.PeerID)
@@ -42,6 +42,7 @@ func (d *ChatDeliveryImpl) HandleCreateDialog(w http.ResponseWriter, r *http.Req
 
 		return mapChatError(err)
 	}
+	result.IsOnline = d.chatOnline(result.Chat, result.PeerID)
 
 	if status == models.DialogCreated || status == models.DialogRestored {
 		event := models.Event{
@@ -66,15 +67,15 @@ func (d *ChatDeliveryImpl) HandleCreateDialog(w http.ResponseWriter, r *http.Req
 // @Security     SessionCookie
 // @Param        id path string true "ID диалога (UUID)" format(uuid)
 // @Success      204 "Диалог скрыт"
-// @Failure      400 {object} apperrors.ErrorResponse
-// @Failure      401 {object} apperrors.ErrorResponse
-// @Failure      404 {object} apperrors.ErrorResponse
-// @Failure      500 {object} apperrors.ErrorResponse
+// @Failure      400 {object} httperrors.ErrorResponse
+// @Failure      401 {object} httperrors.ErrorResponse
+// @Failure      404 {object} httperrors.ErrorResponse
+// @Failure      500 {object} httperrors.ErrorResponse
 // @Router       /chats/{id}/hide [post]
 func (d *ChatDeliveryImpl) HandleHideDialog(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
-		apperrors.WriteError(w, apperrors.NewUnauthorized("Authorization required"))
+		httperrors.WriteError(w, httperrors.NewUnauthorized("Authorization required"))
 		return
 	}
 
@@ -84,32 +85,20 @@ func (d *ChatDeliveryImpl) HandleHideDialog(w http.ResponseWriter, r *http.Reque
 			d.log.ErrorContext(r.Context(), "HandleHideDialog failed", logger.Error(err))
 		}
 
-		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid id", []apperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}}))
+		httperrors.WriteError(w, httperrors.NewBadRequest("Invalid id", []httperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}}))
 		return
 	}
 
 	if err := d.chatUsecase.HideDialog(r.Context(), userID, chatID); err != nil {
 		d.log.ErrorContext(r.Context(), "HandleHideDialog failed", logger.Error(err))
 
-		apperrors.WriteError(w, mapChatError(err))
+		httperrors.WriteError(w, mapChatError(err))
 		return
 	}
 
 	d.broadcaster.RevokeUserFromChat(userID, chatID)
 	d.broadcaster.BroadcastToUser(userID, models.Event{Type: models.EventUnsubscribed, Payload: map[string]any{"chat_id": chatID}})
+	d.broadcaster.BroadcastToUsers([]uuid.UUID{userID}, models.Event{Type: models.EventChatActivity, Payload: map[string]any{"chat_id": chatID}})
 
 	w.WriteHeader(http.StatusNoContent)
-}
-
-type CreateDialogRequest struct {
-	PeerID uuid.UUID `json:"peer_id" format:"uuid"`
-}
-
-func (r *CreateDialogRequest) IsValid() []apperrors.ErrorDetail {
-	var details []apperrors.ErrorDetail
-	if r.PeerID == uuid.Nil {
-		details = append(details, apperrors.ErrorDetail{Field: "peer_id", Reason: "invalid peer_id"})
-	}
-
-	return details
 }

@@ -11,7 +11,6 @@ import (
 	"sync/atomic"
 	"unicode/utf8"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -76,6 +75,11 @@ const metadataKey contextKey = 0
 type requestMetadata struct {
 	requestID string
 	userID    atomic.Value
+}
+
+type responseError interface {
+	ErrorCode() string
+	HTTPStatus() int
 }
 
 func ParseLevel(value string) (slog.Level, error) {
@@ -173,12 +177,12 @@ func Error(err error) slog.Attr {
 	}
 	attrs := []any{slog.String(KeyType, fmt.Sprintf("%T", err))}
 	var dbErr *pgconn.PgError
-	var appErr *apperrors.AppError
+	var responseErr responseError
 	switch {
 	case errors.As(err, &dbErr):
 		attrs = append(attrs, slog.String(KeyCode, dbErr.Code), slog.String(KeyConstraint, dbErr.ConstraintName))
-	case errors.As(err, &appErr):
-		attrs = append(attrs, slog.String(KeyCode, appErr.Code), slog.Int(KeyStatus, appErr.Status))
+	case errors.As(err, &responseErr):
+		attrs = append(attrs, slog.String(KeyCode, responseErr.ErrorCode()), slog.Int(KeyStatus, responseErr.HTTPStatus()))
 	}
 	return slog.Group(KeyError, attrs...)
 }

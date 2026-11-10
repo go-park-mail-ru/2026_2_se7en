@@ -5,9 +5,9 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/apperrors"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -23,7 +23,7 @@ func (r *ChatRepositoryImpl) MessageExists(ctx context.Context, chatID, messageI
 	`
 	var exists bool
 	err := r.pool.QueryRow(ctx, query, messageID, chatID).Scan(&exists)
-	return exists, err
+	return exists, apperrors.WrapDatabase(err)
 }
 
 func (r *ChatRepositoryImpl) GetListMessages(ctx context.Context, userID, chatID uuid.UUID, limit int, before *uuid.UUID) ([]models.Message, error) {
@@ -73,7 +73,7 @@ func (r *ChatRepositoryImpl) GetListMessages(ctx context.Context, userID, chatID
 	if err != nil {
 		r.log.ErrorContext(ctx, "GetListMessages failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	defer rows.Close()
@@ -84,7 +84,7 @@ func (r *ChatRepositoryImpl) GetListMessages(ctx context.Context, userID, chatID
 		if err != nil {
 			r.log.ErrorContext(ctx, "GetListMessages failed", logger.Error(err))
 
-			return nil, err
+			return nil, apperrors.WrapDatabase(err)
 		}
 
 		items = append(items, MessageDBToModel(&db))
@@ -94,7 +94,7 @@ func (r *ChatRepositoryImpl) GetListMessages(ctx context.Context, userID, chatID
 	if err != nil {
 		r.log.ErrorContext(ctx, "ReadRows failed", logger.Error(err))
 	}
-	return items, err
+	return items, apperrors.WrapDatabase(err)
 }
 
 func (r *ChatRepositoryImpl) CreateMessage(ctx context.Context, userID, chatID uuid.UUID, replyToMessageID, stickerID *uuid.UUID, content *string, messageType string) (*models.Message, error) {
@@ -104,7 +104,7 @@ func (r *ChatRepositoryImpl) CreateMessage(ctx context.Context, userID, chatID u
 	if err != nil {
 		r.log.ErrorContext(ctx, "CreateMessage failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	defer tx.Rollback(ctx)
@@ -131,7 +131,7 @@ func (r *ChatRepositoryImpl) CreateMessage(ctx context.Context, userID, chatID u
 	if err != nil {
 		r.log.ErrorContext(ctx, "CreateMessage failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	if replyToMessageID != nil {
@@ -150,7 +150,7 @@ func (r *ChatRepositoryImpl) CreateMessage(ctx context.Context, userID, chatID u
 		if err != nil {
 			r.log.ErrorContext(ctx, "CreateMessage failed", logger.Error(err))
 
-			return nil, err
+			return nil, apperrors.WrapDatabase(err)
 		}
 	}
 
@@ -165,13 +165,13 @@ func (r *ChatRepositoryImpl) CreateMessage(ctx context.Context, userID, chatID u
 	if err != nil {
 		r.log.ErrorContext(ctx, "CreateMessage failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	if err = tx.Commit(ctx); err != nil {
 		r.log.ErrorContext(ctx, "CreateMessage failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	msg := MessageDBToModel(&msgDB)
@@ -210,7 +210,7 @@ func (r *ChatRepositoryImpl) MarkMessageRead(ctx context.Context, userID, chatID
 		return false, nil
 	}
 
-	return false, err
+	return false, apperrors.WrapDatabase(err)
 }
 
 func (r *ChatRepositoryImpl) GetMessageAuthor(ctx context.Context, chatID, messageID uuid.UUID) (uuid.UUID, error) {
@@ -230,7 +230,7 @@ func (r *ChatRepositoryImpl) GetMessageAuthor(ctx context.Context, chatID, messa
 	if err != nil {
 		r.log.ErrorContext(ctx, "GetMessageAuthor failed", logger.Error(err))
 
-		return uuid.Nil, err
+		return uuid.Nil, apperrors.WrapDatabase(err)
 	}
 
 	return authorID, nil

@@ -7,7 +7,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/httperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/csrf"
@@ -42,7 +42,7 @@ func (p *CSRFProtection) CheckOrigin(next http.Handler) http.Handler {
 		}
 		if !p.trustedOrigin(r) {
 			p.log.WarnContext(r.Context(), "request origin rejected", logger.KeyMethod, r.Method)
-			apperrors.WriteError(w, apperrors.NewForbidden("Request origin is not allowed"))
+			httperrors.WriteError(w, httperrors.NewForbidden("Request origin is not allowed"))
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -59,18 +59,18 @@ func (p *CSRFProtection) Handler(next http.Handler) http.Handler {
 
 		session, ok := csrfSession(r)
 		if !ok {
-			apperrors.WriteError(w, apperrors.NewUnauthorized("Invalid session"))
+			httperrors.WriteError(w, httperrors.NewUnauthorized("Invalid session"))
 			return
 		}
 		headers := r.Header.Values(csrfHeaderName)
 		if len(headers) != 1 {
 			p.log.WarnContext(r.Context(), "CSRF token missing or duplicated")
-			apperrors.WriteError(w, apperrors.NewForbidden("Invalid CSRF token"))
+			httperrors.WriteError(w, httperrors.NewForbidden("Invalid CSRF token"))
 			return
 		}
 		if err := p.tokens.Check(session, headers[0]); err != nil {
 			p.log.WarnContext(r.Context(), "CSRF token rejected", logger.Error(err))
-			apperrors.WriteError(w, apperrors.NewForbidden("Invalid CSRF token"))
+			httperrors.WriteError(w, httperrors.NewForbidden("Invalid CSRF token"))
 			return
 		}
 
@@ -82,13 +82,13 @@ func (p *CSRFProtection) Token(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if (len(r.Header.Values("Origin")) > 0 || len(r.Header.Values("Referer")) > 0) && !p.trustedOrigin(r) {
 		p.log.WarnContext(r.Context(), "CSRF token origin rejected")
-		apperrors.WriteError(w, apperrors.NewForbidden("Request origin is not allowed"))
+		httperrors.WriteError(w, httperrors.NewForbidden("Request origin is not allowed"))
 		return
 	}
 
 	session, ok := csrfSession(r)
 	if !ok {
-		apperrors.WriteError(w, apperrors.NewUnauthorized("Invalid session"))
+		httperrors.WriteError(w, httperrors.NewUnauthorized("Invalid session"))
 		return
 	}
 	tools.WriteJSON(w, http.StatusOK, map[string]string{

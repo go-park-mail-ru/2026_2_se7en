@@ -7,7 +7,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/joho/godotenv v1.5.1
-	github.com/pashagolub/pgxmock/v2 v2.12.0
+	github.com/pashagolub/pgxmock/v5 v5.2.0
 	github.com/swaggo/http-swagger/v2 v2.0.2
 	github.com/swaggo/swag/v2 v2.0.0-rc5
 	go.uber.org/mock v0.6.0

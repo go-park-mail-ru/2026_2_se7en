@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	deliveryauth "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/auth"
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/chat"
 	deliverychat "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/chat"
 	ws "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/chat/ws"
 	deliverycontact "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/contact"
@@ -47,13 +46,13 @@ func New(db *storage.DB, origins []string, baseLog *slog.Logger, csrfTokens *csr
 	profileUsecase := usecaseprofile.NewProfileUsecase(txManager, userRepo, profileRepo, fileRepo, baseLog)
 	contactUsecase := usecasecontact.NewContactUsecase(contactRepo, userRepo, baseLog)
 
-	wsHandler := chat.NewWSHandler(hub, chatUsecase, origins, baseLog)
+	wsHandler := deliverychat.NewWSHandler(hub, chatUsecase, origins, baseLog)
 
 	authDelivery := deliveryauth.NewAuthDelivery(authUsecase, hub, baseLog)
 	registerDelivery := deliveryregister.NewRegisterDelivery(registerUsecase, baseLog)
 	chatDelivery := deliverychat.NewChatDelivery(chatUsecase, hub, baseLog)
 	profileDelivery := deliveryprofile.NewProfileDelivery(profileUsecase, baseLog)
-	contactDelivery := deliverycontact.NewContactDelivery(contactUsecase, baseLog)
+	contactDelivery := deliverycontact.NewContactDelivery(contactUsecase, hub, baseLog)
 
 	api := http.NewServeMux()
 	csrfProtection := middleware.NewCSRFProtection(origins, csrfTokens, baseLog)
@@ -66,36 +65,35 @@ func New(db *storage.DB, origins []string, baseLog *slog.Logger, csrfTokens *csr
 
 	api.Handle("POST /auth/register", tools.NewJSONDecoder(registerDelivery.HandleRegister, baseLog))
 	api.Handle("POST /auth/login", tools.NewJSONDecoder(authDelivery.HandleLogin, baseLog))
-
 	api.Handle("GET /auth/me", auth(http.HandlerFunc(authDelivery.HandleMe)))
 	api.Handle("POST /auth/logout", auth(http.HandlerFunc(authDelivery.HandleLogout)))
+
 	api.Handle("GET /chats", auth(http.HandlerFunc(chatDelivery.HandleGetListUserChats)))
 	api.Handle("GET /chats/{id}", auth(http.HandlerFunc(chatDelivery.HandleGetChatDetail)))
 	api.Handle("POST /chats/dialogs", auth(tools.NewJSONDecoder(chatDelivery.HandleCreateDialog, baseLog)))
 	api.Handle("POST /chats/{id}/hide", auth(http.HandlerFunc(chatDelivery.HandleHideDialog)))
 	api.Handle("POST /chats/groups", auth(tools.NewJSONDecoder(chatDelivery.HandleCreateGroup, baseLog)))
 	api.Handle("PATCH /chats/{id}", auth(tools.NewJSONDecoder(chatDelivery.HandleUpdateGroup, baseLog)))
+	api.Handle("PUT /chats/{id}/avatar", auth(http.HandlerFunc(chatDelivery.HandleUploadGroupAvatar))) // Из sync-dev
 	api.Handle("DELETE /chats/{id}", auth(http.HandlerFunc(chatDelivery.HandleDeleteChat)))
 	api.Handle("GET /chats/{id}/members", auth(http.HandlerFunc(chatDelivery.HandleGetListMembers)))
 	api.Handle("POST /chats/{id}/members", auth(tools.NewJSONDecoder(chatDelivery.HandleAddMember, baseLog)))
+	api.Handle("PATCH /chats/{id}/members/{user_id}/role", auth(tools.NewJSONDecoder(chatDelivery.HandleUpdateMemberRole, baseLog))) // Из sync-dev
 	api.Handle("DELETE /chats/{id}/members/{user_id}", auth(http.HandlerFunc(chatDelivery.HandleRemoveMember)))
 	api.Handle("DELETE /chats/{id}/leave", auth(http.HandlerFunc(chatDelivery.HandleLeaveGroup)))
 	api.Handle("GET /chats/{id}/messages", auth(http.HandlerFunc(chatDelivery.HandleGetListMessages)))
 	api.Handle("POST /chats/{id}/messages", auth(tools.NewJSONDecoder(chatDelivery.HandleCreateMessage, baseLog)))
-
 	api.Handle("GET /ws", auth(http.HandlerFunc(wsHandler.HandleWS)))
 
 	api.Handle("GET /contacts", auth(http.HandlerFunc(contactDelivery.HandleGetContactsList)))
 	api.Handle("POST /contacts", auth(tools.NewJSONDecoder(contactDelivery.HandleCreateContact, baseLog)))
 	api.Handle("DELETE /contacts", auth(tools.NewJSONDecoder(contactDelivery.HandleDeleteContact, baseLog)))
 
-	api.Handle("GET /users/{id}", auth(http.HandlerFunc(profileDelivery.HandleGetPublicProfile)))
-
+	api.Handle("GET /users/{id}", auth(http.HandlerFunc(profileDelivery.HandleGetPublicProfile))) // Из dev
 	api.Handle("GET /profile", auth(http.HandlerFunc(profileDelivery.HandleGetProfile)))
 	api.Handle("PATCH /profile", auth(tools.NewJSONDecoder(profileDelivery.HandleUpdateProfile, baseLog)))
 	api.Handle("PUT /profile/avatar", auth(http.HandlerFunc(profileDelivery.HandleUploadAvatar)))
 	api.Handle("PATCH /profile/password", auth(tools.NewJSONDecoder(profileDelivery.HandleUpdatePassword, baseLog)))
-
 	api.Handle("GET /swagger/*any", httpSwagger.WrapHandler)
 
 	mainRouter := http.NewServeMux()

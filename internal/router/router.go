@@ -93,7 +93,7 @@ func New(db *storage.DB, origins []string, baseLog *slog.Logger) (http.Handler, 
 	api.Handle("GET /swagger/*any", httpSwagger.WrapHandler)
 
 	mainRouter := http.NewServeMux()
-	mainRouter.Handle("/api/v1/", http.StripPrefix("/api/v1", api))
+	mainRouter.Handle("/api/v1/", middleware.CSRFMiddleware(http.StripPrefix("/api/v1", api), origins, baseLog))
 	mainRouter.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir("./uploads"))))
 
 	handler := middleware.RequestIDMiddleware(

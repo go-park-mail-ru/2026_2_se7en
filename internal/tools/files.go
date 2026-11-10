@@ -24,13 +24,24 @@ func SaveAvatar(ctx context.Context, file *models.FileUpload, log *slog.Logger) 
 		return "", "", errors.New("file too large")
 	}
 
+	var ext string
+	switch file.ContentType {
+	case "image/jpeg":
+		ext = ".jpg"
+	case "image/png":
+		ext = ".png"
+	case "image/webp":
+		ext = ".webp"
+	default:
+		return "", "", errors.New("invalid file type")
+	}
+
 	if err := os.MkdirAll(AvatarDir, 0755); err != nil {
 		log.ErrorContext(ctx, "SaveAvatar failed", logger.Error(err))
 
 		return "", "", err
 	}
 
-	ext := filepath.Ext(file.Filename)
 	filename := uuid.NewString() + ext
 	filePath := filepath.Join(AvatarDir, filename)
 

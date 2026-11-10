@@ -57,6 +57,7 @@ const (
 	ModuleTransaction = "transaction"
 	ModuleWebSocket   = "websocket"
 	ModuleHTTP        = "http"
+	ModuleCSRF        = "csrf"
 	ModuleJSON        = "json"
 	ModuleDatabase    = "database"
 	Redacted          = "[REDACTED]"

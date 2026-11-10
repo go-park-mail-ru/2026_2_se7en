@@ -17,6 +17,7 @@ type Config struct {
 	IdleTimeout     time.Duration
 	ShutdownTimeout time.Duration
 	LogLevel        string
+	CSRFSecret      string
 	DatabaseURL     string
 	Origins         []string
 }
@@ -26,6 +27,7 @@ func Load() (Config, error) {
 	var err error
 
 	cfg.Addr = getEnv("ADDR", ":8080")
+	cfg.CSRFSecret = getEnv("CSRF_SECRET", "")
 	cfg.LogLevel = strings.ToLower(getEnv("LOG_LEVEL", logger.LevelInfo))
 	if _, err := logger.ParseLevel(cfg.LogLevel); err != nil {
 		return Config{}, err

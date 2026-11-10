@@ -27,6 +27,7 @@ import (
 	_ "github.com/go-park-mail-ru/2026_2_se7en/docs"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/router"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/storage"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/csrf"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
 	"github.com/joho/godotenv"
 )
@@ -50,6 +51,12 @@ func main() {
 	}
 	slog.SetDefault(log)
 
+	csrfTokens, err := csrf.NewHMACHashToken(cfg.CSRFSecret)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
 	db, err := storage.Connect(context.Background(), cfg.DatabaseURL, log)
 	if err != nil {
 		log.Error("Unable to connect to database", logger.Error(err))
@@ -57,7 +64,7 @@ func main() {
 	}
 	defer storage.Close(db)
 
-	handler, hub := router.New(db, cfg.Origins, log)
+	handler, hub := router.New(db, cfg.Origins, log, csrfTokens)
 
 	server := &http.Server{
 		Addr:         cfg.Addr,

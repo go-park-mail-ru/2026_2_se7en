@@ -10,11 +10,11 @@ import (
 
 func ToProfileResponse(user *models.User, prof *models.Profile) ProfileResponse {
 	resp := ProfileResponse{
-		ID:    user.ID,
-		Email: user.Email,
+		ID:          user.ID,
+		Email:       user.Email,
 		PhoneNumber: user.PhoneNumber,
 	}
-	
+
 	if prof != nil {
 		resp.Nickname = prof.Nickname
 		resp.FirstName = prof.FirstName
@@ -27,6 +27,18 @@ func ToProfileResponse(user *models.User, prof *models.Profile) ProfileResponse 
 	}
 
 	return resp
+}
+
+func ToPublicProfileResponse(user *models.User, prof *models.Profile) PublicProfileResponse {
+	return PublicProfileResponse{
+		ID:        user.ID,
+		Nickname:  prof.Nickname,
+		FirstName: prof.FirstName,
+		LastName:  prof.LastName,
+		Bio:       prof.Bio,
+		IconID:    prof.IconID,
+		IconURL:   prof.AvatarURL,
+	}
 }
 
 func (r *UpdateProfileRequest) IsValid() []apperrors.ErrorDetail {

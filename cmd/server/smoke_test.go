@@ -17,7 +17,7 @@ import (
 
 func TestHealthRoute(t *testing.T) {
 	testDB := &storage.DB{}
-	handler, _ := router.New(testDB, nil, slog.Default())
+	handler, _ := router.New(testDB, nil, slog.Default(), nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/health", nil))
 	if rec.Code != http.StatusOK {

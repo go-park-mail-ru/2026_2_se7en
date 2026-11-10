@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/apperrors"
 	"github.com/google/uuid"
 )
 
@@ -38,16 +38,16 @@ type mockChatRepo struct {
 	readMessageID uuid.UUID
 }
 
-func (m *mockChatRepo) IsMember(ctx context.Context, userID, chatID uuid.UUID) (bool, error) {
+func (m *mockChatRepo) IsMember(ctx context.Context, userID, chatID uuid.UUID) (*models.ChatMembership, error) {
 	m.called = true
-	return m.isMember, m.err
+	return &models.ChatMembership{IsMember: m.isMember}, m.err
 }
 
 func (m *mockChatRepo) GetActiveMemberIDs(context.Context, uuid.UUID) ([]uuid.UUID, error) {
 	return nil, m.err
 }
 
-func (m *mockChatRepo) GetListUserChats(ctx context.Context, userID uuid.UUID, limit int, chatType string, cursorTime *time.Time, cursorID uuid.UUID) ([]*models.ChatListItem, error) {
+func (m *mockChatRepo) GetListUserChats(ctx context.Context, userID uuid.UUID, limit, offset int, chatType string, cursorTime *time.Time, cursorID uuid.UUID) ([]*models.ChatListItem, error) {
 	m.called = true
 	m.userID = userID
 	m.limit = limit
@@ -279,7 +279,7 @@ func TestChatUsecase_GetListUserChats_Success(t *testing.T) {
 	}
 	uc := newTestChatUsecase(mockRepo)
 
-	items, err := uc.GetListUserChats(context.Background(), userID, 10, "dialog", nil, uuid.Nil)
+	items, err := uc.GetListUserChats(context.Background(), userID, 10, 0, "dialog", nil, uuid.Nil)
 
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -299,7 +299,7 @@ func TestChatUsecase_GetListUserChats_NilToEmptySlice(t *testing.T) {
 	mockRepo := &mockChatRepo{items: nil}
 	uc := newTestChatUsecase(mockRepo)
 
-	items, err := uc.GetListUserChats(context.Background(), uuid.New(), 10, "", nil, uuid.Nil)
+	items, err := uc.GetListUserChats(context.Background(), uuid.New(), 10, 0, "", nil, uuid.Nil)
 
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -317,7 +317,7 @@ func TestChatUsecase_GetListUserChats_Error(t *testing.T) {
 	mockRepo := &mockChatRepo{err: dbErr}
 	uc := newTestChatUsecase(mockRepo)
 
-	items, err := uc.GetListUserChats(context.Background(), uuid.New(), 10, "", nil, uuid.Nil)
+	items, err := uc.GetListUserChats(context.Background(), uuid.New(), 10, 0, "", nil, uuid.Nil)
 
 	if err == nil || err.Error() != "database connection failed" {
 		t.Errorf("expected db error, got %v", err)

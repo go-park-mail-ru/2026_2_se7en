@@ -5,10 +5,11 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/httperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/apperrors"
 	"github.com/google/uuid"
 )
 
@@ -40,21 +41,21 @@ func NewAuthDelivery(authUsecase AuthUsecase, disconnecter SessionDisconnecter, 
 // @Produce      json
 // @Param        request body LoginRequest true "Данные для входа"
 // @Success      200  {object} UserResponse
-// @Failure 400 {object} apperrors.ErrorResponse
-// @Failure 401 {object} apperrors.ErrorResponse
-// @Failure 409 {object} apperrors.ErrorResponse
-// @Failure 500 {object} apperrors.ErrorResponse
+// @Failure 400 {object} httperrors.ErrorResponse
+// @Failure 401 {object} httperrors.ErrorResponse
+// @Failure 409 {object} httperrors.ErrorResponse
+// @Failure 500 {object} httperrors.ErrorResponse
 // @Router       /auth/login [post]
-func (d *AuthDeliveryImpl) HandleLogin(w http.ResponseWriter, r *http.Request, req *LoginRequest) *apperrors.AppError {
+func (d *AuthDeliveryImpl) HandleLogin(w http.ResponseWriter, r *http.Request, req *LoginRequest) *httperrors.HTTPError {
 
 	result, err := d.authUsecase.Login(r.Context(), req.Email, req.Password)
 	if err != nil {
 		d.log.ErrorContext(r.Context(), "HandleLogin failed", logger.Error(err))
 
 		if errors.Is(err, apperrors.ErrInvalidCredentials) || errors.Is(err, apperrors.ErrUserNotFound) {
-			return apperrors.NewUnauthorized("Incorrect email or password")
+			return httperrors.NewUnauthorized("Incorrect email or password")
 		}
-		return apperrors.NewInternalError("Something went wrong", err)
+		return httperrors.NewInternalError("Something went wrong", err)
 	}
 
 	middleware.SetSessionCookie(w, r, result.SessionID.String())
@@ -71,17 +72,17 @@ func (d *AuthDeliveryImpl) HandleLogin(w http.ResponseWriter, r *http.Request, r
 // @Produce      json
 // @Security     SessionCookie
 // @Success      204  "Сессия успешно удалена"
-// @Failure 400 {object} apperrors.ErrorResponse
-// @Failure 401 {object} apperrors.ErrorResponse
-// @Failure 409 {object} apperrors.ErrorResponse
-// @Failure 500 {object} apperrors.ErrorResponse
+// @Failure 400 {object} httperrors.ErrorResponse
+// @Failure 401 {object} httperrors.ErrorResponse
+// @Failure 409 {object} httperrors.ErrorResponse
+// @Failure 500 {object} httperrors.ErrorResponse
 // @Router       /auth/logout [post]
 func (d *AuthDeliveryImpl) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie(middleware.SessionCookieName)
 	if err != nil {
 		d.log.ErrorContext(r.Context(), "HandleLogout failed", logger.Error(err))
 
-		apperrors.WriteError(w, apperrors.NewUnauthorized("Invalid session"))
+		httperrors.WriteError(w, httperrors.NewUnauthorized("Invalid session"))
 		return
 	}
 
@@ -89,14 +90,14 @@ func (d *AuthDeliveryImpl) HandleLogout(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		d.log.ErrorContext(r.Context(), "HandleLogout failed", logger.Error(err))
 
-		apperrors.WriteError(w, apperrors.NewUnauthorized("Invalid session"))
+		httperrors.WriteError(w, httperrors.NewUnauthorized("Invalid session"))
 		return
 	}
 
 	if err := d.authUsecase.Logout(r.Context(), sessionID); err != nil {
 		d.log.ErrorContext(r.Context(), "HandleLogout failed", logger.Error(err))
 
-		apperrors.WriteError(w, apperrors.NewInternalError("Something went wrong", err))
+		httperrors.WriteError(w, httperrors.NewInternalError("Something went wrong", err))
 		return
 	}
 
@@ -113,15 +114,15 @@ func (d *AuthDeliveryImpl) HandleLogout(w http.ResponseWriter, r *http.Request) 
 // @Produce      json
 // @Security     SessionCookie
 // @Success      200  {object} UserResponse
-// @Failure 400 {object} apperrors.ErrorResponse
-// @Failure 401 {object} apperrors.ErrorResponse
-// @Failure 409 {object} apperrors.ErrorResponse
-// @Failure 500 {object} apperrors.ErrorResponse
+// @Failure 400 {object} httperrors.ErrorResponse
+// @Failure 401 {object} httperrors.ErrorResponse
+// @Failure 409 {object} httperrors.ErrorResponse
+// @Failure 500 {object} httperrors.ErrorResponse
 // @Router       /auth/me [get]
 func (d *AuthDeliveryImpl) HandleMe(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
-		apperrors.WriteError(w, apperrors.NewUnauthorized("Invalid session"))
+		httperrors.WriteError(w, httperrors.NewUnauthorized("Invalid session"))
 		return
 	}
 
@@ -130,10 +131,10 @@ func (d *AuthDeliveryImpl) HandleMe(w http.ResponseWriter, r *http.Request) {
 		d.log.ErrorContext(r.Context(), "HandleMe failed", logger.Error(err))
 
 		if errors.Is(err, apperrors.ErrUserNotFound) {
-			apperrors.WriteError(w, apperrors.NewUnauthorized("User not found"))
+			httperrors.WriteError(w, httperrors.NewUnauthorized("User not found"))
 			return
 		}
-		apperrors.WriteError(w, apperrors.NewInternalError("Something went wrong", err))
+		httperrors.WriteError(w, httperrors.NewInternalError("Something went wrong", err))
 		return
 	}
 

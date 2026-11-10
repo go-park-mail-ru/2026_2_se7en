@@ -9,12 +9,18 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/httperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/apperrors"
 	"github.com/google/uuid"
+)
+
+var (
+	errInvalidChatLimit = errors.New("invalid chat limit")
+	errInvalidChatType  = errors.New("invalid chat type")
 )
 
 type Broadcaster interface {
@@ -50,15 +56,15 @@ func NewChatDelivery(chatUsecase ChatUsecase, broadcaster Broadcaster, baseLog *
 // @Param        after_time query string false "Время активности последнего чата (RFC3339Nano)"
 // @Param        after_id   query string false "ID последнего чата"
 // @Success      200  {object} ListChatsResponse
-// @Failure 400 {object} apperrors.ErrorResponse
-// @Failure 401 {object} apperrors.ErrorResponse
-// @Failure 409 {object} apperrors.ErrorResponse
-// @Failure 500 {object} apperrors.ErrorResponse
+// @Failure 400 {object} httperrors.ErrorResponse
+// @Failure 401 {object} httperrors.ErrorResponse
+// @Failure 409 {object} httperrors.ErrorResponse
+// @Failure 500 {object} httperrors.ErrorResponse
 // @Router       /chats [get]
 func (d *ChatDeliveryImpl) HandleGetListUserChats(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
-		apperrors.WriteError(w, apperrors.NewUnauthorized("Authorization required"))
+		httperrors.WriteError(w, httperrors.NewUnauthorized("Authorization required"))
 		return
 	}
 
@@ -68,7 +74,7 @@ func (d *ChatDeliveryImpl) HandleGetListUserChats(w http.ResponseWriter, r *http
 	if err != nil {
 		d.log.ErrorContext(r.Context(), "HandleGetListUserChats failed", logger.Error(err))
 
-		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid limit format", []apperrors.ErrorDetail{{Field: "limit", Reason: err.Error()}}))
+		httperrors.WriteError(w, httperrors.NewBadRequest("Invalid limit format", []httperrors.ErrorDetail{{Field: "limit", Reason: err.Error()}}))
 		return
 	}
 
@@ -77,7 +83,7 @@ func (d *ChatDeliveryImpl) HandleGetListUserChats(w http.ResponseWriter, r *http
 	}
 
 	if limit < 1 || limit > 50 {
-		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid limit", []apperrors.ErrorDetail{{Field: "limit", Reason: "Limit must be between 1 and 50"}}))
+		httperrors.WriteError(w, httperrors.NewBadRequest("Invalid limit", []httperrors.ErrorDetail{{Field: "limit", Reason: "Limit must be between 1 and 50"}}))
 		return
 	}
 
@@ -85,19 +91,19 @@ func (d *ChatDeliveryImpl) HandleGetListUserChats(w http.ResponseWriter, r *http
 	if err != nil {
 		d.log.ErrorContext(r.Context(), "HandleGetListUserChats failed", logger.Error(err))
 
-		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid offset format", []apperrors.ErrorDetail{{Field: "offset", Reason: err.Error()}}))
+		httperrors.WriteError(w, httperrors.NewBadRequest("Invalid offset format", []httperrors.ErrorDetail{{Field: "offset", Reason: err.Error()}}))
 		return
 	}
 
 	if offset < 0 {
-		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid offset", []apperrors.ErrorDetail{{Field: "offset", Reason: "Offset must be >= 0"}}))
+		httperrors.WriteError(w, httperrors.NewBadRequest("Invalid offset", []httperrors.ErrorDetail{{Field: "offset", Reason: "Offset must be >= 0"}}))
 		return
 	}
 
 	chatType := ""
 	if vals, present := q["type"]; present {
 		if len(vals) != 1 || vals[0] == "" {
-			apperrors.WriteError(w, apperrors.NewBadRequest("Invalid type format", []apperrors.ErrorDetail{{Field: "type", Reason: "Type must be a single non-empty value"}}))
+			httperrors.WriteError(w, httperrors.NewBadRequest("Invalid type format", []httperrors.ErrorDetail{{Field: "type", Reason: "Type must be a single non-empty value"}}))
 			return
 		}
 
@@ -105,21 +111,21 @@ func (d *ChatDeliveryImpl) HandleGetListUserChats(w http.ResponseWriter, r *http
 	}
 
 	if chatType != "" && chatType != "dialog" && chatType != "group" && chatType != "channel" {
-		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid type", []apperrors.ErrorDetail{{Field: "type", Reason: "Invalid chat type"}}))
+		httperrors.WriteError(w, httperrors.NewBadRequest("Invalid type", []httperrors.ErrorDetail{{Field: "type", Reason: "Invalid chat type"}}))
 		return
 	}
 
 	cursorTime, cursorID, err := parseChatPagination(q)
 	if err != nil {
-		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid pagination boundary", nil))
+		httperrors.WriteError(w, httperrors.NewBadRequest("Invalid pagination boundary", nil))
 		return
 	}
 
-	items, err := d.chatUsecase.GetListUserChats(r.Context(), userID, limit+1, chatType, cursorTime, cursorID)
+	items, err := d.chatUsecase.GetListUserChats(r.Context(), userID, limit+1, offset, chatType, cursorTime, cursorID)
 	if err != nil {
 		d.log.ErrorContext(r.Context(), "HandleGetListUserChats failed", logger.Error(err))
 
-		apperrors.WriteError(w, mapChatError(err))
+		httperrors.WriteError(w, mapChatError(err))
 		return
 	}
 	for _, item := range items {
@@ -152,15 +158,15 @@ func (d *ChatDeliveryImpl) HandleGetListUserChats(w http.ResponseWriter, r *http
 // @Security     SessionCookie
 // @Param        id path string true "ID чата (UUID)" format(uuid)
 // @Success      200  {object} ChatDetailResponse
-// @Failure 400 {object} apperrors.ErrorResponse
-// @Failure 401 {object} apperrors.ErrorResponse
-// @Failure 404 {object} apperrors.ErrorResponse
-// @Failure 500 {object} apperrors.ErrorResponse
+// @Failure 400 {object} httperrors.ErrorResponse
+// @Failure 401 {object} httperrors.ErrorResponse
+// @Failure 404 {object} httperrors.ErrorResponse
+// @Failure 500 {object} httperrors.ErrorResponse
 // @Router       /chats/{id} [get]
 func (d *ChatDeliveryImpl) HandleGetChatDetail(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
-		apperrors.WriteError(w, apperrors.NewUnauthorized("Authorization required"))
+		httperrors.WriteError(w, httperrors.NewUnauthorized("Authorization required"))
 		return
 	}
 
@@ -170,7 +176,7 @@ func (d *ChatDeliveryImpl) HandleGetChatDetail(w http.ResponseWriter, r *http.Re
 			d.log.ErrorContext(r.Context(), "HandleGetChatDetail failed", logger.Error(err))
 		}
 
-		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid id", []apperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}}))
+		httperrors.WriteError(w, httperrors.NewBadRequest("Invalid id", []httperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}}))
 		return
 	}
 
@@ -178,7 +184,7 @@ func (d *ChatDeliveryImpl) HandleGetChatDetail(w http.ResponseWriter, r *http.Re
 	if err != nil {
 		d.log.ErrorContext(r.Context(), "HandleGetChatDetail failed", logger.Error(err))
 
-		apperrors.WriteError(w, mapChatError(err))
+		httperrors.WriteError(w, mapChatError(err))
 		return
 	}
 	result.IsOnline = d.chatOnline(result.Chat, result.PeerID)
@@ -193,16 +199,16 @@ func (d *ChatDeliveryImpl) HandleGetChatDetail(w http.ResponseWriter, r *http.Re
 // @Security     SessionCookie
 // @Param        id path string true "ID чата (UUID)" format(uuid)
 // @Success      204 "Чат удалён"
-// @Failure      400 {object} apperrors.ErrorResponse
-// @Failure      401 {object} apperrors.ErrorResponse
-// @Failure      403 {object} apperrors.ErrorResponse
-// @Failure      404 {object} apperrors.ErrorResponse
-// @Failure      500 {object} apperrors.ErrorResponse
+// @Failure      400 {object} httperrors.ErrorResponse
+// @Failure      401 {object} httperrors.ErrorResponse
+// @Failure      403 {object} httperrors.ErrorResponse
+// @Failure      404 {object} httperrors.ErrorResponse
+// @Failure      500 {object} httperrors.ErrorResponse
 // @Router       /chats/{id} [delete]
 func (d *ChatDeliveryImpl) HandleDeleteChat(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
-		apperrors.WriteError(w, apperrors.NewUnauthorized("Authorization required"))
+		httperrors.WriteError(w, httperrors.NewUnauthorized("Authorization required"))
 		return
 	}
 
@@ -212,20 +218,20 @@ func (d *ChatDeliveryImpl) HandleDeleteChat(w http.ResponseWriter, r *http.Reque
 			d.log.ErrorContext(r.Context(), "HandleDeleteChat failed", logger.Error(err))
 		}
 
-		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid id", []apperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}}))
+		httperrors.WriteError(w, httperrors.NewBadRequest("Invalid id", []httperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}}))
 		return
 	}
 
 	userIDs, err := d.chatUsecase.GetActiveMemberIDs(r.Context(), chatID)
 	if err != nil {
-		apperrors.WriteError(w, mapChatError(err))
+		httperrors.WriteError(w, mapChatError(err))
 		return
 	}
 
 	if err := d.chatUsecase.DeleteChat(r.Context(), userID, chatID); err != nil {
 		d.log.ErrorContext(r.Context(), "HandleDeleteChat failed", logger.Error(err))
 
-		apperrors.WriteError(w, mapChatError(err))
+		httperrors.WriteError(w, mapChatError(err))
 		return
 	}
 
@@ -242,7 +248,7 @@ func parseQueryInt(query url.Values, key string) (int, error) {
 	}
 
 	if len(vals) != 1 {
-		return 0, apperrors.ErrInvalidChatLimit
+		return 0, errInvalidChatLimit
 	}
 
 	val, err := strconv.Atoi(vals[0])
@@ -261,13 +267,13 @@ func parseQueryUUID(query url.Values, key string) (uuid.UUID, error) {
 	}
 
 	if len(vals) != 1 {
-		return uuid.Nil, apperrors.ErrInvalidUUID
+		return uuid.Nil, errors.New("invalid UUID")
 	}
 
 	val, err := uuid.Parse(vals[0])
 	if err != nil || val == uuid.Nil {
 
-		return uuid.Nil, apperrors.ErrInvalidUUID
+		return uuid.Nil, errors.New("invalid UUID")
 	}
 
 	return val, nil
@@ -294,29 +300,24 @@ func parseChatPagination(q url.Values) (*time.Time, uuid.UUID, error) {
 	return &parsedTime, parsedID, nil
 }
 
-func mapChatError(err error) *apperrors.AppError {
-	var appErr *apperrors.AppError
-	if errors.As(err, &appErr) {
-		return appErr
-	}
-
+func mapChatError(err error) *httperrors.HTTPError {
 	switch {
-	case errors.Is(err, apperrors.ErrInvalidChatLimit):
-		return apperrors.NewBadRequest("Invalid limit", []apperrors.ErrorDetail{{Field: "limit", Reason: "Limit must be >= 1"}})
-	case errors.Is(err, apperrors.ErrInvalidChatType):
-		return apperrors.NewBadRequest("Invalid type", []apperrors.ErrorDetail{{Field: "type", Reason: "Invalid chat type"}})
+	case errors.Is(err, errInvalidChatLimit):
+		return httperrors.NewBadRequest("Invalid limit", []httperrors.ErrorDetail{{Field: "limit", Reason: "Limit must be >= 1"}})
+	case errors.Is(err, errInvalidChatType):
+		return httperrors.NewBadRequest("Invalid type", []httperrors.ErrorDetail{{Field: "type", Reason: "Invalid chat type"}})
 	case errors.Is(err, apperrors.ErrChatNotFound), errors.Is(err, apperrors.ErrChatMemberNotFound), errors.Is(err, apperrors.ErrUserNotFound):
-		return apperrors.NewNotFound("Resource not found")
+		return httperrors.NewNotFound("Resource not found")
 	case errors.Is(err, apperrors.ErrChatPermissionDenied):
-		return apperrors.NewForbidden("No permissions")
+		return httperrors.NewForbidden("No permissions")
 	case errors.Is(err, apperrors.ErrInvalidChatOperation), errors.Is(err, apperrors.ErrMessageNotFound):
-		return apperrors.NewBadRequest("Validation failed", nil)
+		return httperrors.NewBadRequest("Validation failed", nil)
 	case errors.Is(err, apperrors.ErrChatMemberExists):
-		return apperrors.NewConflict("Resource already exists", nil)
+		return httperrors.NewConflict("Resource already exists", nil)
 	case errors.Is(err, apperrors.ErrChatMemberLimit):
-		return apperrors.NewConflictWithCode("CHAT_FULL", "Group cannot have more than 100 members", nil)
+		return httperrors.NewConflictWithCode("CHAT_FULL", "Group cannot have more than 100 members", nil)
 	default:
-		return apperrors.NewInternalError("Something went wrong", err)
+		return httperrors.NewInternalError("Something went wrong", err)
 	}
 }
 

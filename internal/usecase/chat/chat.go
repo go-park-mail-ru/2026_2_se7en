@@ -2,8 +2,8 @@ package chat
 
 import (
 	"context"
-	"time"
 	"log/slog"
+	"time"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
@@ -22,7 +22,7 @@ func NewChatUsecase(repo ChatRepository, baseLog *slog.Logger) *ChatUsecaseImpl 
 		repo: repo}
 }
 
-func (uc *ChatUsecaseImpl) IsMember(ctx context.Context, userID, chatID uuid.UUID) (bool, error) {
+func (uc *ChatUsecaseImpl) IsMember(ctx context.Context, userID, chatID uuid.UUID) (*models.ChatMembership, error) {
 	return uc.repo.IsMember(ctx, userID, chatID)
 }
 
@@ -30,8 +30,8 @@ func (uc *ChatUsecaseImpl) GetActiveMemberIDs(ctx context.Context, chatID uuid.U
 	return uc.repo.GetActiveMemberIDs(ctx, chatID)
 }
 
-func (uc *ChatUsecaseImpl) GetListUserChats(ctx context.Context, userID uuid.UUID, limit int, chatType string, cursorTime *time.Time, cursorID uuid.UUID) ([]*models.ChatListItem, error) {
-	items, err := uc.repo.GetListUserChats(ctx, userID, limit, chatType, cursorTime, cursorID)
+func (uc *ChatUsecaseImpl) GetListUserChats(ctx context.Context, userID uuid.UUID, limit, offset int, chatType string, cursorTime *time.Time, cursorID uuid.UUID) ([]*models.ChatListItem, error) {
+	items, err := uc.repo.GetListUserChats(ctx, userID, limit, offset, chatType, cursorTime, cursorID)
 	if err != nil {
 		uc.log.ErrorContext(ctx, "GetListUserChats failed", logger.Error(err))
 

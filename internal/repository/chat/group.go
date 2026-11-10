@@ -5,9 +5,9 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/apperrors"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -15,8 +15,8 @@ import (
 
 func (r *ChatRepositoryImpl) CreateGroup(ctx context.Context, userID uuid.UUID, name string, description *string, members []uuid.UUID) (*models.ChatDetail, error) {
 	r.log.DebugContext(ctx, "database operation", logger.KeyOperation, "CreateGroup", slog.Any(logger.KeyTargetID, userID))
-  
-  if len(members)+1 > 100 {
+
+	if len(members)+1 > 100 {
 		return nil, apperrors.ErrChatMemberLimit
 	}
 
@@ -24,7 +24,7 @@ func (r *ChatRepositoryImpl) CreateGroup(ctx context.Context, userID uuid.UUID, 
 	if err != nil {
 		r.log.ErrorContext(ctx, "CreateGroup failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	defer tx.Rollback(ctx)
@@ -33,7 +33,7 @@ func (r *ChatRepositoryImpl) CreateGroup(ctx context.Context, userID uuid.UUID, 
 	if err = tx.QueryRow(ctx, creatorExists, userID).Scan(&exists); err != nil {
 		r.log.ErrorContext(ctx, "CreateGroup failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	if !exists {
@@ -50,21 +50,21 @@ func (r *ChatRepositoryImpl) CreateGroup(ctx context.Context, userID uuid.UUID, 
 	if err != nil {
 		r.log.ErrorContext(ctx, "CreateGroup failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	creatorRole, err := role(ctx, tx, "creator")
 	if err != nil {
 		r.log.ErrorContext(ctx, "CreateGroup failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	memberRole, err := role(ctx, tx, "member")
 	if err != nil {
 		r.log.ErrorContext(ctx, "CreateGroup failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	const insertCreator = `
@@ -75,7 +75,7 @@ func (r *ChatRepositoryImpl) CreateGroup(ctx context.Context, userID uuid.UUID, 
 	if err != nil {
 		r.log.ErrorContext(ctx, "CreateGroup failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	const insertMembers = `
@@ -88,7 +88,7 @@ func (r *ChatRepositoryImpl) CreateGroup(ctx context.Context, userID uuid.UUID, 
 	if err != nil {
 		r.log.ErrorContext(ctx, "CreateGroup failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	if tag.RowsAffected() != int64(len(members)) {
@@ -99,13 +99,13 @@ func (r *ChatRepositoryImpl) CreateGroup(ctx context.Context, userID uuid.UUID, 
 	if err != nil {
 		r.log.ErrorContext(ctx, "CreateGroup failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	if err = tx.Commit(ctx); err != nil {
 		r.log.ErrorContext(ctx, "CreateGroup failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	return d, nil
@@ -118,7 +118,7 @@ func (r *ChatRepositoryImpl) UpdateGroup(ctx context.Context, userID, chatID uui
 	if err != nil {
 		r.log.ErrorContext(ctx, "UpdateGroup failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	defer tx.Rollback(ctx)
@@ -126,7 +126,7 @@ func (r *ChatRepositoryImpl) UpdateGroup(ctx context.Context, userID, chatID uui
 	if err != nil {
 		r.log.ErrorContext(ctx, "UpdateGroup failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	if typ != "group" {
@@ -148,20 +148,20 @@ func (r *ChatRepositoryImpl) UpdateGroup(ctx context.Context, userID, chatID uui
 	if err != nil {
 		r.log.ErrorContext(ctx, "UpdateGroup failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	d, err := scanDetail(tx.QueryRow(ctx, sqlFindForUser, userID, chatID))
 	if err != nil {
 		r.log.ErrorContext(ctx, "UpdateGroup failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	if err = tx.Commit(ctx); err != nil {
 		r.log.ErrorContext(ctx, "UpdateGroup failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	return d, nil
@@ -170,13 +170,13 @@ func (r *ChatRepositoryImpl) UpdateGroup(ctx context.Context, userID, chatID uui
 func (r *ChatRepositoryImpl) UpdateGroupAvatar(ctx context.Context, userID, chatID uuid.UUID, url, filename, contentType string) (*models.ChatDetail, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 	defer tx.Rollback(ctx)
 
 	typ, roleType, err := activeRole(ctx, tx, userID, chatID)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 	if typ != "group" {
 		return nil, apperrors.ErrInvalidChatOperation
@@ -187,17 +187,17 @@ func (r *ChatRepositoryImpl) UpdateGroupAvatar(ctx context.Context, userID, chat
 
 	var fileID uuid.UUID
 	if err := tx.QueryRow(ctx, `insert into file (url, filename, type) values ($1, $2, $3) returning id`, url, filename, contentType).Scan(&fileID); err != nil {
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 	if _, err := tx.Exec(ctx, `update chat set icon_id = $2, updated_at = now() where id = $1`, chatID, fileID); err != nil {
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 	detail, err := scanDetail(tx.QueryRow(ctx, sqlFindForUser, userID, chatID))
 	if err != nil {
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 	return detail, nil
 }
@@ -227,7 +227,7 @@ func (r *ChatRepositoryImpl) GetListMembers(ctx context.Context, userID, chatID 
 	if err != nil {
 		r.log.ErrorContext(ctx, "GetListMembers failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	defer rows.Close()
@@ -239,7 +239,7 @@ func (r *ChatRepositoryImpl) GetListMembers(ctx context.Context, userID, chatID 
 		if err != nil {
 			r.log.ErrorContext(ctx, "GetListMembers failed", logger.Error(err))
 
-			return nil, err
+			return nil, apperrors.WrapDatabase(err)
 		}
 
 		items = append(items, ChatMemberDBToModel(&db))
@@ -249,7 +249,7 @@ func (r *ChatRepositoryImpl) GetListMembers(ctx context.Context, userID, chatID 
 	if err != nil {
 		r.log.ErrorContext(ctx, "ReadRows failed", logger.Error(err))
 	}
-	return items, err
+	return items, apperrors.WrapDatabase(err)
 }
 
 func (r *ChatRepositoryImpl) AddMember(ctx context.Context, userID, chatID, newUserID uuid.UUID) (*models.ChatMember, error) {
@@ -259,7 +259,7 @@ func (r *ChatRepositoryImpl) AddMember(ctx context.Context, userID, chatID, newU
 	if err != nil {
 		r.log.ErrorContext(ctx, "AddMember failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	defer tx.Rollback(ctx)
@@ -267,7 +267,7 @@ func (r *ChatRepositoryImpl) AddMember(ctx context.Context, userID, chatID, newU
 	if err != nil {
 		r.log.ErrorContext(ctx, "AddMember failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	if typ != "group" {
@@ -284,7 +284,7 @@ func (r *ChatRepositoryImpl) AddMember(ctx context.Context, userID, chatID, newU
 	if err != nil {
 		r.log.ErrorContext(ctx, "AddMember failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	if !exists {
@@ -301,7 +301,7 @@ func (r *ChatRepositoryImpl) AddMember(ctx context.Context, userID, chatID, newU
 	if err != nil {
 		r.log.ErrorContext(ctx, "AddMember failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	if exists {
@@ -311,7 +311,7 @@ func (r *ChatRepositoryImpl) AddMember(ctx context.Context, userID, chatID, newU
 	var memberCount int
 	const countMembers = `select count(*) from user_in_chat where chat_id = $1 and deleted_at is null`
 	if err := tx.QueryRow(ctx, countMembers, chatID).Scan(&memberCount); err != nil {
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 	if memberCount >= 100 {
 		return nil, apperrors.ErrChatMemberLimit
@@ -321,7 +321,7 @@ func (r *ChatRepositoryImpl) AddMember(ctx context.Context, userID, chatID, newU
 	if err != nil {
 		r.log.ErrorContext(ctx, "AddMember failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	const insertMember = `
@@ -337,7 +337,7 @@ func (r *ChatRepositoryImpl) AddMember(ctx context.Context, userID, chatID, newU
 			return nil, apperrors.ErrChatMemberExists
 		}
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	const updateCount = `update chat set members_count = members_count + 1, updated_at = now() where id = $1`
@@ -345,7 +345,7 @@ func (r *ChatRepositoryImpl) AddMember(ctx context.Context, userID, chatID, newU
 	if err != nil {
 		r.log.ErrorContext(ctx, "AddMember failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	const findAddedMember = `
@@ -361,11 +361,11 @@ func (r *ChatRepositoryImpl) AddMember(ctx context.Context, userID, chatID, newU
 	p := &db.Profile
 	err = tx.QueryRow(ctx, findAddedMember, chatID, newUserID).Scan(&db.UserID, &db.Role, &p.ID, &p.IconID, &p.IconURL, &p.UserID, &p.Nickname, &p.FirstName, &p.LastName, &p.Bio, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	member := ChatMemberDBToModel(&db)
@@ -379,7 +379,7 @@ func (r *ChatRepositoryImpl) UpdateMemberRole(ctx context.Context, userID, chatI
 
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 	defer tx.Rollback(ctx)
 
@@ -387,7 +387,7 @@ func (r *ChatRepositoryImpl) UpdateMemberRole(ctx context.Context, userID, chatI
 	if err != nil {
 		r.log.ErrorContext(ctx, "AddMember failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 	if typ != "group" {
 		return nil, apperrors.ErrInvalidChatOperation
@@ -407,7 +407,7 @@ func (r *ChatRepositoryImpl) UpdateMemberRole(ctx context.Context, userID, chatI
 	if err := tx.QueryRow(ctx, findTargetRole, chatID, targetID).Scan(&targetRole); errors.Is(err, pgx.ErrNoRows) {
 		return nil, apperrors.ErrChatMemberNotFound
 	} else if err != nil {
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 	if targetRole == "creator" {
 		return nil, apperrors.ErrChatPermissionDenied
@@ -420,7 +420,7 @@ func (r *ChatRepositoryImpl) UpdateMemberRole(ctx context.Context, userID, chatI
 		where m.chat_id = $1 and m.user_id = $2 and m.deleted_at is null and role.type = $3
 	`
 	if _, err := tx.Exec(ctx, updateRole, chatID, targetID, newRole); err != nil {
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	const findMember = `
@@ -435,12 +435,12 @@ func (r *ChatRepositoryImpl) UpdateMemberRole(ctx context.Context, userID, chatI
 	var db ChatMemberDB
 	p := &db.Profile
 	if err := tx.QueryRow(ctx, findMember, chatID, targetID).Scan(&db.UserID, &db.Role, &p.ID, &p.IconID, &p.IconURL, &p.UserID, &p.Nickname, &p.FirstName, &p.LastName, &p.Bio, &p.CreatedAt, &p.UpdatedAt); err != nil {
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 	if err := tx.Commit(ctx); err != nil {
 		r.log.ErrorContext(ctx, "AddMember failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	member := ChatMemberDBToModel(&db)
@@ -454,7 +454,7 @@ func (r *ChatRepositoryImpl) RemoveMember(ctx context.Context, userID, chatID, t
 	if err != nil {
 		r.log.ErrorContext(ctx, "RemoveMember failed", logger.Error(err))
 
-		return err
+		return apperrors.WrapDatabase(err)
 	}
 
 	defer tx.Rollback(ctx)
@@ -462,7 +462,7 @@ func (r *ChatRepositoryImpl) RemoveMember(ctx context.Context, userID, chatID, t
 	if err != nil {
 		r.log.ErrorContext(ctx, "RemoveMember failed", logger.Error(err))
 
-		return err
+		return apperrors.WrapDatabase(err)
 	}
 
 	if typ != "group" {
@@ -483,7 +483,7 @@ func (r *ChatRepositoryImpl) RemoveMember(ctx context.Context, userID, chatID, t
 	if err != nil {
 		r.log.ErrorContext(ctx, "RemoveMember failed", logger.Error(err))
 
-		return err
+		return apperrors.WrapDatabase(err)
 	}
 
 	if targetRole == "creator" {
@@ -502,7 +502,7 @@ func (r *ChatRepositoryImpl) RemoveMember(ctx context.Context, userID, chatID, t
 	if err != nil {
 		r.log.ErrorContext(ctx, "RemoveMember failed", logger.Error(err))
 
-		return err
+		return apperrors.WrapDatabase(err)
 	}
 
 	const updateCount = `update chat set members_count = members_count - 1, updated_at = now() where id = $1`
@@ -510,12 +510,12 @@ func (r *ChatRepositoryImpl) RemoveMember(ctx context.Context, userID, chatID, t
 	if err != nil {
 		r.log.ErrorContext(ctx, "RemoveMember failed", logger.Error(err))
 
-		return err
+		return apperrors.WrapDatabase(err)
 	}
 
 	err = tx.Commit(ctx)
 	if err != nil {
 		r.log.ErrorContext(ctx, "Commit failed", logger.Error(err))
 	}
-	return err
+	return apperrors.WrapDatabase(err)
 }

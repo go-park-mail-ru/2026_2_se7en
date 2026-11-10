@@ -1,10 +1,10 @@
 package chat
 
 import (
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/httperrors"
 	"log/slog"
 	"net/http"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/chat/ws"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
@@ -51,13 +51,13 @@ func NewWSHandler(hub *ws.Hub, uc ChatUsecase, origins []string, baseLog *slog.L
 func (h *WSHandler) HandleWS(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
-		apperrors.WriteError(w, apperrors.NewUnauthorized("Authorization required"))
+		httperrors.WriteError(w, httperrors.NewUnauthorized("Authorization required"))
 		return
 	}
 
 	sessionID, ok := middleware.SessionIDFromContext(r.Context())
 	if !ok {
-		apperrors.WriteError(w, apperrors.NewUnauthorized("Authorization required"))
+		httperrors.WriteError(w, httperrors.NewUnauthorized("Authorization required"))
 		return
 	}
 

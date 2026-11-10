@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 
@@ -72,6 +72,7 @@ func SaveAvatar(ctx context.Context, file *models.FileUpload, log *slog.Logger) 
 	url := fmt.Sprintf("/uploads/avatars/%s", filename)
 
 	return url, filename, nil
+}
 
 func RemoveAvatar(filename string) error {
 	if filename == "" || filepath.Base(filename) != filename {

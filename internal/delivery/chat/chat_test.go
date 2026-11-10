@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/apperrors"
 	"github.com/google/uuid"
 )
 
@@ -34,6 +34,9 @@ type mockChatUsecase struct {
 	userID          uuid.UUID
 	chatID          uuid.UUID
 	targetID        uuid.UUID
+	limit           int
+	offset          int
+	chatType        string
 }
 
 type mockBroadcaster struct {
@@ -375,17 +378,20 @@ func TestMapChatError(t *testing.T) {
 	}
 }
 
-func (m *mockChatUsecase) IsMember(ctx context.Context, userID, chatID uuid.UUID) (bool, error) {
+func (m *mockChatUsecase) IsMember(ctx context.Context, userID, chatID uuid.UUID) (*models.ChatMembership, error) {
 	m.called = true
-	return m.isMember, m.err
+	return &models.ChatMembership{IsMember: m.isMember}, m.err
 }
 
 func (m *mockChatUsecase) GetActiveMemberIDs(context.Context, uuid.UUID) ([]uuid.UUID, error) {
 	return m.activeMemberIDs, m.err
 }
 
-func (m *mockChatUsecase) GetListUserChats(context.Context, uuid.UUID, int, string, *time.Time, uuid.UUID) ([]*models.ChatListItem, error) {
+func (m *mockChatUsecase) GetListUserChats(_ context.Context, _ uuid.UUID, limit, offset int, chatType string, _ *time.Time, _ uuid.UUID) ([]*models.ChatListItem, error) {
 	m.called = true
+	m.limit = limit
+	m.offset = offset
+	m.chatType = chatType
 	return m.items, m.err
 }
 
@@ -551,13 +557,16 @@ func TestChatDelivery_HandleGetListUserChats_Success(t *testing.T) {
 		},
 	}
 
-	rec := performAuthenticatedChatRequest("/chats?limit=10&type=group", uc, userID)
+	rec := performAuthenticatedChatRequest("/chats?limit=10&offset=3&type=group", uc, userID)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d (body: %s)", rec.Code, http.StatusOK, rec.Body.String())
 	}
 	if !uc.called {
 		t.Fatal("usecase was not called")
+	}
+	if uc.limit != 11 || uc.offset != 3 || uc.chatType != "group" {
+		t.Fatalf("usecase query = (limit %d, offset %d, type %q), want (11, 3, group)", uc.limit, uc.offset, uc.chatType)
 	}
 
 	var response ListChatsResponse
@@ -582,8 +591,8 @@ func TestChatDelivery_HandleGetListUserChats_DatabaseErrors(t *testing.T) {
 		err        error
 		wantStatus int
 	}{
-		{name: "invalid limit", err: apperrors.ErrInvalidChatLimit, wantStatus: http.StatusBadRequest},
-		{name: "invalid type", err: apperrors.ErrInvalidChatType, wantStatus: http.StatusBadRequest},
+		{name: "invalid limit", err: errInvalidChatLimit, wantStatus: http.StatusBadRequest},
+		{name: "invalid type", err: errInvalidChatType, wantStatus: http.StatusBadRequest},
 		{name: "unknown database error", err: errors.New("db down"), wantStatus: http.StatusInternalServerError},
 	}
 

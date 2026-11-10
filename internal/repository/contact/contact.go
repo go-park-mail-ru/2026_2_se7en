@@ -5,10 +5,10 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/storage"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/apperrors"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -49,7 +49,7 @@ func (r *ContactRepositoryImpl) GetContactsList(ctx context.Context, userID uuid
 	if err != nil {
 		r.log.ErrorContext(ctx, "GetContactsList failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 	defer rows.Close()
 
@@ -64,7 +64,7 @@ func (r *ContactRepositoryImpl) GetContactsList(ctx context.Context, userID uuid
 		if err != nil {
 			r.log.ErrorContext(ctx, "GetContactsList failed", logger.Error(err))
 
-			return nil, err
+			return nil, apperrors.WrapDatabase(err)
 		}
 		contacts = append(contacts, ContactDBToModel(&db))
 	}
@@ -72,7 +72,7 @@ func (r *ContactRepositoryImpl) GetContactsList(ctx context.Context, userID uuid
 	if err = rows.Err(); err != nil {
 		r.log.ErrorContext(ctx, "GetContactsList failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	return contacts, nil
@@ -99,7 +99,7 @@ func (r *ContactRepositoryImpl) CreateContact(ctx context.Context, userID, conta
 				return apperrors.ErrCannotAddSelfAsContact
 			}
 		}
-		return err
+		return apperrors.WrapDatabase(err)
 	}
 
 	return nil
@@ -114,7 +114,7 @@ func (r *ContactRepositoryImpl) DeleteContact(ctx context.Context, userID, conta
 	if err != nil {
 		r.log.ErrorContext(ctx, "DeleteContact failed", logger.Error(err))
 
-		return err
+		return apperrors.WrapDatabase(err)
 	}
 
 	if tag.RowsAffected() == 0 {

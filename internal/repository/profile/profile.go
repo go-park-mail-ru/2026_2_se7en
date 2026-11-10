@@ -5,11 +5,11 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/repository/tx"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/storage"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/apperrors"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -57,7 +57,7 @@ func (r *ProfileRepositoryImpl) FindByUserID(ctx context.Context, userID uuid.UU
 	if err != nil {
 		r.log.ErrorContext(ctx, "FindByUserID failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	return ProfileDBToModel(&db), nil
@@ -73,7 +73,7 @@ func (r *ProfileRepositoryImpl) CheckNicknameExist(ctx context.Context, nickname
 	executor := r.getExecutor(ctx)
 	err := executor.QueryRow(ctx, query, nickname).Scan(&exists)
 
-	return exists, err
+	return exists, apperrors.WrapDatabase(err)
 }
 
 func (r *ProfileRepositoryImpl) CreateProfile(ctx context.Context, iconID *uuid.UUID, userID uuid.UUID, nickname, firstName string, lastName *string, bio *string) (*models.Profile, error) {
@@ -90,7 +90,7 @@ func (r *ProfileRepositoryImpl) CreateProfile(ctx context.Context, iconID *uuid.
 	if err != nil {
 		r.log.ErrorContext(ctx, "CreateProfile failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	return ProfileDBToModel(&db), nil
@@ -122,7 +122,7 @@ func (r *ProfileRepositoryImpl) GetWithFileByUserID(ctx context.Context, userID 
 	if err != nil {
 		r.log.ErrorContext(ctx, "GetWithFileByUserID failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	return ProfileWithFileDBToModel(&db), nil
@@ -143,7 +143,7 @@ func (r *ProfileRepositoryImpl) Update(ctx context.Context, profileID uuid.UUID,
 			return apperrors.ErrNicknameTaken
 		}
 
-		return err
+		return apperrors.WrapDatabase(err)
 	}
 
 	return nil
@@ -157,7 +157,7 @@ func scanProfile(row pgx.Row) (*models.Profile, error) {
 	}
 	if err != nil {
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 	return ProfileDBToModel(&db), nil
 }
@@ -176,7 +176,7 @@ func (r *ProfileRepositoryImpl) FindProfile(ctx context.Context, userID uuid.UUI
 	if err != nil {
 		r.log.ErrorContext(ctx, "FindProfile failed", logger.Error(err))
 	}
-	return profile, err
+	return profile, apperrors.WrapDatabase(err)
 }
 
 func (r *ProfileRepositoryImpl) UpdateProfile(ctx context.Context, userID uuid.UUID, p models.Profile) (*models.Profile, error) {
@@ -197,7 +197,7 @@ func (r *ProfileRepositoryImpl) UpdateProfile(ctx context.Context, userID uuid.U
 	if err != nil {
 		r.log.ErrorContext(ctx, "UpdateProfile failed", logger.Error(err))
 	}
-	return profile, err
+	return profile, apperrors.WrapDatabase(err)
 }
 
 func (r *ProfileRepositoryImpl) FindPasswordHash(ctx context.Context, userID uuid.UUID) (string, error) {
@@ -206,7 +206,7 @@ func (r *ProfileRepositoryImpl) FindPasswordHash(ctx context.Context, userID uui
 	const query = `select password_hash from app_user where id = $1 and deleted_at is null`
 	var hash string
 	err := r.pool.QueryRow(ctx, query, userID).Scan(&hash)
-	return hash, err
+	return hash, apperrors.WrapDatabase(err)
 }
 
 func (r *ProfileRepositoryImpl) UpdatePassword(ctx context.Context, userID uuid.UUID, oldHash, newHash string) (bool, error) {
@@ -217,7 +217,7 @@ func (r *ProfileRepositoryImpl) UpdatePassword(ctx context.Context, userID uuid.
 		where id = $1 and password_hash = $2 and deleted_at is null
 	`
 	tag, err := r.pool.Exec(ctx, query, userID, oldHash, newHash)
-	return tag.RowsAffected() == 1, err
+	return tag.RowsAffected() == 1, apperrors.WrapDatabase(err)
 }
 
 func (r *ProfileRepositoryImpl) UpdatePhone(ctx context.Context, userID uuid.UUID, phone *string) error {
@@ -231,7 +231,7 @@ func (r *ProfileRepositoryImpl) UpdatePhone(ctx context.Context, userID uuid.UUI
 	if err != nil {
 		r.log.ErrorContext(ctx, "DatabaseOperation failed", logger.Error(err))
 	}
-	return err
+	return apperrors.WrapDatabase(err)
 }
 
 func (r *ProfileRepositoryImpl) UpdateIcon(ctx context.Context, profileID uuid.UUID, fileID uuid.UUID) error {
@@ -245,5 +245,5 @@ func (r *ProfileRepositoryImpl) UpdateIcon(ctx context.Context, profileID uuid.U
 	if err != nil {
 		r.log.ErrorContext(ctx, "DatabaseOperation failed", logger.Error(err))
 	}
-	return err
+	return apperrors.WrapDatabase(err)
 }

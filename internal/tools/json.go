@@ -2,18 +2,18 @@ package tools
 
 import (
 	"encoding/json"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/httperrors"
 	"log/slog"
 	"net/http"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
 )
 
 type Validatable interface {
-	IsValid() []apperrors.ErrorDetail
+	IsValid() []httperrors.ErrorDetail
 }
 
-type Handler[T any] func(w http.ResponseWriter, r *http.Request, req *T) *apperrors.AppError
+type Handler[T any] func(w http.ResponseWriter, r *http.Request, req *T) *httperrors.HTTPError
 
 type JSONDecoder[T any] struct {
 	log *slog.Logger
@@ -25,7 +25,7 @@ func (d *JSONDecoder[T]) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var req T
 
 	if r.Body == nil {
-		apperrors.WriteError(w, apperrors.NewBadRequest("Request body is empty", nil))
+		httperrors.WriteError(w, httperrors.NewBadRequest("Request body is empty", nil))
 		return
 	}
 	defer func() { _ = r.Body.Close() }()
@@ -33,14 +33,14 @@ func (d *JSONDecoder[T]) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		d.log.WarnContext(r.Context(), "invalid request JSON", logger.Error(err))
 
-		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid JSON format", nil))
+		httperrors.WriteError(w, httperrors.NewBadRequest("Invalid JSON format", nil))
 		return
 	}
 
 	if v, ok := any(&req).(Validatable); ok {
 		if details := v.IsValid(); len(details) > 0 {
 			d.log.WarnContext(r.Context(), "request validation failed")
-			apperrors.WriteError(w, apperrors.NewBadRequest("Validation failed", details))
+			httperrors.WriteError(w, httperrors.NewBadRequest("Validation failed", details))
 			return
 		}
 	}
@@ -52,7 +52,7 @@ func (d *JSONDecoder[T]) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		d.log.LogAttrs(r.Context(), level, "request failed", logger.Error(appErr))
 
-		apperrors.WriteError(w, appErr)
+		httperrors.WriteError(w, appErr)
 	}
 }
 

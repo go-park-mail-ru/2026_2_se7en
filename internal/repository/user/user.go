@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/repository/profile"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/repository/tx"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/storage"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/apperrors"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -44,7 +44,7 @@ func (r *UserRepositoryImpl) FindByEmail(ctx context.Context, email string) (*mo
 
 	if err != nil {
 		r.log.ErrorContext(ctx, "database query failed", logger.Error(err))
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 	return UserDBToModel(&db), nil
 }
@@ -65,7 +65,7 @@ func (r *UserRepositoryImpl) FindByID(ctx context.Context, userID uuid.UUID) (*m
 	if err != nil {
 		r.log.ErrorContext(ctx, "FindByID failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	return UserDBToModel(&db), nil
@@ -80,7 +80,7 @@ func (r *UserRepositoryImpl) CheckEmailExist(ctx context.Context, email string) 
 	executor := r.getExecutor(ctx)
 	err := executor.QueryRow(ctx, query, email).Scan(&exists)
 
-	return exists, err
+	return exists, apperrors.WrapDatabase(err)
 }
 
 func (r *UserRepositoryImpl) CreateUser(ctx context.Context, email, passwordHash string, phone *string) (*models.User, error) {
@@ -93,7 +93,7 @@ func (r *UserRepositoryImpl) CreateUser(ctx context.Context, email, passwordHash
 
 	if err != nil {
 		r.log.ErrorContext(ctx, "database query failed", logger.Error(err))
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 	return UserDBToModel(&db), nil
 }
@@ -105,7 +105,7 @@ func (r *UserRepositoryImpl) CreateUserProfileAndSession(ctx context.Context, us
 	if err != nil {
 		r.log.ErrorContext(ctx, "CreateUserProfileAndSession failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 	defer tx.Rollback(ctx)
 
@@ -119,7 +119,7 @@ func (r *UserRepositoryImpl) CreateUserProfileAndSession(ctx context.Context, us
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" && (pgErr.ConstraintName == "uq_app_user_email_active_lower" || pgErr.ConstraintName == "uq_app_user_email_active") {
 			return nil, apperrors.ErrEmailTaken
 		}
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	const createProfile = `insert into profile (icon_id, user_id, nickname, first_name, last_name, bio) values ($1, $2, $3, $4, $5, $6) returning id, icon_id, user_id, nickname, first_name, last_name, bio, created_at, updated_at`
@@ -132,7 +132,7 @@ func (r *UserRepositoryImpl) CreateUserProfileAndSession(ctx context.Context, us
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "uq_profile_nickname" {
 			return nil, apperrors.ErrNicknameTaken
 		}
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	const createSession = `insert into session (user_id, expires_at) values ($1, $2) returning id`
@@ -140,13 +140,13 @@ func (r *UserRepositoryImpl) CreateUserProfileAndSession(ctx context.Context, us
 	if err := tx.QueryRow(ctx, createSession, userDB.ID, expiresAt).Scan(&sessionID); err != nil {
 		r.log.ErrorContext(ctx, "CreateUserProfileAndSession failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
 		r.log.ErrorContext(ctx, "CreateUserProfileAndSession failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 	modelUser := UserDBToModel(&userDB)
 	modelUser.Profile = profile.ProfileDBToModel(&profileDB)
@@ -162,7 +162,7 @@ func (r *UserRepositoryImpl) DeleteUser(ctx context.Context, userID uuid.UUID) e
 	if err != nil {
 		r.log.ErrorContext(ctx, "DatabaseOperation failed", logger.Error(err))
 	}
-	return err
+	return apperrors.WrapDatabase(err)
 }
 
 func (r *UserRepositoryImpl) UpdateEmail(ctx context.Context, userID uuid.UUID, email string) error {
@@ -181,7 +181,7 @@ func (r *UserRepositoryImpl) UpdateEmail(ctx context.Context, userID uuid.UUID, 
 			return apperrors.ErrEmailTaken
 		}
 
-		return err
+		return apperrors.WrapDatabase(err)
 	}
 
 	return nil
@@ -217,7 +217,7 @@ func (r *UserRepositoryImpl) UpdatePhone(ctx context.Context, userID uuid.UUID, 
 	if err != nil {
 		r.log.ErrorContext(ctx, "DatabaseOperation failed", logger.Error(err))
 	}
-	return err
+	return apperrors.WrapDatabase(err)
 }
 
 func (r *UserRepositoryImpl) UpdatePassword(ctx context.Context, userID uuid.UUID, passwordHash string) error {
@@ -230,7 +230,7 @@ func (r *UserRepositoryImpl) UpdatePassword(ctx context.Context, userID uuid.UUI
 	if err != nil {
 		r.log.ErrorContext(ctx, "DatabaseOperation failed", logger.Error(err))
 	}
-	return err
+	return apperrors.WrapDatabase(err)
 }
 
 func (r *UserRepositoryImpl) FindByNickname(ctx context.Context, nickname string) (*models.User, error) {
@@ -258,7 +258,7 @@ func (r *UserRepositoryImpl) FindByNickname(ctx context.Context, nickname string
 	if err != nil {
 		r.log.ErrorContext(ctx, "FindByNickname failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	user := UserDBToModel(&userDB)

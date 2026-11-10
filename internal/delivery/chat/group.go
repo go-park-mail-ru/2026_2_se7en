@@ -8,6 +8,7 @@ import (
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
 	"github.com/google/uuid"
 )
 
@@ -26,6 +27,7 @@ import (
 // @Failure      500 {object} apperrors.ErrorResponse
 // @Router       /chats/groups [post]
 func (d *ChatDeliveryImpl) HandleCreateGroup(w http.ResponseWriter, r *http.Request, req *CreateGroupRequest) *apperrors.AppError {
+
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
 		return apperrors.NewUnauthorized("Authorization required")
@@ -39,6 +41,8 @@ func (d *ChatDeliveryImpl) HandleCreateGroup(w http.ResponseWriter, r *http.Requ
 
 	result, err := d.chatUsecase.CreateGroup(r.Context(), userID, req.Name, req.Description, req.Members)
 	if err != nil {
+		d.log.ErrorContext(r.Context(), "HandleCreateGroup failed", logger.Error(err))
+
 		return mapChatError(err)
 	}
 
@@ -73,6 +77,7 @@ func (d *ChatDeliveryImpl) HandleCreateGroup(w http.ResponseWriter, r *http.Requ
 // @Failure      500 {object} apperrors.ErrorResponse
 // @Router       /chats/{id} [patch]
 func (d *ChatDeliveryImpl) HandleUpdateGroup(w http.ResponseWriter, r *http.Request, req *UpdateGroupRequest) *apperrors.AppError {
+
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
 		return apperrors.NewUnauthorized("Authorization required")
@@ -80,6 +85,10 @@ func (d *ChatDeliveryImpl) HandleUpdateGroup(w http.ResponseWriter, r *http.Requ
 
 	chatID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil || chatID == uuid.Nil {
+		if err != nil {
+			d.log.ErrorContext(r.Context(), "HandleUpdateGroup failed", logger.Error(err))
+		}
+
 		return apperrors.NewBadRequest("Invalid id", []apperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}})
 	}
 
@@ -118,12 +127,18 @@ func (d *ChatDeliveryImpl) HandleGetListMembers(w http.ResponseWriter, r *http.R
 
 	chatID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil || chatID == uuid.Nil {
+		if err != nil {
+			d.log.ErrorContext(r.Context(), "HandleGetListMembers failed", logger.Error(err))
+		}
+
 		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid id", []apperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}}))
 		return
 	}
 
 	result, err := d.chatUsecase.GetListMembers(r.Context(), userID, chatID)
 	if err != nil {
+		d.log.ErrorContext(r.Context(), "HandleGetListMembers failed", logger.Error(err))
+
 		apperrors.WriteError(w, mapChatError(err))
 		return
 	}
@@ -149,6 +164,7 @@ func (d *ChatDeliveryImpl) HandleGetListMembers(w http.ResponseWriter, r *http.R
 // @Failure      500 {object} apperrors.ErrorResponse
 // @Router       /chats/{id}/members [post]
 func (d *ChatDeliveryImpl) HandleAddMember(w http.ResponseWriter, r *http.Request, req *AddMemberRequest) *apperrors.AppError {
+
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
 		return apperrors.NewUnauthorized("Authorization required")
@@ -160,6 +176,10 @@ func (d *ChatDeliveryImpl) HandleAddMember(w http.ResponseWriter, r *http.Reques
 
 	chatID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil || chatID == uuid.Nil {
+		if err != nil {
+			d.log.ErrorContext(r.Context(), "HandleAddMember failed", logger.Error(err))
+		}
+
 		return apperrors.NewBadRequest("Invalid id", []apperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}})
 	}
 
@@ -206,17 +226,27 @@ func (d *ChatDeliveryImpl) HandleRemoveMember(w http.ResponseWriter, r *http.Req
 
 	chatID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil || chatID == uuid.Nil {
+		if err != nil {
+			d.log.ErrorContext(r.Context(), "HandleRemoveMember failed", logger.Error(err))
+		}
+
 		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid id", []apperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}}))
 		return
 	}
 
 	targetID, err := uuid.Parse(r.PathValue("user_id"))
 	if err != nil || targetID == uuid.Nil {
+		if err != nil {
+			d.log.ErrorContext(r.Context(), "HandleRemoveMember failed", logger.Error(err))
+		}
+
 		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid user_id", []apperrors.ErrorDetail{{Field: "user_id", Reason: "user_id must be a valid UUID"}}))
 		return
 	}
 
 	if err := d.chatUsecase.RemoveMember(r.Context(), userID, chatID, targetID); err != nil {
+		d.log.ErrorContext(r.Context(), "HandleRemoveMember failed", logger.Error(err))
+
 		apperrors.WriteError(w, mapChatError(err))
 		return
 	}
@@ -248,11 +278,17 @@ func (d *ChatDeliveryImpl) HandleLeaveGroup(w http.ResponseWriter, r *http.Reque
 
 	chatID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil || chatID == uuid.Nil {
+		if err != nil {
+			d.log.ErrorContext(r.Context(), "HandleLeaveGroup failed", logger.Error(err))
+		}
+
 		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid id", []apperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}}))
 		return
 	}
 
 	if err := d.chatUsecase.RemoveMember(r.Context(), userID, chatID, userID); err != nil {
+		d.log.ErrorContext(r.Context(), "HandleLeaveGroup failed", logger.Error(err))
+
 		apperrors.WriteError(w, mapChatError(err))
 		return
 	}

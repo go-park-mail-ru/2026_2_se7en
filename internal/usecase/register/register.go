@@ -2,22 +2,28 @@ package register
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type RegisterUsecaseImpl struct {
+	log *slog.Logger
+
 	userRepo    UserRepository
 	profileRepo ProfileRepository
 }
 
-func NewRegisterUsecase(userRepo UserRepository, profileRepo ProfileRepository) *RegisterUsecaseImpl {
+func NewRegisterUsecase(userRepo UserRepository, profileRepo ProfileRepository, baseLog *slog.Logger) *RegisterUsecaseImpl {
 	return &RegisterUsecaseImpl{
+		log: logger.Scope(baseLog, logger.LayerUsecase, logger.ModuleRegister),
+
 		userRepo:    userRepo,
 		profileRepo: profileRepo,
 	}
@@ -27,6 +33,8 @@ func (uc *RegisterUsecaseImpl) Register(ctx context.Context, user *models.User, 
 	user.Email = strings.ToLower(strings.TrimSpace(user.Email))
 	emailExists, err := uc.userRepo.CheckEmailExist(ctx, user.Email)
 	if err != nil {
+		uc.log.ErrorContext(ctx, "Register failed", logger.Error(err))
+
 		return nil, err
 	}
 
@@ -40,6 +48,8 @@ func (uc *RegisterUsecaseImpl) Register(ctx context.Context, user *models.User, 
 
 	nicknameExists, err := uc.profileRepo.CheckNicknameExist(ctx, user.Profile.Nickname)
 	if err != nil {
+		uc.log.ErrorContext(ctx, "Register failed", logger.Error(err))
+
 		return nil, err
 	}
 
@@ -49,6 +59,8 @@ func (uc *RegisterUsecaseImpl) Register(ctx context.Context, user *models.User, 
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(plainPassword), bcrypt.DefaultCost)
 	if err != nil {
+		uc.log.ErrorContext(ctx, "Register failed", logger.Error(err))
+
 		return nil, err
 	}
 

@@ -3,13 +3,13 @@ package chat
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 	"testing"
 
-	"github.com/google/uuid"
-
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
+	"github.com/google/uuid"
 )
 
 type mockChatRepo struct {
@@ -136,7 +136,7 @@ func (m *mockChatRepo) GetMessageAuthor(ctx context.Context, chatID, messageID u
 }
 
 func newTestChatUsecase(repo *mockChatRepo) *ChatUsecaseImpl {
-	return NewChatUsecase(repo)
+	return NewChatUsecase(repo, slog.Default())
 }
 
 func TestChatUsecase_MarkMessageReadReturnsTransition(t *testing.T) {

@@ -8,6 +8,7 @@ import (
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
 	"github.com/google/uuid"
 )
 
@@ -35,6 +36,10 @@ func (d *ChatDeliveryImpl) HandleGetListMessages(w http.ResponseWriter, r *http.
 
 	chatID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil || chatID == uuid.Nil {
+		if err != nil {
+			d.log.ErrorContext(r.Context(), "HandleGetListMessages failed", logger.Error(err))
+		}
+
 		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid id", []apperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}}))
 		return
 	}
@@ -44,6 +49,8 @@ func (d *ChatDeliveryImpl) HandleGetListMessages(w http.ResponseWriter, r *http.
 	if _, present := q["limit"]; present {
 		parsed, err := parseQueryInt(q, "limit")
 		if err != nil {
+			d.log.ErrorContext(r.Context(), "HandleGetListMessages failed", logger.Error(err))
+
 			apperrors.WriteError(w, apperrors.NewBadRequest("Invalid limit format", nil))
 			return
 		}
@@ -58,6 +65,8 @@ func (d *ChatDeliveryImpl) HandleGetListMessages(w http.ResponseWriter, r *http.
 
 	beforeID, err := parseQueryUUID(q, "before")
 	if err != nil {
+		d.log.ErrorContext(r.Context(), "HandleGetListMessages failed", logger.Error(err))
+
 		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid before format", nil))
 		return
 	}
@@ -69,6 +78,8 @@ func (d *ChatDeliveryImpl) HandleGetListMessages(w http.ResponseWriter, r *http.
 
 	result, err := d.chatUsecase.GetListMessages(r.Context(), userID, chatID, limit, before)
 	if err != nil {
+		d.log.ErrorContext(r.Context(), "HandleGetListMessages failed", logger.Error(err))
+
 		apperrors.WriteError(w, mapChatError(err))
 		return
 	}
@@ -92,6 +103,7 @@ func (d *ChatDeliveryImpl) HandleGetListMessages(w http.ResponseWriter, r *http.
 // @Failure      500 {object} apperrors.ErrorResponse
 // @Router       /chats/{id}/messages [post]
 func (d *ChatDeliveryImpl) HandleCreateMessage(w http.ResponseWriter, r *http.Request, req *CreateMessageRequest) *apperrors.AppError {
+
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
 		return apperrors.NewUnauthorized("Authorization required")
@@ -99,6 +111,10 @@ func (d *ChatDeliveryImpl) HandleCreateMessage(w http.ResponseWriter, r *http.Re
 
 	chatID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil || chatID == uuid.Nil {
+		if err != nil {
+			d.log.ErrorContext(r.Context(), "HandleCreateMessage failed", logger.Error(err))
+		}
+
 		return apperrors.NewBadRequest("Invalid id", []apperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}})
 	}
 

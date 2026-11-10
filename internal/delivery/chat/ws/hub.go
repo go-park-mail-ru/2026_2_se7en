@@ -1,22 +1,28 @@
 package ws
 
 import (
+	"log/slog"
 	"sync"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
 type Hub struct {
+	log *slog.Logger
+
 	mu      sync.RWMutex
 	users   map[uuid.UUID]map[*Client]struct{}
 	chats   map[uuid.UUID]map[*Client]struct{}
 	clients map[*Client]struct{}
 }
 
-func NewHub() *Hub {
+func NewHub(baseLog *slog.Logger) *Hub {
 	return &Hub{
+		log: logger.Scope(baseLog, logger.LayerDelivery, logger.ModuleWebSocket),
+
 		users:   make(map[uuid.UUID]map[*Client]struct{}),
 		chats:   make(map[uuid.UUID]map[*Client]struct{}),
 		clients: make(map[*Client]struct{}),
@@ -154,6 +160,8 @@ func (h *Hub) DisconnectSession(sessionID uuid.UUID) {
 }
 
 func (h *Hub) Shutdown() {
+	h.log.Info("websocket hub shutting down")
+
 	h.mu.Lock()
 	clients := make([]*Client, 0, len(h.clients))
 	for c := range h.clients {

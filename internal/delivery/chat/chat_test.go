@@ -5,17 +5,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/google/uuid"
-
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
+	"github.com/google/uuid"
 )
 
 type mockChatUsecase struct {
@@ -78,7 +78,7 @@ func TestChatDelivery_CreateGroup(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/chats/groups", strings.NewReader(`{"name":"team","members":[]}`))
 	req = req.WithContext(middleware.NewAuthContext(req.Context(), userID))
 	rec := httptest.NewRecorder()
-	tools.NewJSONDecoder(newTestChatDelivery(uc, &mockBroadcaster{}).HandleCreateGroup).ServeHTTP(rec, req)
+	tools.NewJSONDecoder(newTestChatDelivery(uc, &mockBroadcaster{}).HandleCreateGroup, slog.Default()).ServeHTTP(rec, req)
 	if rec.Code != http.StatusCreated || !uc.called {
 		t.Fatalf("status = %d, called = %t, body = %s", rec.Code, uc.called, rec.Body.String())
 	}
@@ -110,7 +110,7 @@ func TestChatDelivery_UpdateGroupBroadcastsOnlyOnSuccess(t *testing.T) {
 			req.SetPathValue("id", chatID.String())
 			req = req.WithContext(middleware.NewAuthContext(req.Context(), userID))
 			rec := httptest.NewRecorder()
-			tools.NewJSONDecoder(newTestChatDelivery(uc, broadcaster).HandleUpdateGroup).ServeHTTP(rec, req)
+			tools.NewJSONDecoder(newTestChatDelivery(uc, broadcaster).HandleUpdateGroup, slog.Default()).ServeHTTP(rec, req)
 			if rec.Code != tc.wantStatus || broadcaster.chatCalled != tc.wantPublish {
 				t.Fatalf("status = %d, broadcast = %t, want status = %d, broadcast = %t", rec.Code, broadcaster.chatCalled, tc.wantStatus, tc.wantPublish)
 			}
@@ -178,7 +178,7 @@ func TestChatDelivery_CreateDialogBroadcastsOnlyWhenVisibleForFirstTime(t *testi
 			req := httptest.NewRequest(http.MethodPost, "/chats/dialogs", strings.NewReader(fmt.Sprintf(`{"peer_id":%q}`, peerID)))
 			req = req.WithContext(middleware.NewAuthContext(req.Context(), userID))
 			rec := httptest.NewRecorder()
-			tools.NewJSONDecoder(newTestChatDelivery(uc, broadcaster).HandleCreateDialog).ServeHTTP(rec, req)
+			tools.NewJSONDecoder(newTestChatDelivery(uc, broadcaster).HandleCreateDialog, slog.Default()).ServeHTTP(rec, req)
 			if rec.Code != http.StatusOK || !uc.called {
 				t.Fatalf("status = %d, called = %t, body = %s", rec.Code, uc.called, rec.Body.String())
 			}
@@ -205,7 +205,7 @@ func TestChatDelivery_AddMemberRejectsZeroID(t *testing.T) {
 	req.SetPathValue("id", uuid.NewString())
 	req = req.WithContext(middleware.NewAuthContext(req.Context(), uuid.New()))
 	rec := httptest.NewRecorder()
-	tools.NewJSONDecoder(newTestChatDelivery(uc, &mockBroadcaster{}).HandleAddMember).ServeHTTP(rec, req)
+	tools.NewJSONDecoder(newTestChatDelivery(uc, &mockBroadcaster{}).HandleAddMember, slog.Default()).ServeHTTP(rec, req)
 	if rec.Code != http.StatusBadRequest || uc.called {
 		t.Fatalf("status = %d, called = %t, body = %s", rec.Code, uc.called, rec.Body.String())
 	}
@@ -258,20 +258,44 @@ func TestChatDelivery_BodyValidation(t *testing.T) {
 		body    string
 		handler func(*ChatDeliveryImpl) http.Handler
 	}{
-		{"dialog missing peer", `{}`, func(d *ChatDeliveryImpl) http.Handler { return tools.NewJSONDecoder(d.HandleCreateDialog) }},
-		{"dialog self", fmt.Sprintf(`{"peer_id":%q}`, userID), func(d *ChatDeliveryImpl) http.Handler { return tools.NewJSONDecoder(d.HandleCreateDialog) }},
-		{"group empty name", `{ "name": " " }`, func(d *ChatDeliveryImpl) http.Handler { return tools.NewJSONDecoder(d.HandleCreateGroup) }},
-		{"group long name", fmt.Sprintf(`{"name":%q}`, strings.Repeat("я", 101)), func(d *ChatDeliveryImpl) http.Handler { return tools.NewJSONDecoder(d.HandleCreateGroup) }},
-		{"group long description", fmt.Sprintf(`{"name":"Group","description":%q}`, strings.Repeat("я", 501)), func(d *ChatDeliveryImpl) http.Handler { return tools.NewJSONDecoder(d.HandleCreateGroup) }},
-		{"group duplicate members", fmt.Sprintf(`{"name":"Group","members":[%q,%q]}`, memberID, memberID), func(d *ChatDeliveryImpl) http.Handler { return tools.NewJSONDecoder(d.HandleCreateGroup) }},
-		{"group creator member", fmt.Sprintf(`{"name":"Group","members":[%q]}`, userID), func(d *ChatDeliveryImpl) http.Handler { return tools.NewJSONDecoder(d.HandleCreateGroup) }},
-		{"update no changes", `{}`, func(d *ChatDeliveryImpl) http.Handler { return tools.NewJSONDecoder(d.HandleUpdateGroup) }},
-		{"update description without flag", `{"name":"Group","description":"new"}`, func(d *ChatDeliveryImpl) http.Handler { return tools.NewJSONDecoder(d.HandleUpdateGroup) }},
-		{"member missing id", `{}`, func(d *ChatDeliveryImpl) http.Handler { return tools.NewJSONDecoder(d.HandleAddMember) }},
-		{"member self", fmt.Sprintf(`{"user_id":%q}`, userID), func(d *ChatDeliveryImpl) http.Handler { return tools.NewJSONDecoder(d.HandleAddMember) }},
-		{"message empty content", `{"type":"text","content":""}`, func(d *ChatDeliveryImpl) http.Handler { return tools.NewJSONDecoder(d.HandleCreateMessage) }},
-		{"message both fields", fmt.Sprintf(`{"type":"text","content":"hi","sticker_id":%q}`, stickerID), func(d *ChatDeliveryImpl) http.Handler { return tools.NewJSONDecoder(d.HandleCreateMessage) }},
-		{"message long content", fmt.Sprintf(`{"type":"text","content":%q}`, strings.Repeat("я", 4097)), func(d *ChatDeliveryImpl) http.Handler { return tools.NewJSONDecoder(d.HandleCreateMessage) }},
+		{"dialog missing peer", `{}`, func(d *ChatDeliveryImpl) http.Handler {
+			return tools.NewJSONDecoder(d.HandleCreateDialog, slog.Default())
+		}},
+		{"dialog self", fmt.Sprintf(`{"peer_id":%q}`, userID), func(d *ChatDeliveryImpl) http.Handler {
+			return tools.NewJSONDecoder(d.HandleCreateDialog, slog.Default())
+		}},
+		{"group empty name", `{ "name": " " }`, func(d *ChatDeliveryImpl) http.Handler {
+			return tools.NewJSONDecoder(d.HandleCreateGroup, slog.Default())
+		}},
+		{"group long name", fmt.Sprintf(`{"name":%q}`, strings.Repeat("я", 101)), func(d *ChatDeliveryImpl) http.Handler {
+			return tools.NewJSONDecoder(d.HandleCreateGroup, slog.Default())
+		}},
+		{"group long description", fmt.Sprintf(`{"name":"Group","description":%q}`, strings.Repeat("я", 501)), func(d *ChatDeliveryImpl) http.Handler {
+			return tools.NewJSONDecoder(d.HandleCreateGroup, slog.Default())
+		}},
+		{"group duplicate members", fmt.Sprintf(`{"name":"Group","members":[%q,%q]}`, memberID, memberID), func(d *ChatDeliveryImpl) http.Handler {
+			return tools.NewJSONDecoder(d.HandleCreateGroup, slog.Default())
+		}},
+		{"group creator member", fmt.Sprintf(`{"name":"Group","members":[%q]}`, userID), func(d *ChatDeliveryImpl) http.Handler {
+			return tools.NewJSONDecoder(d.HandleCreateGroup, slog.Default())
+		}},
+		{"update no changes", `{}`, func(d *ChatDeliveryImpl) http.Handler {
+			return tools.NewJSONDecoder(d.HandleUpdateGroup, slog.Default())
+		}},
+		{"update description without flag", `{"name":"Group","description":"new"}`, func(d *ChatDeliveryImpl) http.Handler {
+			return tools.NewJSONDecoder(d.HandleUpdateGroup, slog.Default())
+		}},
+		{"member missing id", `{}`, func(d *ChatDeliveryImpl) http.Handler { return tools.NewJSONDecoder(d.HandleAddMember, slog.Default()) }},
+		{"member self", fmt.Sprintf(`{"user_id":%q}`, userID), func(d *ChatDeliveryImpl) http.Handler { return tools.NewJSONDecoder(d.HandleAddMember, slog.Default()) }},
+		{"message empty content", `{"type":"text","content":""}`, func(d *ChatDeliveryImpl) http.Handler {
+			return tools.NewJSONDecoder(d.HandleCreateMessage, slog.Default())
+		}},
+		{"message both fields", fmt.Sprintf(`{"type":"text","content":"hi","sticker_id":%q}`, stickerID), func(d *ChatDeliveryImpl) http.Handler {
+			return tools.NewJSONDecoder(d.HandleCreateMessage, slog.Default())
+		}},
+		{"message long content", fmt.Sprintf(`{"type":"text","content":%q}`, strings.Repeat("я", 4097)), func(d *ChatDeliveryImpl) http.Handler {
+			return tools.NewJSONDecoder(d.HandleCreateMessage, slog.Default())
+		}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -405,7 +429,7 @@ func (m *mockChatUsecase) MarkMessageRead(ctx context.Context, userID, chatID, m
 var _ ChatUsecase = (*mockChatUsecase)(nil)
 
 func newTestChatDelivery(uc *mockChatUsecase, broadcaster Broadcaster) *ChatDeliveryImpl {
-	return NewChatDelivery(uc, broadcaster)
+	return NewChatDelivery(uc, broadcaster, slog.Default())
 }
 
 func performAuthenticatedChatRequest(target string, uc *mockChatUsecase, userID uuid.UUID) *httptest.ResponseRecorder {

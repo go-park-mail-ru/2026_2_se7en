@@ -6,10 +6,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/storage"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/apperrors"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -35,7 +35,7 @@ func (r *SessionRepositoryImpl) CreateSession(ctx context.Context, userID uuid.U
 	if err != nil {
 		r.log.ErrorContext(ctx, "CreateSession failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 	return SessionDBToModel(&db), nil
 }
@@ -48,24 +48,24 @@ func (r *SessionRepositoryImpl) DeleteSession(ctx context.Context, sessionID uui
 	if err != nil {
 		r.log.ErrorContext(ctx, "DatabaseOperation failed", logger.Error(err))
 	}
-	return err
+	return apperrors.WrapDatabase(err)
 }
 
-func (r *SessionRepositoryImpl) GetSessionUser(ctx context.Context, sessionID uuid.UUID) (uuid.UUID, error) {
+func (r *SessionRepositoryImpl) GetSessionUser(ctx context.Context, sessionID uuid.UUID) (*models.SessionUser, error) {
 	r.log.DebugContext(ctx, "database operation", logger.KeyOperation, "GetSessionUser")
 
 	const query = `select s.user_id from session s join app_user u on u.id = s.user_id and u.deleted_at is null where s.id = $1 and s.expires_at > now()`
 	var userID uuid.UUID
 	err := r.pool.QueryRow(ctx, query, sessionID).Scan(&userID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return uuid.Nil, apperrors.ErrSessionNotFound
+		return nil, apperrors.ErrSessionNotFound
 	}
 	if err != nil {
 		r.log.ErrorContext(ctx, "GetSessionUser failed", logger.Error(err))
 
-		return uuid.Nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
-	return userID, nil
+	return &models.SessionUser{UserID: userID}, nil
 }
 
 func (r *SessionRepositoryImpl) ExtendSession(ctx context.Context, sessionID uuid.UUID, expiresAt time.Time) error {
@@ -76,7 +76,7 @@ func (r *SessionRepositoryImpl) ExtendSession(ctx context.Context, sessionID uui
 	if err != nil {
 		r.log.ErrorContext(ctx, "ExtendSession failed", logger.Error(err))
 
-		return err
+		return apperrors.WrapDatabase(err)
 	}
 	if tag.RowsAffected() == 0 {
 		return apperrors.ErrSessionNotFound

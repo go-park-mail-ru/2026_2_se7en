@@ -13,3 +13,7 @@ type Session struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
+
+type SessionUser struct {
+	UserID uuid.UUID
+}

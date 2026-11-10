@@ -7,8 +7,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/httperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/apperrors"
 	"github.com/google/uuid"
 )
 
@@ -38,37 +39,44 @@ func (m *AuthMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil || cookie.Value == "" {
 		m.log.DebugContext(r.Context(), "session cookie missing")
 
-		apperrors.WriteError(w, apperrors.NewUnauthorized("Session cookie is missing"))
+		httperrors.WriteError(w, httperrors.NewUnauthorized("Session cookie is missing"))
 		return
 	}
 
 	sessionID, err := uuid.Parse(cookie.Value)
 	if err != nil {
 		m.log.WarnContext(r.Context(), "invalid session cookie")
-		apperrors.WriteError(w, apperrors.NewUnauthorized("Invalid session cookie"))
+		httperrors.WriteError(w, httperrors.NewUnauthorized("Invalid session cookie"))
 		return
 	}
 
-	userID, err := m.sessionRepo.GetSessionUser(r.Context(), sessionID)
+	sessionUser, err := m.sessionRepo.GetSessionUser(r.Context(), sessionID)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrSessionNotFound) {
 			m.log.WarnContext(r.Context(), "session expired or not found")
-			apperrors.WriteError(w, apperrors.NewUnauthorized("Invalid or expired session"))
+			httperrors.WriteError(w, httperrors.NewUnauthorized("Invalid or expired session"))
 		} else {
 			m.log.ErrorContext(r.Context(), "session lookup failed", logger.Error(err))
-			apperrors.WriteError(w, apperrors.NewInternalError("Internal server error", err))
+			httperrors.WriteError(w, httperrors.NewInternalError("Internal server error", err))
 		}
 		return
 	}
+	if sessionUser == nil {
+		err := apperrors.ErrSessionUserMissing
+		m.log.ErrorContext(r.Context(), "session lookup failed", logger.Error(err))
+		httperrors.WriteError(w, httperrors.NewInternalError("Internal server error", err))
+		return
+	}
+	userID := sessionUser.UserID
 
 	newExpiresAt := time.Now().Add(SessionTTL)
 	if err := m.sessionRepo.ExtendSession(r.Context(), sessionID, newExpiresAt); err != nil {
 		if errors.Is(err, apperrors.ErrSessionNotFound) {
 			m.log.WarnContext(r.Context(), "session expired or not found")
-			apperrors.WriteError(w, apperrors.NewUnauthorized("Invalid or expired session"))
+			httperrors.WriteError(w, httperrors.NewUnauthorized("Invalid or expired session"))
 		} else {
 			m.log.ErrorContext(r.Context(), "session lookup failed", logger.Error(err))
-			apperrors.WriteError(w, apperrors.NewInternalError("Internal server error", err))
+			httperrors.WriteError(w, httperrors.NewInternalError("Internal server error", err))
 		}
 		return
 	}

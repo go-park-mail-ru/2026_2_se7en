@@ -24,6 +24,10 @@ type PublicProfileResponse struct {
 	IconURL   *string    `json:"icon_url,omitempty"`
 }
 
+type AvatarResponse struct {
+	IconURL string `json:"icon_url"`
+}
+
 type UpdateProfileRequest struct {
 	Email       *string `json:"email,omitempty" format:"email"`
 	Nickname    *string `json:"nickname,omitempty"`

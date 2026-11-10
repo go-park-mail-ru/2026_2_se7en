@@ -1,14 +1,14 @@
 package register
 
 import (
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/httperrors"
 	"strings"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/validation"
 )
 
-func (r *RegisterRequest) IsValid() []apperrors.ErrorDetail {
-	var details []apperrors.ErrorDetail
+func (r *RegisterRequest) IsValid() []httperrors.ErrorDetail {
+	var details []httperrors.ErrorDetail
 
 	if r.PhoneNumber != nil {
 		p := strings.TrimSpace(*r.PhoneNumber)
@@ -29,27 +29,27 @@ func (r *RegisterRequest) IsValid() []apperrors.ErrorDetail {
 		}
 	}
 
-	if err := tools.ValidateEmail(r.Email); err != nil {
+	if err := validation.ValidateEmail(r.Email); err != nil {
 		details = append(details, *err)
 	}
 
-	if err := tools.ValidatePassword(r.Password); err != nil {
+	if err := validation.ValidatePassword(r.Password); err != nil {
 		details = append(details, *err)
 	}
 
-	if err := tools.ValidatePhoneNumber(r.PhoneNumber); err != nil {
+	if err := validation.ValidatePhoneNumber(r.PhoneNumber); err != nil {
 		details = append(details, *err)
 	}
 
-	if err := tools.ValidateNickname(r.Nickname); err != nil {
+	if err := validation.ValidateNickname(r.Nickname); err != nil {
 		details = append(details, *err)
 	}
 
-	if err := tools.ValidateFirstName(r.FirstName); err != nil {
+	if err := validation.ValidateFirstName(r.FirstName); err != nil {
 		details = append(details, *err)
 	}
 
-	if err := tools.ValidateLastName(r.LastName); err != nil {
+	if err := validation.ValidateLastName(r.LastName); err != nil {
 		details = append(details, *err)
 	}
 

@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/storage"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/apperrors"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -30,7 +31,7 @@ func (m *ManagerImpl) WithinTransaction(ctx context.Context, fn func(ctx context
 	if err != nil {
 		m.log.ErrorContext(ctx, "WithinTransaction failed", logger.Error(err))
 
-		return err
+		return apperrors.WrapDatabase(err)
 	}
 
 	defer func() {
@@ -47,12 +48,12 @@ func (m *ManagerImpl) WithinTransaction(ctx context.Context, fn func(ctx context
 	if err := fn(ctx); err != nil {
 		m.log.ErrorContext(ctx, "WithinTransaction failed", logger.Error(err))
 
-		return err
+		return apperrors.Wrap(err)
 	}
 
 	err = tx.Commit(ctx)
 	if err != nil {
 		m.log.ErrorContext(ctx, "Commit failed", logger.Error(err))
 	}
-	return err
+	return apperrors.WrapDatabase(err)
 }

@@ -1,9 +1,9 @@
 package chat
 
 import (
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/httperrors"
 	"net/http"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
@@ -20,21 +20,21 @@ import (
 // @Security     SessionCookie
 // @Param        request body CreateGroupRequest true "Данные группы"
 // @Success      201 {object} ChatDetailResponse
-// @Failure      400 {object} apperrors.ErrorResponse
-// @Failure      401 {object} apperrors.ErrorResponse
-// @Failure      404 {object} apperrors.ErrorResponse
-// @Failure      500 {object} apperrors.ErrorResponse
+// @Failure      400 {object} httperrors.ErrorResponse
+// @Failure      401 {object} httperrors.ErrorResponse
+// @Failure      404 {object} httperrors.ErrorResponse
+// @Failure      500 {object} httperrors.ErrorResponse
 // @Router       /chats/groups [post]
-func (d *ChatDeliveryImpl) HandleCreateGroup(w http.ResponseWriter, r *http.Request, req *CreateGroupRequest) *apperrors.AppError {
+func (d *ChatDeliveryImpl) HandleCreateGroup(w http.ResponseWriter, r *http.Request, req *CreateGroupRequest) *httperrors.HTTPError {
 
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
-		return apperrors.NewUnauthorized("Authorization required")
+		return httperrors.NewUnauthorized("Authorization required")
 	}
 
 	for _, memberID := range req.Members {
 		if memberID == userID {
-			return apperrors.NewBadRequest("Validation failed", []apperrors.ErrorDetail{{Field: "members", Reason: "Creator must not be included in members"}})
+			return httperrors.NewBadRequest("Validation failed", []httperrors.ErrorDetail{{Field: "members", Reason: "Creator must not be included in members"}})
 		}
 	}
 
@@ -69,17 +69,17 @@ func (d *ChatDeliveryImpl) HandleCreateGroup(w http.ResponseWriter, r *http.Requ
 // @Param        id path string true "ID группы (UUID)" format(uuid)
 // @Param        request body UpdateGroupRequest true "Изменяемые поля"
 // @Success      200 {object} ChatDetailResponse
-// @Failure      400 {object} apperrors.ErrorResponse
-// @Failure      401 {object} apperrors.ErrorResponse
-// @Failure      403 {object} apperrors.ErrorResponse
-// @Failure      404 {object} apperrors.ErrorResponse
-// @Failure      500 {object} apperrors.ErrorResponse
+// @Failure      400 {object} httperrors.ErrorResponse
+// @Failure      401 {object} httperrors.ErrorResponse
+// @Failure      403 {object} httperrors.ErrorResponse
+// @Failure      404 {object} httperrors.ErrorResponse
+// @Failure      500 {object} httperrors.ErrorResponse
 // @Router       /chats/{id} [patch]
-func (d *ChatDeliveryImpl) HandleUpdateGroup(w http.ResponseWriter, r *http.Request, req *UpdateGroupRequest) *apperrors.AppError {
+func (d *ChatDeliveryImpl) HandleUpdateGroup(w http.ResponseWriter, r *http.Request, req *UpdateGroupRequest) *httperrors.HTTPError {
 
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
-		return apperrors.NewUnauthorized("Authorization required")
+		return httperrors.NewUnauthorized("Authorization required")
 	}
 
 	chatID, err := uuid.Parse(r.PathValue("id"))
@@ -88,7 +88,7 @@ func (d *ChatDeliveryImpl) HandleUpdateGroup(w http.ResponseWriter, r *http.Requ
 			d.log.ErrorContext(r.Context(), "HandleUpdateGroup failed", logger.Error(err))
 		}
 
-		return apperrors.NewBadRequest("Invalid id", []apperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}})
+		return httperrors.NewBadRequest("Invalid id", []httperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}})
 	}
 
 	result, usecaseErr := d.chatUsecase.UpdateGroup(r.Context(), userID, chatID, req.Name, req.Description, req.SetDescription)
@@ -115,32 +115,32 @@ func (d *ChatDeliveryImpl) HandleUpdateGroup(w http.ResponseWriter, r *http.Requ
 // @Param        id path string true "ID группы (UUID)" format(uuid)
 // @Param        file formData file true "Аватар"
 // @Success      200 {object} ChatDetailResponse
-// @Failure      400 {object} apperrors.ErrorResponse
-// @Failure      401 {object} apperrors.ErrorResponse
-// @Failure      403 {object} apperrors.ErrorResponse
-// @Failure      404 {object} apperrors.ErrorResponse
-// @Failure      500 {object} apperrors.ErrorResponse
+// @Failure      400 {object} httperrors.ErrorResponse
+// @Failure      401 {object} httperrors.ErrorResponse
+// @Failure      403 {object} httperrors.ErrorResponse
+// @Failure      404 {object} httperrors.ErrorResponse
+// @Failure      500 {object} httperrors.ErrorResponse
 // @Router       /chats/{id}/avatar [put]
 func (d *ChatDeliveryImpl) HandleUploadGroupAvatar(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
-		apperrors.WriteError(w, apperrors.NewUnauthorized("Authorization required"))
+		httperrors.WriteError(w, httperrors.NewUnauthorized("Authorization required"))
 		return
 	}
 	chatID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil || chatID == uuid.Nil {
-		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid id", nil))
+		httperrors.WriteError(w, httperrors.NewBadRequest("Invalid id", nil))
 		return
 	}
 	upload, closeFile, err := tools.ExtractAvatar(w, r)
 	if err != nil {
-		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid avatar file", nil))
+		httperrors.WriteError(w, httperrors.NewBadRequest("Invalid avatar file", nil))
 		return
 	}
 	defer closeFile()
 	detail, err := d.chatUsecase.UploadGroupAvatar(r.Context(), userID, chatID, upload)
 	if err != nil {
-		apperrors.WriteError(w, mapChatError(err))
+		httperrors.WriteError(w, mapChatError(err))
 		return
 	}
 	d.broadcaster.BroadcastToChat(chatID, models.Event{Type: models.EventChatUpdated, Payload: map[string]any{"chat_id": chatID}})
@@ -156,15 +156,15 @@ func (d *ChatDeliveryImpl) HandleUploadGroupAvatar(w http.ResponseWriter, r *htt
 // @Security     SessionCookie
 // @Param        id path string true "ID чата (UUID)" format(uuid)
 // @Success      200 {object} ListMembersResponse
-// @Failure      400 {object} apperrors.ErrorResponse
-// @Failure      401 {object} apperrors.ErrorResponse
-// @Failure      404 {object} apperrors.ErrorResponse
-// @Failure      500 {object} apperrors.ErrorResponse
+// @Failure      400 {object} httperrors.ErrorResponse
+// @Failure      401 {object} httperrors.ErrorResponse
+// @Failure      404 {object} httperrors.ErrorResponse
+// @Failure      500 {object} httperrors.ErrorResponse
 // @Router       /chats/{id}/members [get]
 func (d *ChatDeliveryImpl) HandleGetListMembers(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
-		apperrors.WriteError(w, apperrors.NewUnauthorized("Authorization required"))
+		httperrors.WriteError(w, httperrors.NewUnauthorized("Authorization required"))
 		return
 	}
 
@@ -174,7 +174,7 @@ func (d *ChatDeliveryImpl) HandleGetListMembers(w http.ResponseWriter, r *http.R
 			d.log.ErrorContext(r.Context(), "HandleGetListMembers failed", logger.Error(err))
 		}
 
-		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid id", []apperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}}))
+		httperrors.WriteError(w, httperrors.NewBadRequest("Invalid id", []httperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}}))
 		return
 	}
 
@@ -182,7 +182,7 @@ func (d *ChatDeliveryImpl) HandleGetListMembers(w http.ResponseWriter, r *http.R
 	if err != nil {
 		d.log.ErrorContext(r.Context(), "HandleGetListMembers failed", logger.Error(err))
 
-		apperrors.WriteError(w, mapChatError(err))
+		httperrors.WriteError(w, mapChatError(err))
 		return
 	}
 
@@ -203,22 +203,22 @@ func (d *ChatDeliveryImpl) HandleGetListMembers(w http.ResponseWriter, r *http.R
 // @Param        id path string true "ID группы (UUID)" format(uuid)
 // @Param        request body AddMemberRequest true "ID нового участника"
 // @Success      201 {object} ChatMemberResponse
-// @Failure      400 {object} apperrors.ErrorResponse
-// @Failure      401 {object} apperrors.ErrorResponse
-// @Failure      403 {object} apperrors.ErrorResponse
-// @Failure      404 {object} apperrors.ErrorResponse
-// @Failure      409 {object} apperrors.ErrorResponse
-// @Failure      500 {object} apperrors.ErrorResponse
+// @Failure      400 {object} httperrors.ErrorResponse
+// @Failure      401 {object} httperrors.ErrorResponse
+// @Failure      403 {object} httperrors.ErrorResponse
+// @Failure      404 {object} httperrors.ErrorResponse
+// @Failure      409 {object} httperrors.ErrorResponse
+// @Failure      500 {object} httperrors.ErrorResponse
 // @Router       /chats/{id}/members [post]
-func (d *ChatDeliveryImpl) HandleAddMember(w http.ResponseWriter, r *http.Request, req *AddMemberRequest) *apperrors.AppError {
+func (d *ChatDeliveryImpl) HandleAddMember(w http.ResponseWriter, r *http.Request, req *AddMemberRequest) *httperrors.HTTPError {
 
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
-		return apperrors.NewUnauthorized("Authorization required")
+		return httperrors.NewUnauthorized("Authorization required")
 	}
 
 	if req.UserID == userID {
-		return apperrors.NewBadRequest("Validation failed", []apperrors.ErrorDetail{{Field: "user_id", Reason: "Cannot add yourself"}})
+		return httperrors.NewBadRequest("Validation failed", []httperrors.ErrorDetail{{Field: "user_id", Reason: "Cannot add yourself"}})
 	}
 
 	chatID, err := uuid.Parse(r.PathValue("id"))
@@ -227,7 +227,7 @@ func (d *ChatDeliveryImpl) HandleAddMember(w http.ResponseWriter, r *http.Reques
 			d.log.ErrorContext(r.Context(), "HandleAddMember failed", logger.Error(err))
 		}
 
-		return apperrors.NewBadRequest("Invalid id", []apperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}})
+		return httperrors.NewBadRequest("Invalid id", []httperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}})
 	}
 
 	result, usecaseErr := d.chatUsecase.AddMember(r.Context(), userID, chatID, req.UserID)
@@ -264,28 +264,28 @@ func (d *ChatDeliveryImpl) HandleAddMember(w http.ResponseWriter, r *http.Reques
 // @Param        user_id path string true "ID участника (UUID)" format(uuid)
 // @Param        request body UpdateMemberRoleRequest true "Новая роль участника"
 // @Success      200 {object} ChatMemberResponse
-// @Failure      400 {object} apperrors.ErrorResponse
-// @Failure      401 {object} apperrors.ErrorResponse
-// @Failure      403 {object} apperrors.ErrorResponse
-// @Failure      404 {object} apperrors.ErrorResponse
-// @Failure      500 {object} apperrors.ErrorResponse
+// @Failure      400 {object} httperrors.ErrorResponse
+// @Failure      401 {object} httperrors.ErrorResponse
+// @Failure      403 {object} httperrors.ErrorResponse
+// @Failure      404 {object} httperrors.ErrorResponse
+// @Failure      500 {object} httperrors.ErrorResponse
 // @Router       /chats/{id}/members/{user_id}/role [patch]
-func (d *ChatDeliveryImpl) HandleUpdateMemberRole(w http.ResponseWriter, r *http.Request, req *UpdateMemberRoleRequest) *apperrors.AppError {
+func (d *ChatDeliveryImpl) HandleUpdateMemberRole(w http.ResponseWriter, r *http.Request, req *UpdateMemberRoleRequest) *httperrors.HTTPError {
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
-		return apperrors.NewUnauthorized("Authorization required")
+		return httperrors.NewUnauthorized("Authorization required")
 	}
 	if req.Role != "admin" && req.Role != "member" {
-		return apperrors.NewBadRequest("Validation failed", []apperrors.ErrorDetail{{Field: "role", Reason: "Role must be admin or member"}})
+		return httperrors.NewBadRequest("Validation failed", []httperrors.ErrorDetail{{Field: "role", Reason: "Role must be admin or member"}})
 	}
 
 	chatID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil || chatID == uuid.Nil {
-		return apperrors.NewBadRequest("Invalid id", []apperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}})
+		return httperrors.NewBadRequest("Invalid id", []httperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}})
 	}
 	targetID, err := uuid.Parse(r.PathValue("user_id"))
 	if err != nil || targetID == uuid.Nil {
-		return apperrors.NewBadRequest("Invalid user_id", []apperrors.ErrorDetail{{Field: "user_id", Reason: "user_id must be a valid UUID"}})
+		return httperrors.NewBadRequest("Invalid user_id", []httperrors.ErrorDetail{{Field: "user_id", Reason: "user_id must be a valid UUID"}})
 	}
 
 	result, usecaseErr := d.chatUsecase.UpdateMemberRole(r.Context(), userID, chatID, targetID, req.Role)
@@ -316,16 +316,16 @@ func (d *ChatDeliveryImpl) HandleUpdateMemberRole(w http.ResponseWriter, r *http
 // @Param        id path string true "ID группы (UUID)" format(uuid)
 // @Param        user_id path string true "ID участника (UUID)" format(uuid)
 // @Success      204 "Участник удалён"
-// @Failure      400 {object} apperrors.ErrorResponse
-// @Failure      401 {object} apperrors.ErrorResponse
-// @Failure      403 {object} apperrors.ErrorResponse
-// @Failure      404 {object} apperrors.ErrorResponse
-// @Failure      500 {object} apperrors.ErrorResponse
+// @Failure      400 {object} httperrors.ErrorResponse
+// @Failure      401 {object} httperrors.ErrorResponse
+// @Failure      403 {object} httperrors.ErrorResponse
+// @Failure      404 {object} httperrors.ErrorResponse
+// @Failure      500 {object} httperrors.ErrorResponse
 // @Router       /chats/{id}/members/{user_id} [delete]
 func (d *ChatDeliveryImpl) HandleRemoveMember(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
-		apperrors.WriteError(w, apperrors.NewUnauthorized("Authorization required"))
+		httperrors.WriteError(w, httperrors.NewUnauthorized("Authorization required"))
 		return
 	}
 
@@ -335,7 +335,7 @@ func (d *ChatDeliveryImpl) HandleRemoveMember(w http.ResponseWriter, r *http.Req
 			d.log.ErrorContext(r.Context(), "HandleRemoveMember failed", logger.Error(err))
 		}
 
-		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid id", []apperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}}))
+		httperrors.WriteError(w, httperrors.NewBadRequest("Invalid id", []httperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}}))
 		return
 	}
 
@@ -345,14 +345,14 @@ func (d *ChatDeliveryImpl) HandleRemoveMember(w http.ResponseWriter, r *http.Req
 			d.log.ErrorContext(r.Context(), "HandleRemoveMember failed", logger.Error(err))
 		}
 
-		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid user_id", []apperrors.ErrorDetail{{Field: "user_id", Reason: "user_id must be a valid UUID"}}))
+		httperrors.WriteError(w, httperrors.NewBadRequest("Invalid user_id", []httperrors.ErrorDetail{{Field: "user_id", Reason: "user_id must be a valid UUID"}}))
 		return
 	}
 
 	if err := d.chatUsecase.RemoveMember(r.Context(), userID, chatID, targetID); err != nil {
 		d.log.ErrorContext(r.Context(), "HandleRemoveMember failed", logger.Error(err))
 
-		apperrors.WriteError(w, mapChatError(err))
+		httperrors.WriteError(w, mapChatError(err))
 		return
 	}
 
@@ -370,16 +370,16 @@ func (d *ChatDeliveryImpl) HandleRemoveMember(w http.ResponseWriter, r *http.Req
 // @Security     SessionCookie
 // @Param        id path string true "ID группы (UUID)" format(uuid)
 // @Success      204 "Выход из группы выполнен"
-// @Failure      400 {object} apperrors.ErrorResponse
-// @Failure      401 {object} apperrors.ErrorResponse
-// @Failure      403 {object} apperrors.ErrorResponse
-// @Failure      404 {object} apperrors.ErrorResponse
-// @Failure      500 {object} apperrors.ErrorResponse
+// @Failure      400 {object} httperrors.ErrorResponse
+// @Failure      401 {object} httperrors.ErrorResponse
+// @Failure      403 {object} httperrors.ErrorResponse
+// @Failure      404 {object} httperrors.ErrorResponse
+// @Failure      500 {object} httperrors.ErrorResponse
 // @Router       /chats/{id}/leave [delete]
 func (d *ChatDeliveryImpl) HandleLeaveGroup(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
-		apperrors.WriteError(w, apperrors.NewUnauthorized("Authorization required"))
+		httperrors.WriteError(w, httperrors.NewUnauthorized("Authorization required"))
 		return
 	}
 
@@ -389,14 +389,14 @@ func (d *ChatDeliveryImpl) HandleLeaveGroup(w http.ResponseWriter, r *http.Reque
 			d.log.ErrorContext(r.Context(), "HandleLeaveGroup failed", logger.Error(err))
 		}
 
-		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid id", []apperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}}))
+		httperrors.WriteError(w, httperrors.NewBadRequest("Invalid id", []httperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}}))
 		return
 	}
 
 	if err := d.chatUsecase.RemoveMember(r.Context(), userID, chatID, userID); err != nil {
 		d.log.ErrorContext(r.Context(), "HandleLeaveGroup failed", logger.Error(err))
 
-		apperrors.WriteError(w, mapChatError(err))
+		httperrors.WriteError(w, mapChatError(err))
 		return
 	}
 

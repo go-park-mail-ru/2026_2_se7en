@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"sort"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/apperrors"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -20,7 +20,7 @@ func (r *ChatRepositoryImpl) CreateChat(ctx context.Context, userID, peerID uuid
 	if err != nil {
 		r.log.ErrorContext(ctx, "CreateChat failed", logger.Error(err))
 
-		return uuid.Nil, models.DialogExisting, err
+		return uuid.Nil, models.DialogExisting, apperrors.WrapDatabase(err)
 	}
 
 	defer tx.Rollback(ctx)
@@ -31,7 +31,7 @@ func (r *ChatRepositoryImpl) CreateChat(ctx context.Context, userID, peerID uuid
 	if err != nil {
 		r.log.ErrorContext(ctx, "CreateChat failed", logger.Error(err))
 
-		return uuid.Nil, models.DialogExisting, err
+		return uuid.Nil, models.DialogExisting, apperrors.WrapDatabase(err)
 	}
 
 	var activeUsers int
@@ -40,7 +40,7 @@ func (r *ChatRepositoryImpl) CreateChat(ctx context.Context, userID, peerID uuid
 	if err != nil {
 		r.log.ErrorContext(ctx, "CreateChat failed", logger.Error(err))
 
-		return uuid.Nil, models.DialogExisting, err
+		return uuid.Nil, models.DialogExisting, apperrors.WrapDatabase(err)
 	}
 
 	if activeUsers != 2 {
@@ -61,7 +61,7 @@ func (r *ChatRepositoryImpl) CreateChat(ctx context.Context, userID, peerID uuid
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		r.log.ErrorContext(ctx, "CreateChat failed", logger.Error(err))
 
-		return uuid.Nil, models.DialogExisting, err
+		return uuid.Nil, models.DialogExisting, apperrors.WrapDatabase(err)
 	}
 
 	status := models.DialogExisting
@@ -71,14 +71,14 @@ func (r *ChatRepositoryImpl) CreateChat(ctx context.Context, userID, peerID uuid
 		if err != nil {
 			r.log.ErrorContext(ctx, "CreateChat failed", logger.Error(err))
 
-			return uuid.Nil, models.DialogExisting, err
+			return uuid.Nil, models.DialogExisting, apperrors.WrapDatabase(err)
 		}
 
 		memberRole, err := role(ctx, tx, "member")
 		if err != nil {
 			r.log.ErrorContext(ctx, "CreateChat failed", logger.Error(err))
 
-			return uuid.Nil, models.DialogExisting, err
+			return uuid.Nil, models.DialogExisting, apperrors.WrapDatabase(err)
 		}
 
 		const insertMembers = `
@@ -89,7 +89,7 @@ func (r *ChatRepositoryImpl) CreateChat(ctx context.Context, userID, peerID uuid
 		if err != nil {
 			r.log.ErrorContext(ctx, "CreateChat failed", logger.Error(err))
 
-			return uuid.Nil, models.DialogExisting, err
+			return uuid.Nil, models.DialogExisting, apperrors.WrapDatabase(err)
 		}
 
 		status = models.DialogCreated
@@ -98,7 +98,7 @@ func (r *ChatRepositoryImpl) CreateChat(ctx context.Context, userID, peerID uuid
 		if err != nil {
 			r.log.ErrorContext(ctx, "CreateChat failed", logger.Error(err))
 
-			return uuid.Nil, models.DialogExisting, err
+			return uuid.Nil, models.DialogExisting, apperrors.WrapDatabase(err)
 		}
 
 		const restoreMember = `
@@ -113,7 +113,7 @@ func (r *ChatRepositoryImpl) CreateChat(ctx context.Context, userID, peerID uuid
 		if err != nil {
 			r.log.ErrorContext(ctx, "CreateChat failed", logger.Error(err))
 
-			return uuid.Nil, models.DialogExisting, err
+			return uuid.Nil, models.DialogExisting, apperrors.WrapDatabase(err)
 		}
 
 		if commandTag.RowsAffected() > 0 {
@@ -132,14 +132,14 @@ func (r *ChatRepositoryImpl) CreateChat(ctx context.Context, userID, peerID uuid
 		if err != nil {
 			r.log.ErrorContext(ctx, "CreateChat failed", logger.Error(err))
 
-			return uuid.Nil, models.DialogExisting, err
+			return uuid.Nil, models.DialogExisting, apperrors.WrapDatabase(err)
 		}
 	}
 
 	if err = tx.Commit(ctx); err != nil {
 		r.log.ErrorContext(ctx, "CreateChat failed", logger.Error(err))
 
-		return uuid.Nil, models.DialogExisting, err
+		return uuid.Nil, models.DialogExisting, apperrors.WrapDatabase(err)
 	}
 
 	return chatID, status, nil
@@ -152,7 +152,7 @@ func (r *ChatRepositoryImpl) HideDialog(ctx context.Context, userID, chatID uuid
 	if err != nil {
 		r.log.ErrorContext(ctx, "HideDialog failed", logger.Error(err))
 
-		return err
+		return apperrors.WrapDatabase(err)
 	}
 
 	defer tx.Rollback(ctx)
@@ -160,7 +160,7 @@ func (r *ChatRepositoryImpl) HideDialog(ctx context.Context, userID, chatID uuid
 	if err != nil {
 		r.log.ErrorContext(ctx, "HideDialog failed", logger.Error(err))
 
-		return err
+		return apperrors.WrapDatabase(err)
 	}
 
 	if chatType != "dialog" {
@@ -176,7 +176,7 @@ func (r *ChatRepositoryImpl) HideDialog(ctx context.Context, userID, chatID uuid
 	if err != nil {
 		r.log.ErrorContext(ctx, "HideDialog failed", logger.Error(err))
 
-		return err
+		return apperrors.WrapDatabase(err)
 	}
 
 	if tag.RowsAffected() == 0 {
@@ -195,12 +195,12 @@ func (r *ChatRepositoryImpl) HideDialog(ctx context.Context, userID, chatID uuid
 	if err != nil {
 		r.log.ErrorContext(ctx, "HideDialog failed", logger.Error(err))
 
-		return err
+		return apperrors.WrapDatabase(err)
 	}
 
 	err = tx.Commit(ctx)
 	if err != nil {
 		r.log.ErrorContext(ctx, "Commit failed", logger.Error(err))
 	}
-	return err
+	return apperrors.WrapDatabase(err)
 }

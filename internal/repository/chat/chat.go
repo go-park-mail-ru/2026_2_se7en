@@ -6,10 +6,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/storage"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/apperrors"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -26,7 +26,7 @@ func NewChatRepository(pool storage.DBPool, baseLog *slog.Logger) *ChatRepositor
 		pool: pool}
 }
 
-func (r *ChatRepositoryImpl) IsMember(ctx context.Context, userID, chatID uuid.UUID) (bool, error) {
+func (r *ChatRepositoryImpl) IsMember(ctx context.Context, userID, chatID uuid.UUID) (*models.ChatMembership, error) {
 	r.log.DebugContext(ctx, "database operation", logger.KeyOperation, "IsMember", slog.Any(logger.KeyTargetID, userID), slog.Any(logger.KeyChatID, chatID))
 
 	const query = `
@@ -40,7 +40,10 @@ func (r *ChatRepositoryImpl) IsMember(ctx context.Context, userID, chatID uuid.U
 	`
 	var isMember bool
 	err := r.pool.QueryRow(ctx, query, userID, chatID).Scan(&isMember)
-	return isMember, err
+	if err != nil {
+		return nil, apperrors.WrapDatabase(err)
+	}
+	return &models.ChatMembership{IsMember: isMember}, nil
 }
 
 func (r *ChatRepositoryImpl) GetActiveMemberIDs(ctx context.Context, chatID uuid.UUID) ([]uuid.UUID, error) {
@@ -50,7 +53,7 @@ func (r *ChatRepositoryImpl) GetActiveMemberIDs(ctx context.Context, chatID uuid
 
 	rows, err := r.pool.Query(ctx, query, chatID)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	defer rows.Close()
@@ -58,13 +61,13 @@ func (r *ChatRepositoryImpl) GetActiveMemberIDs(ctx context.Context, chatID uuid
 	for rows.Next() {
 		var id uuid.UUID
 		if err := rows.Scan(&id); err != nil {
-			return nil, err
+			return nil, apperrors.WrapDatabase(err)
 		}
 
 		ids = append(ids, id)
 	}
 
-	return ids, rows.Err()
+	return ids, apperrors.WrapDatabase(rows.Err())
 }
 
 const sqlPeerDetailsJoin = `
@@ -136,13 +139,13 @@ const sqlFindForUser = `
 
 func (r *ChatRepositoryImpl) GetListUserChats(ctx context.Context, userID uuid.UUID, limit, offset int, chatType string, cursorTime *time.Time, cursorID uuid.UUID) ([]*models.ChatListItem, error) {
 	r.log.DebugContext(ctx, "database operation", logger.KeyOperation, "GetListUserChats", slog.Any(logger.KeyTargetID, userID))
-  
-  rows, err := r.pool.Query(ctx, sqlListUserChats, userID, limit, offset, chatType, cursorTime, cursorID)
-	
+
+	rows, err := r.pool.Query(ctx, sqlListUserChats, userID, limit, offset, chatType, cursorTime, cursorID)
+
 	if err != nil {
 		r.log.ErrorContext(ctx, "GetListUserChats failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	defer rows.Close()
@@ -165,7 +168,7 @@ func (r *ChatRepositoryImpl) GetListUserChats(ctx context.Context, userID uuid.U
 		if err != nil {
 			r.log.ErrorContext(ctx, "GetListUserChats failed", logger.Error(err))
 
-			return nil, err
+			return nil, apperrors.WrapDatabase(err)
 		}
 
 		if msgID != nil && msgType != nil && msgCreatedAt != nil {
@@ -183,7 +186,7 @@ func (r *ChatRepositoryImpl) GetListUserChats(ctx context.Context, userID uuid.U
 	if err := rows.Err(); err != nil {
 		r.log.ErrorContext(ctx, "GetListUserChats failed", logger.Error(err))
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	return items, nil
@@ -203,7 +206,7 @@ func scanDetail(row pgx.Row) (*models.ChatDetail, error) {
 
 	if err != nil {
 
-		return nil, err
+		return nil, apperrors.WrapDatabase(err)
 	}
 
 	return ChatDetailDBToModel(&db), nil
@@ -216,14 +219,14 @@ func (r *ChatRepositoryImpl) GetChat(ctx context.Context, userID, chatID uuid.UU
 	if err != nil {
 		r.log.ErrorContext(ctx, "GetChat failed", logger.Error(err))
 	}
-	return detail, err
+	return detail, apperrors.WrapDatabase(err)
 }
 
 func role(ctx context.Context, tx pgx.Tx, kind string) (uuid.UUID, error) {
 	const query = `select id from chat_role where type = $1`
 	var id uuid.UUID
 	err := tx.QueryRow(ctx, query, kind).Scan(&id)
-	return id, err
+	return id, apperrors.WrapDatabase(err)
 }
 
 func activeRole(ctx context.Context, tx pgx.Tx, userID, chatID uuid.UUID) (string, string, error) {
@@ -243,7 +246,7 @@ func activeRole(ctx context.Context, tx pgx.Tx, userID, chatID uuid.UUID) (strin
 		return "", "", apperrors.ErrChatNotFound
 	}
 
-	return chatType, roleType, err
+	return chatType, roleType, apperrors.WrapDatabase(err)
 }
 
 func (r *ChatRepositoryImpl) DeleteChat(ctx context.Context, userID, chatID uuid.UUID) error {
@@ -253,7 +256,7 @@ func (r *ChatRepositoryImpl) DeleteChat(ctx context.Context, userID, chatID uuid
 	if err != nil {
 		r.log.ErrorContext(ctx, "DeleteChat failed", logger.Error(err))
 
-		return err
+		return apperrors.WrapDatabase(err)
 	}
 
 	defer tx.Rollback(ctx)
@@ -261,7 +264,7 @@ func (r *ChatRepositoryImpl) DeleteChat(ctx context.Context, userID, chatID uuid
 	if err != nil {
 		r.log.ErrorContext(ctx, "DeleteChat failed", logger.Error(err))
 
-		return err
+		return apperrors.WrapDatabase(err)
 	}
 
 	switch typ {
@@ -279,12 +282,12 @@ func (r *ChatRepositoryImpl) DeleteChat(ctx context.Context, userID, chatID uuid
 	if err != nil {
 		r.log.ErrorContext(ctx, "DeleteChat failed", logger.Error(err))
 
-		return err
+		return apperrors.WrapDatabase(err)
 	}
 
 	err = tx.Commit(ctx)
 	if err != nil {
 		r.log.ErrorContext(ctx, "Commit failed", logger.Error(err))
 	}
-	return err
+	return apperrors.WrapDatabase(err)
 }

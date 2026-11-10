@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/apperrors"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
@@ -24,7 +24,7 @@ const (
 )
 
 type ChatService interface {
-	IsMember(ctx context.Context, userID, chatID uuid.UUID) (bool, error)
+	IsMember(ctx context.Context, userID, chatID uuid.UUID) (*models.ChatMembership, error)
 	MarkMessageRead(ctx context.Context, userID, chatID, messageID uuid.UUID) (bool, error)
 }
 
@@ -115,7 +115,7 @@ func (c *Client) handleAction(action models.Action) {
 			return
 		}
 
-		isMember, err := c.chatService.IsMember(c.ctx, c.userID, action.ChatID)
+		membership, err := c.chatService.IsMember(c.ctx, c.userID, action.ChatID)
 		if err != nil {
 			c.log.ErrorContext(c.ctx, "handleAction failed", logger.Error(err))
 
@@ -123,7 +123,7 @@ func (c *Client) handleAction(action models.Action) {
 			return
 		}
 
-		if !isMember {
+		if membership == nil || !membership.IsMember {
 			c.sendActionError("not_a_member")
 			return
 		}

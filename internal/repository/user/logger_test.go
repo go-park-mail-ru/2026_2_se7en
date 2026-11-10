@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/storage"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/apperrors"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -33,7 +34,12 @@ func TestDatabaseLogsCarryRequestAndLayer(t *testing.T) {
 	failure := errors.New("database unavailable")
 	repo := NewUserRepository(loggingPool{err: failure}, log)
 	ctx := logger.WithUserID(logger.WithRequestID(context.Background(), "db-request"), "caller")
-	if _, err := repo.FindByID(ctx, uuid.New()); !errors.Is(err, failure) {
+	_, err = repo.FindByID(ctx, uuid.New())
+	var serviceErr *apperrors.ServiceError
+	if !errors.As(err, &serviceErr) {
+		t.Fatalf("error type = %T, want *ServiceError", err)
+	}
+	if !errors.Is(err, failure) {
 		t.Fatalf("error=%v", err)
 	}
 	entries := strings.Split(strings.TrimSpace(output.String()), "\n")

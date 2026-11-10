@@ -10,7 +10,7 @@ import (
 )
 
 func (uc *ChatUsecaseImpl) UploadGroupAvatar(ctx context.Context, userID, chatID uuid.UUID, upload *models.FileUpload) (*models.ChatDetail, error) {
-	url, filename, err := tools.SaveAvatar(upload)
+	url, filename, err := tools.SaveAvatar(ctx, upload, uc.log)
 	if err != nil {
 		return nil, err
 	}

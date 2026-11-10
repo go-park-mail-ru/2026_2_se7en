@@ -45,17 +45,15 @@ func New(db *storage.DB, origins []string, baseLog *slog.Logger) (http.Handler, 
 	profileUsecase := usecaseprofile.NewProfileUsecase(txManager, userRepo, profileRepo, fileRepo, baseLog)
 	contactUsecase := usecasecontact.NewContactUsecase(contactRepo, userRepo, baseLog)
 
-	wsHandler := chat.NewWSHandler(hub, chatUsecase, origins, baseLog)
+	wsHandler := deliverychat.NewWSHandler(hub, chatUsecase, origins, baseLog)
 
 	authDelivery := deliveryauth.NewAuthDelivery(authUsecase, hub, baseLog)
 	registerDelivery := deliveryregister.NewRegisterDelivery(registerUsecase, baseLog)
 	chatDelivery := deliverychat.NewChatDelivery(chatUsecase, hub, baseLog)
 	profileDelivery := deliveryprofile.NewProfileDelivery(profileUsecase, baseLog)
-	contactDelivery := deliverycontact.NewContactDelivery(contactUsecase, baseLog)
+	contactDelivery := deliverycontact.NewContactDelivery(contactUsecase, hub, baseLog)
 
 	api := http.NewServeMux()
-
-	api.HandleFunc("GET /health", healthCheck)
 
 	api.HandleFunc("GET /health", healthCheck)
 

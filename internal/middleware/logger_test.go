@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -86,8 +87,8 @@ func TestAccessLogAllowsWebSocketUpgrade(t *testing.T) {
 
 type loggingSessionRepo struct{ userID uuid.UUID }
 
-func (r loggingSessionRepo) GetSessionUser(context.Context, uuid.UUID) (uuid.UUID, error) {
-	return r.userID, nil
+func (r loggingSessionRepo) GetSessionUser(context.Context, uuid.UUID) (*models.SessionUser, error) {
+	return &models.SessionUser{UserID: r.userID}, nil
 }
 func (r loggingSessionRepo) ExtendSession(context.Context, uuid.UUID, time.Time) error { return nil }
 func TestAuthKeepsSessionAndLoggingMetadata(t *testing.T) {

@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	deliveryauth "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/auth"
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/chat"
 	deliverychat "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/chat"
 	ws "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/chat/ws"
 	deliverycontact "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/contact"
@@ -58,20 +57,24 @@ func New(db *storage.DB, origins []string, baseLog *slog.Logger) (http.Handler, 
 
 	api.HandleFunc("GET /health", healthCheck)
 
+	api.HandleFunc("GET /health", healthCheck)
+
 	api.Handle("POST /auth/register", tools.NewJSONDecoder(registerDelivery.HandleRegister, baseLog))
 	api.Handle("POST /auth/login", tools.NewJSONDecoder(authDelivery.HandleLogin, baseLog))
-
 	api.Handle("GET /auth/me", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(authDelivery.HandleMe), baseLog))
 	api.Handle("POST /auth/logout", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(authDelivery.HandleLogout), baseLog))
+
 	api.Handle("GET /chats", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(chatDelivery.HandleGetListUserChats), baseLog))
 	api.Handle("GET /chats/{id}", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(chatDelivery.HandleGetChatDetail), baseLog))
 	api.Handle("POST /chats/dialogs", middleware.NewAuthMiddleware(sessionRepo, tools.NewJSONDecoder(chatDelivery.HandleCreateDialog, baseLog), baseLog))
 	api.Handle("POST /chats/{id}/hide", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(chatDelivery.HandleHideDialog), baseLog))
 	api.Handle("POST /chats/groups", middleware.NewAuthMiddleware(sessionRepo, tools.NewJSONDecoder(chatDelivery.HandleCreateGroup, baseLog), baseLog))
 	api.Handle("PATCH /chats/{id}", middleware.NewAuthMiddleware(sessionRepo, tools.NewJSONDecoder(chatDelivery.HandleUpdateGroup, baseLog), baseLog))
+	api.Handle("PUT /chats/{id}/avatar", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(chatDelivery.HandleUploadGroupAvatar), baseLog)) // Из sync-dev
 	api.Handle("DELETE /chats/{id}", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(chatDelivery.HandleDeleteChat), baseLog))
 	api.Handle("GET /chats/{id}/members", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(chatDelivery.HandleGetListMembers), baseLog))
 	api.Handle("POST /chats/{id}/members", middleware.NewAuthMiddleware(sessionRepo, tools.NewJSONDecoder(chatDelivery.HandleAddMember, baseLog), baseLog))
+	api.Handle("PATCH /chats/{id}/members/{user_id}/role", middleware.NewAuthMiddleware(sessionRepo, tools.NewJSONDecoder(chatDelivery.HandleUpdateMemberRole, baseLog), baseLog)) // Из sync-dev
 	api.Handle("DELETE /chats/{id}/members/{user_id}", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(chatDelivery.HandleRemoveMember), baseLog))
 	api.Handle("DELETE /chats/{id}/leave", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(chatDelivery.HandleLeaveGroup), baseLog))
 	api.Handle("GET /chats/{id}/messages", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(chatDelivery.HandleGetListMessages), baseLog))
@@ -83,8 +86,7 @@ func New(db *storage.DB, origins []string, baseLog *slog.Logger) (http.Handler, 
 	api.Handle("POST /contacts", middleware.NewAuthMiddleware(sessionRepo, tools.NewJSONDecoder(contactDelivery.HandleCreateContact, baseLog), baseLog))
 	api.Handle("DELETE /contacts", middleware.NewAuthMiddleware(sessionRepo, tools.NewJSONDecoder(contactDelivery.HandleDeleteContact, baseLog), baseLog))
 
-	api.Handle("GET /users/{id}", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(profileDelivery.HandleGetPublicProfile), baseLog))
-
+	api.Handle("GET /users/{id}", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(profileDelivery.HandleGetPublicProfile), baseLog)) // Из dev
 	api.Handle("GET /profile", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(profileDelivery.HandleGetProfile), baseLog))
 	api.Handle("PATCH /profile", middleware.NewAuthMiddleware(sessionRepo, tools.NewJSONDecoder(profileDelivery.HandleUpdateProfile, baseLog), baseLog))
 	api.Handle("PUT /profile/avatar", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(profileDelivery.HandleUploadAvatar), baseLog))

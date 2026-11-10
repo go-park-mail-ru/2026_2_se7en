@@ -9,20 +9,27 @@ import (
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
+	"github.com/google/uuid"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
 )
+
+type OnlineChecker interface {
+	IsOnline(userID uuid.UUID) bool
+}
 
 type ContactDeliveryImpl struct {
 	log *slog.Logger
 
 	contactUsecase ContactUsecase
+	onlineChecker  OnlineChecker
 }
 
-func NewContactDelivery(contactUsecase ContactUsecase, baseLog *slog.Logger) *ContactDeliveryImpl {
+func NewContactDelivery(contactUsecase ContactUsecase, onlineChecker OnlineChecker, baseLog *slog.Logger) *ContactDeliveryImpl {
 	return &ContactDeliveryImpl{
 		log: logger.Scope(baseLog, logger.LayerDelivery, logger.ModuleContact),
 
 		contactUsecase: contactUsecase,
+		onlineChecker:  onlineChecker,
 	}
 }
 
@@ -65,6 +72,9 @@ func (d *ContactDeliveryImpl) HandleGetContactsList(w http.ResponseWriter, r *ht
 
 		apperrors.WriteError(w, apperrors.NewInternalError("Something went wrong", err))
 		return
+	}
+	for i := range contactsList {
+		contactsList[i].IsOnline = d.onlineChecker != nil && d.onlineChecker.IsOnline(contactsList[i].ContactUserID)
 	}
 
 	response := ContactsToResponse(contactsList)

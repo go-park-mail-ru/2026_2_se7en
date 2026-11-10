@@ -133,7 +133,7 @@ func (d *ProfileDeliveryImpl) HandleUploadAvatar(w http.ResponseWriter, r *http.
 		return
 	}
 
-	upload, closeFunc, appErr := extractAndValidateAvatar(r)
+	upload, closeFunc, appErr := extractAndValidateAvatar(w, r)
 	if appErr != nil {
 		d.log.ErrorContext(r.Context(), "HandleUploadAvatar failed", logger.Error(appErr))
 
@@ -153,49 +153,13 @@ func (d *ProfileDeliveryImpl) HandleUploadAvatar(w http.ResponseWriter, r *http.
 	tools.WriteJSON(w, http.StatusOK, map[string]string{"icon_url": url})
 }
 
-func extractAndValidateAvatar(r *http.Request) (*models.FileUpload, func(), *apperrors.AppError) {
-	if err := r.ParseMultipartForm(tools.MaxAvatarSize); err != nil {
-		slog.Default().ErrorContext(r.Context(), "extractAndValidateAvatar failed", logger.Error(err))
-
-		return nil, nil, apperrors.NewBadRequest("File too large", nil)
-	}
-
-	file, header, err := r.FormFile("file")
+func extractAndValidateAvatar(w http.ResponseWriter, r *http.Request) (*models.FileUpload, func(), *apperrors.AppError) {
+	upload, closeFile, err := tools.ExtractAvatar(w, r)
 	if err != nil {
-		slog.Default().ErrorContext(r.Context(), "extractAndValidateAvatar failed", logger.Error(err))
-
-		return nil, nil, apperrors.NewBadRequest("File is required", nil)
+    slog.Default().ErrorContext(r.Context(), "extractAndValidateAvatar failed", logger.Error(err))
+		return nil, nil, apperrors.NewBadRequest("Invalid avatar file", nil)
 	}
-
-	buffer := make([]byte, 512)
-	if _, err := file.Read(buffer); err != nil {
-		slog.Default().ErrorContext(r.Context(), "extractAndValidateAvatar failed", logger.Error(err))
-
-		_ = file.Close()
-		return nil, nil, apperrors.NewInternalError("Failed to read file", err)
-	}
-
-	if _, err := file.Seek(0, io.SeekStart); err != nil {
-		slog.Default().ErrorContext(r.Context(), "extractAndValidateAvatar failed", logger.Error(err))
-
-		_ = file.Close()
-		return nil, nil, apperrors.NewInternalError("Failed to seek file", err)
-	}
-
-	contentType := http.DetectContentType(buffer)
-	if contentType != "image/jpeg" && contentType != "image/png" && contentType != "image/webp" {
-		_ = file.Close()
-		return nil, nil, apperrors.NewBadRequest("Invalid file type", nil)
-	}
-
-	upload := &models.FileUpload{
-		Reader:      file,
-		Filename:    header.Filename,
-		Size:        header.Size,
-		ContentType: contentType,
-	}
-
-	return upload, func() { _ = file.Close() }, nil
+	return upload, closeFile, nil
 }
 
 // HandleUpdatePassword godoc

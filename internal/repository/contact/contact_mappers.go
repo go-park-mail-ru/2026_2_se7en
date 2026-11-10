@@ -6,13 +6,14 @@ import (
 )
 
 func ContactDBToModel(db *ContactDB) models.Contact {
+	prof := profile.ProfileDBToModel(&db.Profile)
+	prof.AvatarURL = db.IconURL
 	return models.Contact{
 		UserID:        db.UserID,
 		ContactUserID: db.ContactUserID,
 		Pseudonym:     db.Pseudonym,
 		CreatedAt:     db.CreatedAt,
 		UpdatedAt:     db.UpdatedAt,
-		Profile:       profile.ProfileDBToModel(&db.Profile),
-		IsOnline:      db.IsOnline,
+		Profile:       prof,
 	}
 }

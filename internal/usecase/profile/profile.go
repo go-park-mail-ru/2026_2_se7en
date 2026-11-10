@@ -151,7 +151,7 @@ func (uc *ProfileUsecaseImpl) UploadAvatar(ctx context.Context, userID uuid.UUID
 			return apperrors.NewNotFound("Profile not found")
 		}
 
-		fileModel, err := uc.fileRepo.Create(ctx, url, filename, "image")
+		fileModel, err := uc.fileRepo.Create(ctx, url, filename, file.ContentType)
 		if err != nil {
 			uc.log.ErrorContext(ctx, "UploadAvatar failed", logger.Error(err))
 
@@ -169,6 +169,7 @@ func (uc *ProfileUsecaseImpl) UploadAvatar(ctx context.Context, userID uuid.UUID
 	})
 
 	if err != nil {
+		_ = tools.RemoveAvatar(filename)
 		uc.log.ErrorContext(ctx, "UploadAvatar failed", logger.Error(err))
 
 		return "", err

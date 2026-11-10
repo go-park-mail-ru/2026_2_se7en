@@ -57,7 +57,7 @@ func (d *AuthDeliveryImpl) HandleLogin(w http.ResponseWriter, r *http.Request, r
 		return apperrors.NewInternalError("Something went wrong", err)
 	}
 
-	middleware.SetSessionCookie(w, result.SessionID.String())
+	middleware.SetSessionCookie(w, r, result.SessionID.String())
 
 	response := ModelToUserResponse(result.User)
 	tools.WriteJSON(w, http.StatusOK, response)
@@ -102,7 +102,7 @@ func (d *AuthDeliveryImpl) HandleLogout(w http.ResponseWriter, r *http.Request) 
 
 	d.sessionDisconnecter.DisconnectSession(sessionID)
 
-	middleware.ClearSessionCookie(w)
+	middleware.ClearSessionCookie(w, r)
 	w.WriteHeader(http.StatusNoContent)
 }
 

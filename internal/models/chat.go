@@ -27,12 +27,20 @@ type Chat struct {
 
 type ChatListItem struct {
 	Chat        *Chat
+	PeerID      *uuid.UUID
+	IconURL     *string
+	IsOnline    *bool
 	LastMessage *MessagePreview
+	UnreadCount int
+	ActivityAt  time.Time
 }
 
 type ChatDetail struct {
-	Chat *Chat
-	Role string
+	Chat     *Chat
+	PeerID   *uuid.UUID
+	IconURL  *string
+	IsOnline *bool
+	Role     string
 }
 
 type DialogStatus uint8

@@ -41,6 +41,13 @@ func (h *Hub) Register(c *Client) {
 	h.clients[c] = struct{}{}
 }
 
+func (h *Hub) IsOnline(userID uuid.UUID) bool {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	return len(h.users[userID]) > 0
+}
+
 func (h *Hub) Unregister(c *Client) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -140,6 +147,12 @@ func (h *Hub) BroadcastToUser(userID uuid.UUID, event models.Event) {
 
 	for _, c := range clients {
 		c.Send(event)
+	}
+}
+
+func (h *Hub) BroadcastToUsers(userIDs []uuid.UUID, event models.Event) {
+	for _, userID := range userIDs {
+		h.BroadcastToUser(userID, event)
 	}
 }
 

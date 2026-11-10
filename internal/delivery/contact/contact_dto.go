@@ -14,6 +14,7 @@ type ContactResponse struct {
 	FirstName     string     `json:"first_name" binding:"required"`
 	LastName      *string    `json:"last_name,omitempty"`
 	IconID        *uuid.UUID `json:"icon_id,omitempty" format:"uuid"`
+	IconURL       *string    `json:"icon_url,omitempty"`
 	IsOnline      bool       `json:"is_online" binding:"required"`
 	CreatedAt     time.Time  `json:"created_at" format:"date-time" binding:"required"`
 	UpdatedAt     time.Time  `json:"updated_at" format:"date-time" binding:"required"`

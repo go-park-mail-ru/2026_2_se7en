@@ -3,10 +3,11 @@ package contact
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/apperrors"
 	"github.com/google/uuid"
 	"go.uber.org/mock/gomock"
 )
@@ -17,7 +18,7 @@ func TestContactUsecase_CreateContact_Success(t *testing.T) {
 
 	mockContactRepo := NewMockContactRepository(ctrl)
 	mockUserRepo := NewMockUserRepository(ctrl)
-	uc := NewContactUsecase(mockContactRepo, mockUserRepo)
+	uc := NewContactUsecase(mockContactRepo, mockUserRepo, slog.Default())
 
 	userID := uuid.New()
 	targetUserID := uuid.New()
@@ -44,7 +45,7 @@ func TestContactUsecase_CreateContact_SelfAdd(t *testing.T) {
 
 	mockContactRepo := NewMockContactRepository(ctrl)
 	mockUserRepo := NewMockUserRepository(ctrl)
-	uc := NewContactUsecase(mockContactRepo, mockUserRepo)
+	uc := NewContactUsecase(mockContactRepo, mockUserRepo, slog.Default())
 
 	userID := uuid.New()
 
@@ -64,7 +65,7 @@ func TestContactUsecase_CreateContact_AlreadyExists(t *testing.T) {
 
 	mockContactRepo := NewMockContactRepository(ctrl)
 	mockUserRepo := NewMockUserRepository(ctrl)
-	uc := NewContactUsecase(mockContactRepo, mockUserRepo)
+	uc := NewContactUsecase(mockContactRepo, mockUserRepo, slog.Default())
 
 	userID := uuid.New()
 	targetUserID := uuid.New()
@@ -89,7 +90,7 @@ func TestContactUsecase_GetContactsList_Success(t *testing.T) {
 
 	mockContactRepo := NewMockContactRepository(ctrl)
 	mockUserRepo := NewMockUserRepository(ctrl)
-	uc := NewContactUsecase(mockContactRepo, mockUserRepo)
+	uc := NewContactUsecase(mockContactRepo, mockUserRepo, slog.Default())
 
 	userID := uuid.New()
 	expectedContacts := []models.Contact{

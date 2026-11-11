@@ -10,9 +10,9 @@ import (
 )
 
 type ChatRepository interface {
-	IsMember(ctx context.Context, userID, chatID uuid.UUID) (bool, error)
+	IsMember(ctx context.Context, userID, chatID uuid.UUID) (*models.ChatMembership, error)
 	GetActiveMemberIDs(ctx context.Context, chatID uuid.UUID) ([]uuid.UUID, error)
-	GetListUserChats(ctx context.Context, userID uuid.UUID, limit int, chatType string, cursorTime *time.Time, cursorID uuid.UUID) ([]*models.ChatListItem, error)
+	GetListUserChats(ctx context.Context, userID uuid.UUID, limit, offset int, chatType string, cursorTime *time.Time, cursorID uuid.UUID) ([]*models.ChatListItem, error)
 	GetChat(ctx context.Context, userID, chatID uuid.UUID) (*models.ChatDetail, error)
 	DeleteChat(ctx context.Context, userID, chatID uuid.UUID) error
 

@@ -1,14 +1,17 @@
 package tools
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
 
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
 	"github.com/google/uuid"
 )
 
@@ -18,7 +21,7 @@ const (
 	AvatarDir            = "./uploads/avatars"
 )
 
-func SaveAvatar(file *models.FileUpload) (string, string, error) {
+func SaveAvatar(ctx context.Context, file *models.FileUpload, log *slog.Logger) (string, string, error) {
 	if file == nil || file.Reader == nil || file.Size < 0 || file.Size > MaxAvatarSize {
 		return "", "", errors.New("file too large")
 	}
@@ -35,6 +38,8 @@ func SaveAvatar(file *models.FileUpload) (string, string, error) {
 	}
 
 	if err := os.MkdirAll(AvatarDir, 0755); err != nil {
+		log.ErrorContext(ctx, "SaveAvatar failed", logger.Error(err))
+
 		return "", "", err
 	}
 
@@ -43,21 +48,25 @@ func SaveAvatar(file *models.FileUpload) (string, string, error) {
 
 	dst, err := os.Create(filePath)
 	if err != nil {
+		log.ErrorContext(ctx, "SaveAvatar failed", logger.Error(err))
+
 		return "", "", err
 	}
 
-	written, err := io.Copy(dst, io.LimitReader(file.Reader, MaxAvatarSize+1))
-	if err != nil || written > MaxAvatarSize {
-		_ = dst.Close()
-		_ = os.Remove(filePath)
-		if err == nil {
-			err = errors.New("file too large")
+	defer func() {
+		if err := dst.Close(); err != nil {
+			log.ErrorContext(ctx, "CloseAvatar failed", logger.Error(err))
 		}
+	}()
+
+	written, err := io.Copy(dst, io.LimitReader(file.Reader, MaxAvatarSize+1))
+	if err != nil {
+		log.ErrorContext(ctx, "SaveAvatar failed", logger.Error(err))
 		return "", "", err
 	}
-	if err := dst.Close(); err != nil {
+	if written > MaxAvatarSize {
 		_ = os.Remove(filePath)
-		return "", "", err
+		return "", "", errors.New("file too large")
 	}
 
 	url := fmt.Sprintf("/uploads/avatars/%s", filename)

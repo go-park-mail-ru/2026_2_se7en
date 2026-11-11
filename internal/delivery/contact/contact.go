@@ -2,12 +2,15 @@ package contact
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/httperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/apperrors"
 	"github.com/google/uuid"
 )
 
@@ -16,12 +19,16 @@ type OnlineChecker interface {
 }
 
 type ContactDeliveryImpl struct {
+	log *slog.Logger
+
 	contactUsecase ContactUsecase
 	onlineChecker  OnlineChecker
 }
 
-func NewContactDelivery(contactUsecase ContactUsecase, onlineChecker OnlineChecker) *ContactDeliveryImpl {
+func NewContactDelivery(contactUsecase ContactUsecase, onlineChecker OnlineChecker, baseLog *slog.Logger) *ContactDeliveryImpl {
 	return &ContactDeliveryImpl{
+		log: logger.Scope(baseLog, logger.LayerDelivery, logger.ModuleContact),
+
 		contactUsecase: contactUsecase,
 		onlineChecker:  onlineChecker,
 	}
@@ -34,13 +41,13 @@ func NewContactDelivery(contactUsecase ContactUsecase, onlineChecker OnlineCheck
 // @Produce      json
 // @Security     SessionCookie
 // @Success      200  {array} ContactResponse
-// @Failure      401  {object} apperrors.ErrorResponse
-// @Failure      500  {object} apperrors.ErrorResponse
+// @Failure      401  {object} httperrors.ErrorResponse
+// @Failure      500  {object} httperrors.ErrorResponse
 // @Router       /contacts [get]
 func (d *ContactDeliveryImpl) HandleGetContactsList(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
-		apperrors.WriteError(w, apperrors.NewUnauthorized("Invalid session"))
+		httperrors.WriteError(w, httperrors.NewUnauthorized("Invalid session"))
 		return
 	}
 
@@ -62,7 +69,9 @@ func (d *ContactDeliveryImpl) HandleGetContactsList(w http.ResponseWriter, r *ht
 
 	contactsList, err := d.contactUsecase.GetContactsList(r.Context(), userID, limit, offset, q)
 	if err != nil {
-		apperrors.WriteError(w, apperrors.NewInternalError("Something went wrong", err))
+		d.log.ErrorContext(r.Context(), "HandleGetContactsList failed", logger.Error(err))
+
+		httperrors.WriteError(w, httperrors.NewInternalError("Something went wrong", err))
 		return
 	}
 	for i := range contactsList {
@@ -82,29 +91,32 @@ func (d *ContactDeliveryImpl) HandleGetContactsList(w http.ResponseWriter, r *ht
 // @Security     SessionCookie
 // @Param        request body CreateContactRequest true "Данные для добавления контакта"
 // @Success      201  "Контакт успешно добавлен"
-// @Failure      400  {object} apperrors.ErrorResponse
-// @Failure      401  {object} apperrors.ErrorResponse
-// @Failure      404  {object} apperrors.ErrorResponse
-// @Failure      409  {object} apperrors.ErrorResponse
-// @Failure      500  {object} apperrors.ErrorResponse
+// @Failure      400  {object} httperrors.ErrorResponse
+// @Failure      401  {object} httperrors.ErrorResponse
+// @Failure      404  {object} httperrors.ErrorResponse
+// @Failure      409  {object} httperrors.ErrorResponse
+// @Failure      500  {object} httperrors.ErrorResponse
 // @Router       /contacts [post]
-func (d *ContactDeliveryImpl) HandleCreateContact(w http.ResponseWriter, r *http.Request, req *CreateContactRequest) *apperrors.AppError {
+func (d *ContactDeliveryImpl) HandleCreateContact(w http.ResponseWriter, r *http.Request, req *CreateContactRequest) *httperrors.HTTPError {
+
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
-		return apperrors.NewUnauthorized("Invalid session")
+		return httperrors.NewUnauthorized("Invalid session")
 	}
 
 	err := d.contactUsecase.CreateContact(r.Context(), userID, req.Nickname, req.Pseudonym)
 	if err != nil {
+		d.log.ErrorContext(r.Context(), "HandleCreateContact failed", logger.Error(err))
+
 		switch {
 		case errors.Is(err, apperrors.ErrUserNotFound):
-			return apperrors.NewNotFound("User not found")
+			return httperrors.NewNotFound("User not found")
 		case errors.Is(err, apperrors.ErrContactAlreadyExists):
-			return apperrors.NewConflict("User already in contacts", nil)
+			return httperrors.NewConflict("User already in contacts", nil)
 		case errors.Is(err, apperrors.ErrCannotAddSelfAsContact):
-			return apperrors.NewBadRequest("Cannot add self as contact", nil)
+			return httperrors.NewBadRequest("Cannot add self as contact", nil)
 		default:
-			return apperrors.NewInternalError("Something went wrong", err)
+			return httperrors.NewInternalError("Something went wrong", err)
 		}
 	}
 
@@ -121,24 +133,27 @@ func (d *ContactDeliveryImpl) HandleCreateContact(w http.ResponseWriter, r *http
 // @Security     SessionCookie
 // @Param        request body DeleteContactRequest true "Данные для удаления контакта"
 // @Success      204  "Контакт успешно удален"
-// @Failure      400  {object} apperrors.ErrorResponse
-// @Failure      401  {object} apperrors.ErrorResponse
-// @Failure      404  {object} apperrors.ErrorResponse
-// @Failure      500  {object} apperrors.ErrorResponse
+// @Failure      400  {object} httperrors.ErrorResponse
+// @Failure      401  {object} httperrors.ErrorResponse
+// @Failure      404  {object} httperrors.ErrorResponse
+// @Failure      500  {object} httperrors.ErrorResponse
 // @Router       /contacts [delete]
-func (d *ContactDeliveryImpl) HandleDeleteContact(w http.ResponseWriter, r *http.Request, req *DeleteContactRequest) *apperrors.AppError {
+func (d *ContactDeliveryImpl) HandleDeleteContact(w http.ResponseWriter, r *http.Request, req *DeleteContactRequest) *httperrors.HTTPError {
+
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
-		return apperrors.NewUnauthorized("Invalid session")
+		return httperrors.NewUnauthorized("Invalid session")
 	}
 
 	err := d.contactUsecase.DeleteContact(r.Context(), userID, req.ContactUserID)
 	if err != nil {
+		d.log.ErrorContext(r.Context(), "HandleDeleteContact failed", logger.Error(err))
+
 		switch {
 		case errors.Is(err, apperrors.ErrContactNotFound):
-			return apperrors.NewNotFound("Contact not found")
+			return httperrors.NewNotFound("Contact not found")
 		default:
-			return apperrors.NewInternalError("Something went wrong", err)
+			return httperrors.NewInternalError("Something went wrong", err)
 		}
 	}
 

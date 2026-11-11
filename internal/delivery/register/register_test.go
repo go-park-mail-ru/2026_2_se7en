@@ -3,13 +3,14 @@ package register
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/apperrors"
 	"github.com/google/uuid"
 )
 
@@ -38,7 +39,7 @@ func TestRegisterDelivery_Success(t *testing.T) {
 		},
 	}
 
-	delivery := NewRegisterDelivery(mockUC)
+	delivery := NewRegisterDelivery(mockUC, slog.Default())
 
 	reqData := &RegisterRequest{
 		Email:     "test@example.com",
@@ -100,7 +101,7 @@ func TestRegisterDelivery_Validation(t *testing.T) {
 
 func TestRegisterDelivery_EmailConflict(t *testing.T) {
 	mockUC := &mockRegisterUsecase{err: apperrors.ErrEmailTaken}
-	delivery := NewRegisterDelivery(mockUC)
+	delivery := NewRegisterDelivery(mockUC, slog.Default())
 
 	reqData := &RegisterRequest{
 		Email:     "test@example.com",

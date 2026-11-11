@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/apperrors"
 	"github.com/google/uuid"
 )
 
@@ -62,7 +63,7 @@ func TestAuthDelivery_HandleLogin_Success(t *testing.T) {
 			SessionID: uuid.New(),
 		},
 	}
-	delivery := NewAuthDelivery(mockUC, &mockSessionDisconnecter{})
+	delivery := NewAuthDelivery(mockUC, &mockSessionDisconnecter{}, slog.Default())
 
 	reqData := &LoginRequest{
 		Email:    "  TEST@EXAMPLE.COM  ",
@@ -102,7 +103,7 @@ func TestAuthDelivery_HandleLogin_Success(t *testing.T) {
 
 func TestAuthDelivery_HandleLogin_InvalidCredentials(t *testing.T) {
 	mockUC := &mockAuthUsecase{loginErr: apperrors.ErrInvalidCredentials}
-	delivery := NewAuthDelivery(mockUC, &mockSessionDisconnecter{})
+	delivery := NewAuthDelivery(mockUC, &mockSessionDisconnecter{}, slog.Default())
 
 	reqData := &LoginRequest{
 		Email:    "test@example.com",
@@ -152,7 +153,7 @@ func TestAuthDelivery_HandleMe_Success(t *testing.T) {
 			},
 		},
 	}
-	delivery := NewAuthDelivery(mockUC, &mockSessionDisconnecter{})
+	delivery := NewAuthDelivery(mockUC, &mockSessionDisconnecter{}, slog.Default())
 
 	req := httptest.NewRequest(http.MethodGet, "/auth/me", nil)
 	req = req.WithContext(middleware.NewAuthContext(req.Context(), userID))
@@ -174,7 +175,7 @@ func TestAuthDelivery_HandleMe_Success(t *testing.T) {
 }
 
 func TestAuthDelivery_HandleMe_MissingAuth(t *testing.T) {
-	delivery := NewAuthDelivery(&mockAuthUsecase{}, &mockSessionDisconnecter{})
+	delivery := NewAuthDelivery(&mockAuthUsecase{}, &mockSessionDisconnecter{}, slog.Default())
 	req := httptest.NewRequest(http.MethodGet, "/auth/me", nil)
 	rec := httptest.NewRecorder()
 
@@ -189,7 +190,7 @@ func TestAuthDelivery_HandleLogout_Success(t *testing.T) {
 	sessionID := uuid.New()
 	mockUC := &mockAuthUsecase{}
 	disconnecter := &mockSessionDisconnecter{}
-	delivery := NewAuthDelivery(mockUC, disconnecter)
+	delivery := NewAuthDelivery(mockUC, disconnecter, slog.Default())
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/logout", nil)
 	req.AddCookie(&http.Cookie{Name: middleware.SessionCookieName, Value: sessionID.String()})
@@ -225,7 +226,7 @@ func TestAuthDelivery_HandleLogout_Errors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockUC := &mockAuthUsecase{logoutErr: tt.mockErr}
-			delivery := NewAuthDelivery(mockUC, &mockSessionDisconnecter{})
+			delivery := NewAuthDelivery(mockUC, &mockSessionDisconnecter{}, slog.Default())
 
 			req := httptest.NewRequest(http.MethodPost, "/auth/logout", nil)
 			if tt.cookieVal != "" {

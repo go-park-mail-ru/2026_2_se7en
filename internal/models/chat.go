@@ -57,6 +57,10 @@ type ChatMember struct {
 	Profile *Profile
 }
 
+type ChatMembership struct {
+	IsMember bool
+}
+
 type Message struct {
 	ID               uuid.UUID
 	UserID           uuid.UUID

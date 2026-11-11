@@ -1,12 +1,13 @@
 package chat
 
 import (
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/httperrors"
 	"net/http"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
 	"github.com/google/uuid"
 )
 
@@ -20,21 +21,25 @@ import (
 // @Param        limit query int false "Число сообщений (1-50)" default(20)
 // @Param        before query string false "ID сообщения для пагинации (UUID)" format(uuid)
 // @Success      200 {object} ListMessagesResponse
-// @Failure      400 {object} apperrors.ErrorResponse
-// @Failure      401 {object} apperrors.ErrorResponse
-// @Failure      404 {object} apperrors.ErrorResponse
-// @Failure      500 {object} apperrors.ErrorResponse
+// @Failure      400 {object} httperrors.ErrorResponse
+// @Failure      401 {object} httperrors.ErrorResponse
+// @Failure      404 {object} httperrors.ErrorResponse
+// @Failure      500 {object} httperrors.ErrorResponse
 // @Router       /chats/{id}/messages [get]
 func (d *ChatDeliveryImpl) HandleGetListMessages(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
-		apperrors.WriteError(w, apperrors.NewUnauthorized("Authorization required"))
+		httperrors.WriteError(w, httperrors.NewUnauthorized("Authorization required"))
 		return
 	}
 
 	chatID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil || chatID == uuid.Nil {
-		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid id", []apperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}}))
+		if err != nil {
+			d.log.ErrorContext(r.Context(), "HandleGetListMessages failed", logger.Error(err))
+		}
+
+		httperrors.WriteError(w, httperrors.NewBadRequest("Invalid id", []httperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}}))
 		return
 	}
 
@@ -43,7 +48,9 @@ func (d *ChatDeliveryImpl) HandleGetListMessages(w http.ResponseWriter, r *http.
 	if _, present := q["limit"]; present {
 		parsed, err := parseQueryInt(q, "limit")
 		if err != nil {
-			apperrors.WriteError(w, apperrors.NewBadRequest("Invalid limit format", nil))
+			d.log.ErrorContext(r.Context(), "HandleGetListMessages failed", logger.Error(err))
+
+			httperrors.WriteError(w, httperrors.NewBadRequest("Invalid limit format", nil))
 			return
 		}
 
@@ -51,13 +58,15 @@ func (d *ChatDeliveryImpl) HandleGetListMessages(w http.ResponseWriter, r *http.
 	}
 
 	if limit < 1 || limit > 50 {
-		apperrors.WriteError(w, apperrors.NewBadRequest("Validation failed", []apperrors.ErrorDetail{{Field: "limit", Reason: "Limit must be between 1 and 50"}}))
+		httperrors.WriteError(w, httperrors.NewBadRequest("Validation failed", []httperrors.ErrorDetail{{Field: "limit", Reason: "Limit must be between 1 and 50"}}))
 		return
 	}
 
 	beforeID, err := parseQueryUUID(q, "before")
 	if err != nil {
-		apperrors.WriteError(w, apperrors.NewBadRequest("Invalid before format", nil))
+		d.log.ErrorContext(r.Context(), "HandleGetListMessages failed", logger.Error(err))
+
+		httperrors.WriteError(w, httperrors.NewBadRequest("Invalid before format", nil))
 		return
 	}
 
@@ -68,7 +77,9 @@ func (d *ChatDeliveryImpl) HandleGetListMessages(w http.ResponseWriter, r *http.
 
 	result, err := d.chatUsecase.GetListMessages(r.Context(), userID, chatID, limit, before)
 	if err != nil {
-		apperrors.WriteError(w, mapChatError(err))
+		d.log.ErrorContext(r.Context(), "HandleGetListMessages failed", logger.Error(err))
+
+		httperrors.WriteError(w, mapChatError(err))
 		return
 	}
 
@@ -85,20 +96,25 @@ func (d *ChatDeliveryImpl) HandleGetListMessages(w http.ResponseWriter, r *http.
 // @Param        id path string true "ID чата (UUID)" format(uuid)
 // @Param        request body CreateMessageRequest true "Данные сообщения"
 // @Success      201 {object} MessageResponse
-// @Failure      400 {object} apperrors.ErrorResponse
-// @Failure      401 {object} apperrors.ErrorResponse
-// @Failure      404 {object} apperrors.ErrorResponse
-// @Failure      500 {object} apperrors.ErrorResponse
+// @Failure      400 {object} httperrors.ErrorResponse
+// @Failure      401 {object} httperrors.ErrorResponse
+// @Failure      404 {object} httperrors.ErrorResponse
+// @Failure      500 {object} httperrors.ErrorResponse
 // @Router       /chats/{id}/messages [post]
-func (d *ChatDeliveryImpl) HandleCreateMessage(w http.ResponseWriter, r *http.Request, req *CreateMessageRequest) *apperrors.AppError {
+func (d *ChatDeliveryImpl) HandleCreateMessage(w http.ResponseWriter, r *http.Request, req *CreateMessageRequest) *httperrors.HTTPError {
+
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
-		return apperrors.NewUnauthorized("Authorization required")
+		return httperrors.NewUnauthorized("Authorization required")
 	}
 
 	chatID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil || chatID == uuid.Nil {
-		return apperrors.NewBadRequest("Invalid id", []apperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}})
+		if err != nil {
+			d.log.ErrorContext(r.Context(), "HandleCreateMessage failed", logger.Error(err))
+		}
+
+		return httperrors.NewBadRequest("Invalid id", []httperrors.ErrorDetail{{Field: "id", Reason: "id must be a valid UUID"}})
 	}
 
 	result, usecaseErr := d.chatUsecase.CreateMessage(r.Context(), userID, chatID, req.ReplyToMessageID, req.StickerID, req.Content, req.Type)

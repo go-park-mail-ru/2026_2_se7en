@@ -3,10 +3,11 @@ package contact
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 	"time"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/apperrors"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/pashagolub/pgxmock/v5"
@@ -19,7 +20,7 @@ func TestContactRepository_CreateContact_Success(t *testing.T) {
 	}
 	defer mockPool.Close()
 
-	repo := NewContactRepository(mockPool)
+	repo := NewContactRepository(mockPool, slog.Default())
 	userID := uuid.New()
 	contactUserID := uuid.New()
 	var pseudonym *string
@@ -45,7 +46,7 @@ func TestContactRepository_CreateContact_UniqueViolation(t *testing.T) {
 	}
 	defer mockPool.Close()
 
-	repo := NewContactRepository(mockPool)
+	repo := NewContactRepository(mockPool, slog.Default())
 	userID := uuid.New()
 	contactUserID := uuid.New()
 
@@ -71,7 +72,7 @@ func TestContactRepository_DeleteContact_Success(t *testing.T) {
 	}
 	defer mockPool.Close()
 
-	repo := NewContactRepository(mockPool)
+	repo := NewContactRepository(mockPool, slog.Default())
 	userID := uuid.New()
 	contactUserID := uuid.New()
 
@@ -96,7 +97,7 @@ func TestContactRepository_DeleteContact_NotFound(t *testing.T) {
 	}
 	defer mockPool.Close()
 
-	repo := NewContactRepository(mockPool)
+	repo := NewContactRepository(mockPool, slog.Default())
 	userID := uuid.New()
 	contactUserID := uuid.New()
 
@@ -121,7 +122,7 @@ func TestContactRepository_GetContactsList_Success(t *testing.T) {
 	}
 	defer mockPool.Close()
 
-	repo := NewContactRepository(mockPool)
+	repo := NewContactRepository(mockPool, slog.Default())
 	userID := uuid.New()
 	contactUserID := uuid.New()
 	now := time.Now()

@@ -1,106 +1,110 @@
 package router
 
 import (
+	"log/slog"
 	"net/http"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/storage"
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
-
 	deliveryauth "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/auth"
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/chat"
 	deliverychat "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/chat"
 	ws "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/chat/ws"
 	deliverycontact "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/contact"
+	deliveryprofile "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/profile"
 	deliveryregister "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/register"
-
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
+	repochat "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/chat"
+	repocontact "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/contact"
+	repofile "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/file"
+	repoprofile "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/profile"
+	reposession "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/session"
+	repotx "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/tx"
+	repouser "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/user"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/storage"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/csrf"
 	usecaseauth "github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/auth"
 	usecasechat "github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/chat"
 	usecasecontact "github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/contact"
-	usecaseregister "github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/register"
-
-	deliveryprofile "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/profile"
-	repochat "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/chat"
-	repocontact "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/contact"
-	repoprofile "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/profile"
-	reposession "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/session"
-	repouser "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/user"
-
-	repofile "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/file"
-	repotx "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/tx"
 	usecaseprofile "github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/profile"
-
+	usecaseregister "github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/register"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
 
-func New(db *storage.DB, origins []string) (http.Handler, *ws.Hub) {
-	hub := ws.NewHub()
+func New(db *storage.DB, origins []string, baseLog *slog.Logger, csrfTokens *csrf.HashToken) (http.Handler, *ws.Hub) {
+	hub := ws.NewHub(baseLog)
 
-	userRepo := repouser.NewUserRepository(db.Pool())
-	profileRepo := repoprofile.NewProfileRepository(db.Pool())
-	sessionRepo := reposession.NewSessionRepository(db.Pool())
-	chatRepo := repochat.NewChatRepository(db.Pool())
-	fileRepo := repofile.NewFileRepository(db.Pool())
-	txManager := repotx.NewManager(db.Pool())
-	contactRepo := repocontact.NewContactRepository(db.Pool())
+	userRepo := repouser.NewUserRepository(db.Pool(), baseLog)
+	profileRepo := repoprofile.NewProfileRepository(db.Pool(), baseLog)
+	sessionRepo := reposession.NewSessionRepository(db.Pool(), baseLog)
+	chatRepo := repochat.NewChatRepository(db.Pool(), baseLog)
+	fileRepo := repofile.NewFileRepository(db.Pool(), baseLog)
+	txManager := repotx.NewManager(db.Pool(), baseLog)
+	contactRepo := repocontact.NewContactRepository(db.Pool(), baseLog)
 
-	authUsecase := usecaseauth.NewAuthUsecase(userRepo, profileRepo, sessionRepo)
-	registerUsecase := usecaseregister.NewRegisterUsecase(userRepo, profileRepo)
-	chatUsecase := usecasechat.NewChatUsecase(chatRepo)
-	profileUsecase := usecaseprofile.NewProfileUsecase(txManager, userRepo, profileRepo, fileRepo)
-	contactUsecase := usecasecontact.NewContactUsecase(contactRepo, userRepo)
+	authUsecase := usecaseauth.NewAuthUsecase(userRepo, profileRepo, sessionRepo, baseLog)
+	registerUsecase := usecaseregister.NewRegisterUsecase(userRepo, profileRepo, baseLog)
+	chatUsecase := usecasechat.NewChatUsecase(chatRepo, baseLog)
+	profileUsecase := usecaseprofile.NewProfileUsecase(txManager, userRepo, profileRepo, fileRepo, baseLog)
+	contactUsecase := usecasecontact.NewContactUsecase(contactRepo, userRepo, baseLog)
 
-	wsHandler := chat.NewWSHandler(hub, chatUsecase, origins)
+	wsHandler := deliverychat.NewWSHandler(hub, chatUsecase, origins, baseLog)
 
-	authDelivery := deliveryauth.NewAuthDelivery(authUsecase, hub)
-	registerDelivery := deliveryregister.NewRegisterDelivery(registerUsecase)
-	chatDelivery := deliverychat.NewChatDelivery(chatUsecase, hub)
-	profileDelivery := deliveryprofile.NewProfileDelivery(profileUsecase)
-	contactDelivery := deliverycontact.NewContactDelivery(contactUsecase, hub)
+	authDelivery := deliveryauth.NewAuthDelivery(authUsecase, hub, baseLog)
+	registerDelivery := deliveryregister.NewRegisterDelivery(registerUsecase, baseLog)
+	chatDelivery := deliverychat.NewChatDelivery(chatUsecase, hub, baseLog)
+	profileDelivery := deliveryprofile.NewProfileDelivery(profileUsecase, baseLog)
+	contactDelivery := deliverycontact.NewContactDelivery(contactUsecase, hub, baseLog)
 
 	api := http.NewServeMux()
+	csrfProtection := middleware.NewCSRFProtection(origins, csrfTokens, baseLog)
+	auth := func(next http.Handler) http.Handler {
+		return middleware.NewAuthMiddleware(sessionRepo, csrfProtection.Handler(next), baseLog)
+	}
 
 	api.HandleFunc("GET /health", healthCheck)
+	api.Handle("GET /csrf", auth(http.HandlerFunc(csrfProtection.Token)))
 
-	api.Handle("POST /auth/register", tools.NewJSONDecoder(registerDelivery.HandleRegister))
-	api.Handle("POST /auth/login", tools.NewJSONDecoder(authDelivery.HandleLogin))
+	api.Handle("POST /auth/register", tools.NewJSONDecoder(registerDelivery.HandleRegister, baseLog))
+	api.Handle("POST /auth/login", tools.NewJSONDecoder(authDelivery.HandleLogin, baseLog))
+	api.Handle("GET /auth/me", auth(http.HandlerFunc(authDelivery.HandleMe)))
+	api.Handle("POST /auth/logout", auth(http.HandlerFunc(authDelivery.HandleLogout)))
 
-	api.Handle("GET /auth/me", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(authDelivery.HandleMe)))
-	api.Handle("POST /auth/logout", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(authDelivery.HandleLogout)))
-	api.Handle("GET /chats", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(chatDelivery.HandleGetListUserChats)))
-	api.Handle("GET /chats/{id}", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(chatDelivery.HandleGetChatDetail)))
-	api.Handle("POST /chats/dialogs", middleware.NewAuthMiddleware(sessionRepo, tools.NewJSONDecoder(chatDelivery.HandleCreateDialog)))
-	api.Handle("POST /chats/{id}/hide", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(chatDelivery.HandleHideDialog)))
-	api.Handle("POST /chats/groups", middleware.NewAuthMiddleware(sessionRepo, tools.NewJSONDecoder(chatDelivery.HandleCreateGroup)))
-	api.Handle("PATCH /chats/{id}", middleware.NewAuthMiddleware(sessionRepo, tools.NewJSONDecoder(chatDelivery.HandleUpdateGroup)))
-	api.Handle("PUT /chats/{id}/avatar", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(chatDelivery.HandleUploadGroupAvatar)))
-	api.Handle("DELETE /chats/{id}", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(chatDelivery.HandleDeleteChat)))
-	api.Handle("GET /chats/{id}/members", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(chatDelivery.HandleGetListMembers)))
-	api.Handle("POST /chats/{id}/members", middleware.NewAuthMiddleware(sessionRepo, tools.NewJSONDecoder(chatDelivery.HandleAddMember)))
-	api.Handle("PATCH /chats/{id}/members/{user_id}/role", middleware.NewAuthMiddleware(sessionRepo, tools.NewJSONDecoder(chatDelivery.HandleUpdateMemberRole)))
-	api.Handle("DELETE /chats/{id}/members/{user_id}", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(chatDelivery.HandleRemoveMember)))
-	api.Handle("DELETE /chats/{id}/leave", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(chatDelivery.HandleLeaveGroup)))
-	api.Handle("GET /chats/{id}/messages", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(chatDelivery.HandleGetListMessages)))
-	api.Handle("POST /chats/{id}/messages", middleware.NewAuthMiddleware(sessionRepo, tools.NewJSONDecoder(chatDelivery.HandleCreateMessage)))
+	api.Handle("GET /chats", auth(http.HandlerFunc(chatDelivery.HandleGetListUserChats)))
+	api.Handle("GET /chats/{id}", auth(http.HandlerFunc(chatDelivery.HandleGetChatDetail)))
+	api.Handle("POST /chats/dialogs", auth(tools.NewJSONDecoder(chatDelivery.HandleCreateDialog, baseLog)))
+	api.Handle("POST /chats/{id}/hide", auth(http.HandlerFunc(chatDelivery.HandleHideDialog)))
+	api.Handle("POST /chats/groups", auth(tools.NewJSONDecoder(chatDelivery.HandleCreateGroup, baseLog)))
+	api.Handle("PATCH /chats/{id}", auth(tools.NewJSONDecoder(chatDelivery.HandleUpdateGroup, baseLog)))
+	api.Handle("PUT /chats/{id}/avatar", auth(http.HandlerFunc(chatDelivery.HandleUploadGroupAvatar))) // Из sync-dev
+	api.Handle("DELETE /chats/{id}", auth(http.HandlerFunc(chatDelivery.HandleDeleteChat)))
+	api.Handle("GET /chats/{id}/members", auth(http.HandlerFunc(chatDelivery.HandleGetListMembers)))
+	api.Handle("POST /chats/{id}/members", auth(tools.NewJSONDecoder(chatDelivery.HandleAddMember, baseLog)))
+	api.Handle("PATCH /chats/{id}/members/{user_id}/role", auth(tools.NewJSONDecoder(chatDelivery.HandleUpdateMemberRole, baseLog))) // Из sync-dev
+	api.Handle("DELETE /chats/{id}/members/{user_id}", auth(http.HandlerFunc(chatDelivery.HandleRemoveMember)))
+	api.Handle("DELETE /chats/{id}/leave", auth(http.HandlerFunc(chatDelivery.HandleLeaveGroup)))
+	api.Handle("GET /chats/{id}/messages", auth(http.HandlerFunc(chatDelivery.HandleGetListMessages)))
+	api.Handle("POST /chats/{id}/messages", auth(tools.NewJSONDecoder(chatDelivery.HandleCreateMessage, baseLog)))
+	api.Handle("GET /ws", auth(http.HandlerFunc(wsHandler.HandleWS)))
 
-	api.Handle("GET /ws", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(wsHandler.HandleWS)))
+	api.Handle("GET /contacts", auth(http.HandlerFunc(contactDelivery.HandleGetContactsList)))
+	api.Handle("POST /contacts", auth(tools.NewJSONDecoder(contactDelivery.HandleCreateContact, baseLog)))
+	api.Handle("DELETE /contacts", auth(tools.NewJSONDecoder(contactDelivery.HandleDeleteContact, baseLog)))
 
-	api.Handle("GET /contacts", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(contactDelivery.HandleGetContactsList)))
-	api.Handle("POST /contacts", middleware.NewAuthMiddleware(sessionRepo, tools.NewJSONDecoder(contactDelivery.HandleCreateContact)))
-	api.Handle("DELETE /contacts", middleware.NewAuthMiddleware(sessionRepo, tools.NewJSONDecoder(contactDelivery.HandleDeleteContact)))
-
-	api.Handle("GET /profile", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(profileDelivery.HandleGetProfile)))
-	api.Handle("PATCH /profile", middleware.NewAuthMiddleware(sessionRepo, tools.NewJSONDecoder(profileDelivery.HandleUpdateProfile)))
-	api.Handle("PUT /profile/avatar", middleware.NewAuthMiddleware(sessionRepo, http.HandlerFunc(profileDelivery.HandleUploadAvatar)))
-	api.Handle("PATCH /profile/password", middleware.NewAuthMiddleware(sessionRepo, tools.NewJSONDecoder(profileDelivery.HandleUpdatePassword)))
-
+	api.Handle("GET /users/{id}", auth(http.HandlerFunc(profileDelivery.HandleGetPublicProfile))) // Из dev
+	api.Handle("GET /profile", auth(http.HandlerFunc(profileDelivery.HandleGetProfile)))
+	api.Handle("PATCH /profile", auth(tools.NewJSONDecoder(profileDelivery.HandleUpdateProfile, baseLog)))
+	api.Handle("PUT /profile/avatar", auth(http.HandlerFunc(profileDelivery.HandleUploadAvatar)))
+	api.Handle("PATCH /profile/password", auth(tools.NewJSONDecoder(profileDelivery.HandleUpdatePassword, baseLog)))
 	api.Handle("GET /swagger/*any", httpSwagger.WrapHandler)
 
 	mainRouter := http.NewServeMux()
-	mainRouter.Handle("/api/v1/", http.StripPrefix("/api/v1", api))
+	mainRouter.Handle("/api/v1/", csrfProtection.CheckOrigin(http.StripPrefix("/api/v1", api)))
 	mainRouter.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir("./uploads"))))
 
-	return mainRouter, hub
+	handler := middleware.RequestIDMiddleware(
+		middleware.AccessLogMiddleware(mainRouter, baseLog),
+	)
+
+	return handler, hub
 }
 
 func healthCheck(w http.ResponseWriter, r *http.Request) {

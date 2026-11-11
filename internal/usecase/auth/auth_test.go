@@ -3,14 +3,14 @@ package auth
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 	"time"
 
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/apperrors"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
-
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
 )
 
 type mockUserRepo struct {
@@ -85,8 +85,8 @@ func (m *mockSessionRepo) DeleteSession(ctx context.Context, sessionID uuid.UUID
 	m.deletedSessionID = sessionID
 	return m.deleteErr
 }
-func (m *mockSessionRepo) GetSessionUser(ctx context.Context, sessionID uuid.UUID) (uuid.UUID, error) {
-	return uuid.Nil, nil
+func (m *mockSessionRepo) GetSessionUser(ctx context.Context, sessionID uuid.UUID) (*models.SessionUser, error) {
+	return &models.SessionUser{}, nil
 }
 func (m *mockSessionRepo) ExtendSession(ctx context.Context, sessionID uuid.UUID, expiresAt time.Time) error {
 	return nil
@@ -109,7 +109,7 @@ func TestAuthUsecase_Login_Success(t *testing.T) {
 	profileRepo := &mockProfileRepo{profile: profileModel}
 	sessionRepo := &mockSessionRepo{}
 
-	uc := NewAuthUsecase(userRepo, profileRepo, sessionRepo)
+	uc := NewAuthUsecase(userRepo, profileRepo, sessionRepo, slog.Default())
 
 	result, err := uc.Login(context.Background(), "test@example.com", "password123")
 
@@ -143,7 +143,7 @@ func TestAuthUsecase_Login_InvalidCredentials(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			userRepo := &mockUserRepo{user: tt.user}
-			uc := NewAuthUsecase(userRepo, &mockProfileRepo{}, &mockSessionRepo{})
+			uc := NewAuthUsecase(userRepo, &mockProfileRepo{}, &mockSessionRepo{}, slog.Default())
 
 			_, err := uc.Login(context.Background(), "test@example.com", tt.password)
 
@@ -157,7 +157,7 @@ func TestAuthUsecase_Login_InvalidCredentials(t *testing.T) {
 func TestAuthUsecase_Login_DBErrors(t *testing.T) {
 	dbErr := errors.New("db down")
 	userRepo := &mockUserRepo{err: dbErr}
-	uc := NewAuthUsecase(userRepo, &mockProfileRepo{}, &mockSessionRepo{})
+	uc := NewAuthUsecase(userRepo, &mockProfileRepo{}, &mockSessionRepo{}, slog.Default())
 
 	_, err := uc.Login(context.Background(), "test@example.com", "password123")
 	if err == nil || err.Error() != "db down" {
@@ -172,7 +172,7 @@ func TestAuthUsecase_GetMe_Success(t *testing.T) {
 	userRepo := &mockUserRepo{user: user}
 	profileRepo := &mockProfileRepo{profile: profileModel}
 
-	uc := NewAuthUsecase(userRepo, profileRepo, &mockSessionRepo{})
+	uc := NewAuthUsecase(userRepo, profileRepo, &mockSessionRepo{}, slog.Default())
 
 	result, err := uc.GetMe(context.Background(), user.ID)
 
@@ -203,7 +203,7 @@ func TestAuthUsecase_GetMe_Errors(t *testing.T) {
 			userRepo := &mockUserRepo{user: tt.user, err: tt.userErr}
 			profileRepo := &mockProfileRepo{profile: tt.profile, err: tt.profErr}
 
-			uc := NewAuthUsecase(userRepo, profileRepo, &mockSessionRepo{})
+			uc := NewAuthUsecase(userRepo, profileRepo, &mockSessionRepo{}, slog.Default())
 
 			_, err := uc.GetMe(context.Background(), uuid.New())
 
@@ -216,7 +216,7 @@ func TestAuthUsecase_GetMe_Errors(t *testing.T) {
 
 func TestAuthUsecase_Logout_Success(t *testing.T) {
 	sessionRepo := &mockSessionRepo{}
-	uc := NewAuthUsecase(&mockUserRepo{}, &mockProfileRepo{}, sessionRepo)
+	uc := NewAuthUsecase(&mockUserRepo{}, &mockProfileRepo{}, sessionRepo, slog.Default())
 
 	sessionID := uuid.New()
 	err := uc.Logout(context.Background(), sessionID)

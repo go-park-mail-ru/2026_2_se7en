@@ -1,20 +1,20 @@
 package profile
 
 import (
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/httperrors"
 	"strings"
 
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/apperrors"
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/validation"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/models"
-	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
 )
 
 func ToProfileResponse(user *models.User, prof *models.Profile) ProfileResponse {
 	resp := ProfileResponse{
-		ID:    user.ID,
-		Email: user.Email,
+		ID:          user.ID,
+		Email:       user.Email,
 		PhoneNumber: user.PhoneNumber,
 	}
-	
+
 	if prof != nil {
 		resp.Nickname = prof.Nickname
 		resp.FirstName = prof.FirstName
@@ -29,30 +29,42 @@ func ToProfileResponse(user *models.User, prof *models.Profile) ProfileResponse 
 	return resp
 }
 
-func (r *UpdateProfileRequest) IsValid() []apperrors.ErrorDetail {
-	var details []apperrors.ErrorDetail
+func ToPublicProfileResponse(user *models.User, prof *models.Profile) PublicProfileResponse {
+	return PublicProfileResponse{
+		ID:        user.ID,
+		Nickname:  prof.Nickname,
+		FirstName: prof.FirstName,
+		LastName:  prof.LastName,
+		Bio:       prof.Bio,
+		IconID:    prof.IconID,
+		IconURL:   prof.AvatarURL,
+	}
+}
+
+func (r *UpdateProfileRequest) IsValid() []httperrors.ErrorDetail {
+	var details []httperrors.ErrorDetail
 	if r.Email != nil {
 		e := strings.ToLower(strings.TrimSpace(*r.Email))
 		r.Email = &e
-		if err := tools.ValidateEmail(*r.Email); err != nil {
+		if err := validation.ValidateEmail(*r.Email); err != nil {
 			details = append(details, *err)
 		}
 	}
 
 	if r.Nickname != nil {
-		if err := tools.ValidateNickname(*r.Nickname); err != nil {
+		if err := validation.ValidateNickname(*r.Nickname); err != nil {
 			details = append(details, *err)
 		}
 	}
 
 	if r.FirstName != nil {
-		if err := tools.ValidateFirstName(*r.FirstName); err != nil {
+		if err := validation.ValidateFirstName(*r.FirstName); err != nil {
 			details = append(details, *err)
 		}
 	}
 
 	if r.LastName != nil {
-		if err := tools.ValidateLastName(r.LastName); err != nil {
+		if err := validation.ValidateLastName(r.LastName); err != nil {
 			details = append(details, *err)
 		}
 	}
@@ -60,7 +72,7 @@ func (r *UpdateProfileRequest) IsValid() []apperrors.ErrorDetail {
 	if r.PhoneNumber != nil {
 		p := strings.TrimSpace(*r.PhoneNumber)
 		r.PhoneNumber = &p
-		if err := tools.ValidatePhoneNumber(r.PhoneNumber); err != nil {
+		if err := validation.ValidatePhoneNumber(r.PhoneNumber); err != nil {
 			details = append(details, *err)
 		}
 	}
@@ -68,14 +80,14 @@ func (r *UpdateProfileRequest) IsValid() []apperrors.ErrorDetail {
 	return details
 }
 
-func (r *UpdatePasswordRequest) IsValid() []apperrors.ErrorDetail {
-	var details []apperrors.ErrorDetail
+func (r *UpdatePasswordRequest) IsValid() []httperrors.ErrorDetail {
+	var details []httperrors.ErrorDetail
 
 	if r.OldPassword == "" {
-		details = append(details, apperrors.ErrorDetail{Field: "old_password", Reason: "required"})
+		details = append(details, httperrors.ErrorDetail{Field: "old_password", Reason: "required"})
 	}
 
-	if err := tools.ValidatePassword(r.NewPassword); err != nil {
+	if err := validation.ValidatePassword(r.NewPassword); err != nil {
 		details = append(details, *err)
 	}
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -16,7 +17,7 @@ import (
 
 func TestHealthRoute(t *testing.T) {
 	testDB := &storage.DB{}
-	handler, _ := router.New(testDB, nil)
+	handler, _ := router.New(testDB, nil, slog.Default(), nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/health", nil))
 	if rec.Code != http.StatusOK {
@@ -101,7 +102,7 @@ func TestConfigLoadRejectsInvalidValues(t *testing.T) {
 }
 
 func TestStorageRequiresDatabaseURL(t *testing.T) {
-	if _, err := storage.Connect(context.Background(), ""); err == nil {
+	if _, err := storage.Connect(context.Background(), "", slog.Default()); err == nil {
 		t.Fatal("expected missing database URL error")
 	}
 	storage.Close(nil)

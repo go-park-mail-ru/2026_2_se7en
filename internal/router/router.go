@@ -10,6 +10,7 @@ import (
 	deliverycontact "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/contact"
 	deliveryprofile "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/profile"
 	deliveryregister "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/register"
+	deliveryusers "github.com/go-park-mail-ru/2026_2_se7en/internal/delivery/users"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/middleware"
 	repochat "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/chat"
 	repocontact "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/contact"
@@ -18,6 +19,7 @@ import (
 	reposession "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/session"
 	repotx "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/tx"
 	repouser "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/user"
+	repousers "github.com/go-park-mail-ru/2026_2_se7en/internal/repository/users"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/storage"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools"
 	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/csrf"
@@ -26,6 +28,7 @@ import (
 	usecasecontact "github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/contact"
 	usecaseprofile "github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/profile"
 	usecaseregister "github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/register"
+	usecaseusers "github.com/go-park-mail-ru/2026_2_se7en/internal/usecase/users"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
 
@@ -39,12 +42,14 @@ func New(db *storage.DB, origins []string, baseLog *slog.Logger, csrfTokens *csr
 	fileRepo := repofile.NewFileRepository(db.Pool(), baseLog)
 	txManager := repotx.NewManager(db.Pool(), baseLog)
 	contactRepo := repocontact.NewContactRepository(db.Pool(), baseLog)
+	usersRepo := repousers.NewUsersRepository(db.Pool(), baseLog)
 
 	authUsecase := usecaseauth.NewAuthUsecase(userRepo, profileRepo, sessionRepo, baseLog)
 	registerUsecase := usecaseregister.NewRegisterUsecase(userRepo, profileRepo, baseLog)
 	chatUsecase := usecasechat.NewChatUsecase(chatRepo, baseLog)
 	profileUsecase := usecaseprofile.NewProfileUsecase(txManager, userRepo, profileRepo, fileRepo, baseLog)
 	contactUsecase := usecasecontact.NewContactUsecase(contactRepo, userRepo, baseLog)
+	usersUsecase := usecaseusers.NewUsersUsecase(usersRepo, baseLog)
 
 	wsHandler := deliverychat.NewWSHandler(hub, chatUsecase, origins, baseLog)
 
@@ -53,6 +58,7 @@ func New(db *storage.DB, origins []string, baseLog *slog.Logger, csrfTokens *csr
 	chatDelivery := deliverychat.NewChatDelivery(chatUsecase, hub, baseLog)
 	profileDelivery := deliveryprofile.NewProfileDelivery(profileUsecase, baseLog)
 	contactDelivery := deliverycontact.NewContactDelivery(contactUsecase, hub, baseLog)
+	usersDelivery := deliveryusers.NewUsersDelivery(usersUsecase, hub, baseLog)
 
 	api := http.NewServeMux()
 	csrfProtection := middleware.NewCSRFProtection(origins, csrfTokens, baseLog)
@@ -86,6 +92,7 @@ func New(db *storage.DB, origins []string, baseLog *slog.Logger, csrfTokens *csr
 	api.Handle("GET /ws", auth(http.HandlerFunc(wsHandler.HandleWS)))
 
 	api.Handle("GET /contacts", auth(http.HandlerFunc(contactDelivery.HandleGetContactsList)))
+	api.Handle("GET /users", auth(http.HandlerFunc(usersDelivery.HandleGetUsersList)))
 	api.Handle("POST /contacts", auth(tools.NewJSONDecoder(contactDelivery.HandleCreateContact, baseLog)))
 	api.Handle("DELETE /contacts", auth(tools.NewJSONDecoder(contactDelivery.HandleDeleteContact, baseLog)))
 

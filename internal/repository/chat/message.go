@@ -182,13 +182,22 @@ func (r *ChatRepositoryImpl) MarkMessageRead(ctx context.Context, userID, chatID
 	r.log.DebugContext(ctx, "database operation", logger.KeyOperation, "MarkMessageRead", slog.Any(logger.KeyTargetID, userID), slog.Any(logger.KeyChatID, chatID), slog.Any(logger.KeyMessageID, messageID))
 
 	const markRead = `
+		with boundary as (
+			select created_at, id
+			from message
+			where id = $3
+				and chat_id = $2
+				and user_id <> $1
+				and deleted_at is null
+		)
 		update message m
 		set is_read = true
-		where m.id = $3
-			and m.chat_id = $2
+		from boundary b
+		where m.chat_id = $2
 			and m.user_id <> $1
 			and m.deleted_at is null
 			and m.is_read = false
+			and (m.created_at, m.id) <= (b.created_at, b.id)
 			and exists (
 				select 1
 				from user_in_chat member

@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"errors"
+	"io"
 	"log/slog"
 	"strings"
 	"testing"
@@ -15,6 +16,7 @@ import (
 
 type mockChatRepo struct {
 	items         []*models.ChatListItem
+	activeIDs     []uuid.UUID
 	detail        *models.ChatDetail
 	dialogStatus  models.DialogStatus
 	dialogID      uuid.UUID
@@ -44,10 +46,11 @@ func (m *mockChatRepo) IsMember(ctx context.Context, userID, chatID uuid.UUID) (
 }
 
 func (m *mockChatRepo) GetActiveMemberIDs(context.Context, uuid.UUID) ([]uuid.UUID, error) {
-	return nil, m.err
+	m.called = true
+	return m.activeIDs, m.err
 }
 
-func (m *mockChatRepo) GetListUserChats(ctx context.Context, userID uuid.UUID, limit, offset int, chatType string, cursorTime *time.Time, cursorID uuid.UUID) ([]*models.ChatListItem, error) {
+func (m *mockChatRepo) GetListUserChats(ctx context.Context, userID uuid.UUID, limit int, chatType string, cursorTime *time.Time, cursorID uuid.UUID) ([]*models.ChatListItem, error) {
 	m.called = true
 	m.userID = userID
 	m.limit = limit
@@ -85,6 +88,7 @@ func (m *mockChatRepo) UpdateGroup(ctx context.Context, userID, chatID uuid.UUID
 }
 
 func (m *mockChatRepo) UpdateGroupAvatar(context.Context, uuid.UUID, uuid.UUID, string, string, string) (*models.ChatDetail, error) {
+	m.called = true
 	return m.detail, m.err
 }
 
@@ -279,7 +283,7 @@ func TestChatUsecase_GetListUserChats_Success(t *testing.T) {
 	}
 	uc := newTestChatUsecase(mockRepo)
 
-	items, err := uc.GetListUserChats(context.Background(), userID, 10, 0, "dialog", nil, uuid.Nil)
+	items, err := uc.GetListUserChats(context.Background(), userID, 10, "dialog", nil, uuid.Nil)
 
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -299,7 +303,7 @@ func TestChatUsecase_GetListUserChats_NilToEmptySlice(t *testing.T) {
 	mockRepo := &mockChatRepo{items: nil}
 	uc := newTestChatUsecase(mockRepo)
 
-	items, err := uc.GetListUserChats(context.Background(), uuid.New(), 10, 0, "", nil, uuid.Nil)
+	items, err := uc.GetListUserChats(context.Background(), uuid.New(), 10, "", nil, uuid.Nil)
 
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -317,7 +321,7 @@ func TestChatUsecase_GetListUserChats_Error(t *testing.T) {
 	mockRepo := &mockChatRepo{err: dbErr}
 	uc := newTestChatUsecase(mockRepo)
 
-	items, err := uc.GetListUserChats(context.Background(), uuid.New(), 10, 0, "", nil, uuid.Nil)
+	items, err := uc.GetListUserChats(context.Background(), uuid.New(), 10, "", nil, uuid.Nil)
 
 	if err == nil || err.Error() != "database connection failed" {
 		t.Errorf("expected db error, got %v", err)
@@ -325,4 +329,105 @@ func TestChatUsecase_GetListUserChats_Error(t *testing.T) {
 	if items != nil {
 		t.Errorf("expected nil items on error, got %+v", items)
 	}
+}
+
+func TestChatUsecase_DelegatesChatAndGroupOperations(t *testing.T) {
+	ctx := context.Background()
+	userID, chatID, peerID := uuid.New(), uuid.New(), uuid.New()
+	repo := &mockChatRepo{
+		isMember:  true,
+		activeIDs: []uuid.UUID{userID, peerID},
+		detail:    &models.ChatDetail{Chat: &models.Chat{ID: chatID}},
+		member:    &models.ChatMember{UserID: peerID},
+	}
+	uc := newTestChatUsecase(repo)
+
+	membership, err := uc.IsMember(ctx, userID, chatID)
+	if err != nil || membership == nil || !membership.IsMember {
+		t.Fatalf("IsMember = %+v, %v", membership, err)
+	}
+	ids, err := uc.GetActiveMemberIDs(ctx, chatID)
+	if err != nil || len(ids) != 2 {
+		t.Fatalf("GetActiveMemberIDs = %v, %v", ids, err)
+	}
+	detail, err := uc.GetChatDetail(ctx, userID, chatID)
+	if err != nil || detail != repo.detail {
+		t.Fatalf("GetChatDetail = %v, %v", detail, err)
+	}
+	if err := uc.DeleteChat(ctx, userID, chatID); err != nil {
+		t.Fatalf("DeleteChat: %v", err)
+	}
+	if err := uc.HideDialog(ctx, userID, chatID); err != nil {
+		t.Fatalf("HideDialog: %v", err)
+	}
+	members, err := uc.GetListMembers(ctx, userID, chatID)
+	if err != nil || len(members) != 0 || !repo.listCalled {
+		t.Fatalf("GetListMembers = %v, %v", members, err)
+	}
+	member, err := uc.UpdateMemberRole(ctx, userID, chatID, peerID, "admin")
+	if err != nil || member != repo.member {
+		t.Fatalf("UpdateMemberRole = %v, %v", member, err)
+	}
+	if err := uc.RemoveMember(ctx, userID, chatID, peerID); err != nil {
+		t.Fatalf("RemoveMember: %v", err)
+	}
+	content := "hi"
+	repo.messages = []models.Message{{ID: uuid.New(), Content: &content}}
+	message, err := uc.CreateMessage(ctx, userID, chatID, nil, nil, &content, "text")
+	if err != nil || message == nil || message.Content == nil || *message.Content != content {
+		t.Fatalf("CreateMessage = %v, %v", message, err)
+	}
+}
+
+func TestChatUsecase_CreateDialogAndGetListMembersPropagateRepositoryErrors(t *testing.T) {
+	want := errors.New("repo failed")
+	userID, peerID, chatID := uuid.New(), uuid.New(), uuid.New()
+	t.Run("create dialog", func(t *testing.T) {
+		repo := &mockChatRepo{err: want}
+		detail, status, err := newTestChatUsecase(repo).CreateDialog(context.Background(), userID, peerID)
+		if detail != nil || status != models.DialogExisting || !errors.Is(err, want) {
+			t.Fatalf("got %v, %v, %v", detail, status, err)
+		}
+	})
+	t.Run("fetch dialog detail", func(t *testing.T) {
+		repo := &mockChatRepo{dialogID: chatID, detailErr: want}
+		detail, status, err := newTestChatUsecase(repo).CreateDialog(context.Background(), userID, peerID)
+		if detail != nil || status != models.DialogExisting || !errors.Is(err, want) {
+			t.Fatalf("got %v, %v, %v", detail, status, err)
+		}
+	})
+	t.Run("list members", func(t *testing.T) {
+		repo := &mockChatRepo{detailErr: want}
+		members, err := newTestChatUsecase(repo).GetListMembers(context.Background(), userID, chatID)
+		if members != nil || !errors.Is(err, want) || repo.listCalled {
+			t.Fatalf("got %v, %v, list called=%t", members, err, repo.listCalled)
+		}
+	})
+}
+
+func TestChatUsecase_CreateMessagePropagatesRepositoryError(t *testing.T) {
+	want := errors.New("write failed")
+	repo := &mockChatRepo{err: want}
+	message, err := newTestChatUsecase(repo).CreateMessage(context.Background(), uuid.New(), uuid.New(), nil, nil, nil, "text")
+	if message != nil || !errors.Is(err, want) {
+		t.Fatalf("message = %v, err = %v", message, err)
+	}
+}
+
+func TestChatUsecase_UploadGroupAvatar(t *testing.T) {
+	t.Run("saves and attaches avatar", func(t *testing.T) {
+		repo := &mockChatRepo{detail: &models.ChatDetail{Chat: &models.Chat{ID: uuid.New()}}}
+		upload := &models.FileUpload{Reader: io.NopCloser(strings.NewReader("image")), Filename: "a.png", Size: 5, ContentType: "image/png"}
+		got, err := newTestChatUsecase(repo).UploadGroupAvatar(context.Background(), uuid.New(), uuid.New(), upload)
+		if err != nil || got != repo.detail || !repo.called {
+			t.Fatalf("detail = %v, err = %v, called = %t", got, err, repo.called)
+		}
+	})
+	t.Run("rejects invalid upload", func(t *testing.T) {
+		repo := &mockChatRepo{}
+		got, err := newTestChatUsecase(repo).UploadGroupAvatar(context.Background(), uuid.New(), uuid.New(), &models.FileUpload{Reader: strings.NewReader("x"), Size: 1, ContentType: "text/plain"})
+		if err == nil || got != nil || repo.called {
+			t.Fatalf("detail = %v, err = %v, called = %t", got, err, repo.called)
+		}
+	})
 }

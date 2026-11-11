@@ -4,7 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
+
+	"github.com/go-park-mail-ru/2026_2_se7en/internal/tools/logger"
 )
 
 type Config struct {
@@ -14,7 +17,9 @@ type Config struct {
 	IdleTimeout     time.Duration
 	ShutdownTimeout time.Duration
 	LogLevel        string
+	CSRFSecret      string
 	DatabaseURL     string
+	Origins         []string
 }
 
 func Load() (Config, error) {
@@ -22,10 +27,21 @@ func Load() (Config, error) {
 	var err error
 
 	cfg.Addr = getEnv("ADDR", ":8080")
-	cfg.LogLevel = getEnv("LOG_LEVEL", "info")
+	cfg.CSRFSecret = getEnv("CSRF_SECRET", "")
+	cfg.LogLevel = strings.ToLower(getEnv("LOG_LEVEL", logger.LevelInfo))
+	if _, err := logger.ParseLevel(cfg.LogLevel); err != nil {
+		return Config{}, err
+	}
 	cfg.DatabaseURL = getEnv("DATABASE_URL", "")
 	if cfg.DatabaseURL == "" {
 		return Config{}, errors.New("DatabaseURL are required")
+	}
+
+	for _, value := range strings.Split(getEnv("ORIGINS", ""), ",") {
+		origin := strings.TrimSpace(value)
+		if origin != "" {
+			cfg.Origins = append(cfg.Origins, origin)
+		}
 	}
 
 	if cfg.ReadTimeout, err = getEnvDuration("READ_TIMEOUT", 5*time.Second); err != nil {

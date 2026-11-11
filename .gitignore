@@ -3,3 +3,6 @@
 *.exe
 test*
 coverage.out
+uploads/
+cookies.txt
+cookie.txt

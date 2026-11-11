@@ -80,11 +80,11 @@ func New(db *storage.DB, origins []string, baseLog *slog.Logger, csrfTokens *csr
 	api.Handle("POST /chats/{id}/hide", auth(http.HandlerFunc(chatDelivery.HandleHideDialog)))
 	api.Handle("POST /chats/groups", auth(tools.NewJSONDecoder(chatDelivery.HandleCreateGroup, baseLog)))
 	api.Handle("PATCH /chats/{id}", auth(tools.NewJSONDecoder(chatDelivery.HandleUpdateGroup, baseLog)))
-	api.Handle("PUT /chats/{id}/avatar", auth(http.HandlerFunc(chatDelivery.HandleUploadGroupAvatar))) // Из sync-dev
+	api.Handle("PUT /chats/{id}/avatar", auth(http.HandlerFunc(chatDelivery.HandleUploadGroupAvatar)))
 	api.Handle("DELETE /chats/{id}", auth(http.HandlerFunc(chatDelivery.HandleDeleteChat)))
 	api.Handle("GET /chats/{id}/members", auth(http.HandlerFunc(chatDelivery.HandleGetListMembers)))
 	api.Handle("POST /chats/{id}/members", auth(tools.NewJSONDecoder(chatDelivery.HandleAddMember, baseLog)))
-	api.Handle("PATCH /chats/{id}/members/{user_id}/role", auth(tools.NewJSONDecoder(chatDelivery.HandleUpdateMemberRole, baseLog))) // Из sync-dev
+	api.Handle("PATCH /chats/{id}/members/{user_id}/role", auth(tools.NewJSONDecoder(chatDelivery.HandleUpdateMemberRole, baseLog)))
 	api.Handle("DELETE /chats/{id}/members/{user_id}", auth(http.HandlerFunc(chatDelivery.HandleRemoveMember)))
 	api.Handle("DELETE /chats/{id}/leave", auth(http.HandlerFunc(chatDelivery.HandleLeaveGroup)))
 	api.Handle("GET /chats/{id}/messages", auth(http.HandlerFunc(chatDelivery.HandleGetListMessages)))
@@ -96,7 +96,7 @@ func New(db *storage.DB, origins []string, baseLog *slog.Logger, csrfTokens *csr
 	api.Handle("POST /contacts", auth(tools.NewJSONDecoder(contactDelivery.HandleCreateContact, baseLog)))
 	api.Handle("DELETE /contacts", auth(tools.NewJSONDecoder(contactDelivery.HandleDeleteContact, baseLog)))
 
-	api.Handle("GET /users/{id}", auth(http.HandlerFunc(profileDelivery.HandleGetPublicProfile))) // Из dev
+	api.Handle("GET /users/{id}", auth(http.HandlerFunc(profileDelivery.HandleGetPublicProfile)))
 	api.Handle("GET /profile", auth(http.HandlerFunc(profileDelivery.HandleGetProfile)))
 	api.Handle("PATCH /profile", auth(tools.NewJSONDecoder(profileDelivery.HandleUpdateProfile, baseLog)))
 	api.Handle("PUT /profile/avatar", auth(http.HandlerFunc(profileDelivery.HandleUploadAvatar)))

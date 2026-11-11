@@ -114,3 +114,49 @@ func TestContactUsecase_GetContactsList_Success(t *testing.T) {
 		t.Errorf("unexpected contacts list: %+v", contacts)
 	}
 }
+
+func TestContactUsecase_CreateContact_PropagatesLookupErrors(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+	}{
+		{name: "user missing", err: apperrors.ErrUserNotFound},
+		{name: "repository failure", err: errors.New("lookup failed")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			userRepo := NewMockUserRepository(ctrl)
+			contactRepo := NewMockContactRepository(ctrl)
+			userRepo.EXPECT().FindByNickname(gomock.Any(), "absent").Return(nil, tc.err)
+			err := NewContactUsecase(contactRepo, userRepo, slog.Default()).CreateContact(context.Background(), uuid.New(), "absent", nil)
+			if !errors.Is(err, tc.err) {
+				t.Fatalf("err = %v, want %v", err, tc.err)
+			}
+		})
+	}
+}
+
+func TestContactUsecase_DeleteContact(t *testing.T) {
+	for _, tc := range []struct {
+		name             string
+		repoErr, wantErr error
+	}{
+		{name: "success"},
+		{name: "not found", repoErr: apperrors.ErrContactNotFound, wantErr: apperrors.ErrContactNotFound},
+		{name: "database error", repoErr: errors.New("delete failed"), wantErr: errors.New("delete failed")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			repo := NewMockContactRepository(ctrl)
+			userID, contactID := uuid.New(), uuid.New()
+			repo.EXPECT().DeleteContact(gomock.Any(), userID, contactID).Return(tc.repoErr)
+			err := NewContactUsecase(repo, NewMockUserRepository(ctrl), slog.Default()).DeleteContact(context.Background(), userID, contactID)
+			if tc.wantErr == nil && err != nil {
+				t.Fatalf("err = %v", err)
+			}
+			if tc.wantErr != nil && (err == nil || err.Error() != tc.wantErr.Error()) {
+				t.Fatalf("err = %v, want %v", err, tc.wantErr)
+			}
+		})
+	}
+}

@@ -164,6 +164,30 @@ func TestRegisterUsecase_NicknameTaken(t *testing.T) {
 	}
 }
 
+func TestRegisterUsecase_ValidationAndRepositoryFailures(t *testing.T) {
+	checks := []struct {
+		name string
+		repo *mockRepo
+		user *models.User
+		want error
+	}{
+		{name: "email lookup error", repo: &mockRepo{checkEmailErr: errors.New("email lookup")}, user: &models.User{Email: "a@b.test", Profile: &models.Profile{Nickname: "alice"}}, want: errors.New("email lookup")},
+		{name: "profile required", repo: &mockRepo{}, user: &models.User{Email: "a@b.test"}, want: apperrors.ErrProfileRequired},
+		{name: "nickname lookup error", repo: &mockRepo{checkNickErr: errors.New("nickname lookup")}, user: &models.User{Email: "a@b.test", Profile: &models.Profile{Nickname: "alice"}}, want: errors.New("nickname lookup")},
+		{name: "user creation error", repo: &mockRepo{createUserErr: errors.New("user creation")}, user: &models.User{Email: "a@b.test", Profile: &models.Profile{Nickname: "alice"}}, want: errors.New("user creation")},
+		{name: "profile creation error", repo: &mockRepo{createProfileErr: errors.New("profile creation")}, user: &models.User{Email: "a@b.test", Profile: &models.Profile{Nickname: "alice"}}, want: errors.New("profile creation")},
+		{name: "session creation error", repo: &mockRepo{createSessionErr: errors.New("session creation")}, user: &models.User{Email: "a@b.test", Profile: &models.Profile{Nickname: "alice"}}, want: errors.New("session creation")},
+	}
+	for _, tc := range checks {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := NewRegisterUsecase(tc.repo, tc.repo, slog.Default()).Register(context.Background(), tc.user, "password123")
+			if err == nil || err.Error() != tc.want.Error() {
+				t.Fatalf("err = %v, want %v", err, tc.want)
+			}
+		})
+	}
+}
+
 func TestRegisterUsecase_ProfileCreationError(t *testing.T) {
 	repo := &mockRepo{createProfileErr: errors.New("db error")}
 	uc := NewRegisterUsecase(repo, repo, slog.Default())

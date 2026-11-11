@@ -109,14 +109,14 @@ const sqlListUserChats = `
             limit 1
         ) m on true
         where u.user_id = $1 and u.deleted_at is null and c.deleted_at is null
-            and ($3 = '' or c.type = $3)
+            and ($3::text = '' or c.type::text = $3::text)
     )
     select id, icon_id, chat_icon_url, peer_id, peer_icon_url,
         peer_first_name, peer_last_name, peer_nickname, name, description, type, members_count,
         created_at, updated_at, deleted_at, message_id, message_content,
         message_type, message_created_at, unread_count, activity_at
     from visible_chats
-    where ($4::timestamptz is null or (activity_at, id) < ($4, $5))
+    where ($4::timestamptz is null or (activity_at, id) < ($4::timestamptz, $5::uuid))
     order by activity_at desc, id desc
     limit $2
 `
@@ -137,10 +137,10 @@ const sqlFindForUser = `
 	where c.id = $2 and c.deleted_at is null
 `
 
-func (r *ChatRepositoryImpl) GetListUserChats(ctx context.Context, userID uuid.UUID, limit, offset int, chatType string, cursorTime *time.Time, cursorID uuid.UUID) ([]*models.ChatListItem, error) {
+func (r *ChatRepositoryImpl) GetListUserChats(ctx context.Context, userID uuid.UUID, limit int, chatType string, cursorTime *time.Time, cursorID uuid.UUID) ([]*models.ChatListItem, error) {
 	r.log.DebugContext(ctx, "database operation", logger.KeyOperation, "GetListUserChats", slog.Any(logger.KeyTargetID, userID))
 
-	rows, err := r.pool.Query(ctx, sqlListUserChats, userID, limit, offset, chatType, cursorTime, cursorID)
+	rows, err := r.pool.Query(ctx, sqlListUserChats, userID, limit, chatType, cursorTime, cursorID)
 
 	if err != nil {
 		r.log.ErrorContext(ctx, "GetListUserChats failed", logger.Error(err))

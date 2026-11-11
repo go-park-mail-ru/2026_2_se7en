@@ -87,19 +87,6 @@ func (d *ChatDeliveryImpl) HandleGetListUserChats(w http.ResponseWriter, r *http
 		return
 	}
 
-	offset, err := parseQueryInt(q, "offset")
-	if err != nil {
-		d.log.ErrorContext(r.Context(), "HandleGetListUserChats failed", logger.Error(err))
-
-		httperrors.WriteError(w, httperrors.NewBadRequest("Invalid offset format", []httperrors.ErrorDetail{{Field: "offset", Reason: err.Error()}}))
-		return
-	}
-
-	if offset < 0 {
-		httperrors.WriteError(w, httperrors.NewBadRequest("Invalid offset", []httperrors.ErrorDetail{{Field: "offset", Reason: "Offset must be >= 0"}}))
-		return
-	}
-
 	chatType := ""
 	if vals, present := q["type"]; present {
 		if len(vals) != 1 || vals[0] == "" {
@@ -121,7 +108,7 @@ func (d *ChatDeliveryImpl) HandleGetListUserChats(w http.ResponseWriter, r *http
 		return
 	}
 
-	items, err := d.chatUsecase.GetListUserChats(r.Context(), userID, limit+1, offset, chatType, cursorTime, cursorID)
+	items, err := d.chatUsecase.GetListUserChats(r.Context(), userID, limit+1, chatType, cursorTime, cursorID)
 	if err != nil {
 		d.log.ErrorContext(r.Context(), "HandleGetListUserChats failed", logger.Error(err))
 

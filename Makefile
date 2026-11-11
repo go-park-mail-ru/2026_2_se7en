@@ -9,4 +9,3 @@ coverage:
 
 generate_swagger:
 	$(SWAG) init -g cmd/server/main.go --v3.1 -o ./docs
-	
